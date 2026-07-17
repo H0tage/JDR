@@ -5,6 +5,8 @@ import type {
   CampaignSettings,
   Contact,
   JournalEntry,
+  MilestoneEffect,
+  MilestoneStatus,
   Relationship,
   Visibility,
 } from "./types";
@@ -191,9 +193,19 @@ export async function updateSettings(settings: CampaignSettings): Promise<void> 
   if (error) throw new Error(`Configuration : ${error.message}`);
 }
 
-export async function applyMilestone(id: string): Promise<void> {
+export async function resolveMilestone(
+  id: string,
+  outcome: Exclude<MilestoneStatus, "excluded">,
+  note: string | null,
+  effects: MilestoneEffect[] | null,
+): Promise<void> {
   const client = requireClient();
-  const { error } = await client.rpc("apply_reputation_milestone", { milestone_id: id });
+  const { error } = await client.rpc("resolve_reputation_milestone", {
+    p_milestone_id: id,
+    p_outcome: outcome,
+    p_note: note,
+    p_effects: effects,
+  });
   if (error) throw new Error(`Jalon : ${error.message}`);
 }
 
@@ -245,6 +257,7 @@ export function subscribeToCampaign(campaignId: string, onChange: () => void) {
     .on("postgres_changes", { event: "*", schema: "public", table: "journal_entries", filter: `campaign_id=eq.${campaignId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "contacts", filter: `campaign_id=eq.${campaignId}` }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "faction_relationships", filter: `campaign_id=eq.${campaignId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "reputation_milestones", filter: `campaign_id=eq.${campaignId}` }, onChange)
     .subscribe();
   return () => { void supabase?.removeChannel(channel); };
 }

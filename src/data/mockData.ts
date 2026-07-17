@@ -236,33 +236,54 @@ export const mockJournal: JournalEntry[] = [{
   tension_delta: 0,
   visibility: "players",
   source_reference: "Zombie Feast, p. 20",
+  milestone_id: "00000000-0000-4000-8700-000000000001",
 }];
 
-const milestoneRows = [
-  ["Résoudre la crise de la ferme", "réanimateurs", 5, null, 0, "Récompense prévue par l’aventure."],
-  ["Secourir Se-Maut-Get", "célébrants", 4, null, 0, "Se-Maut-Get doit survivre à l’aventure."],
-  ["Libérer Altinmered", "exportation", 4, null, 0, "Libérer Altinmered."],
-  ["Choisir la branche SPI de la banque", "uci", 8, "bâtisseurs", -4, "Choix exclusif avec la branche des Bâtisseurs."],
-  ["Choisir la branche des Bâtisseurs", "bâtisseurs", 8, "uci", -4, "Choix exclusif avec la branche SPI."],
-] as const;
+type MockMilestoneSeed = { volume: number; chapter: string; title: string; condition: string; source: string; choice?: string; effects: Milestone["reward_effects"] };
+const milestoneRows: MockMilestoneSeed[] = [
+  { volume: 1, chapter: "Chapitre 1", title: "Résoudre la crise de la ferme", condition: "Mettre fin aux troubles de la ferme confiée par Berline.", source: "Blood Lords #1 — Zombie Feast, p. 21", effects: [{ label: "Réanimateurs", faction_id: factionIds["réanimateurs"], amount: 5 }] },
+  { volume: 1, chapter: "Chapitre 3", title: "Secourir Se-Maut-Get", condition: "Se-Maut-Get doit survivre à l’aventure.", source: "Blood Lords #1 — Zombie Feast, p. 59", effects: [{ label: "Célébrants", faction_id: factionIds["célébrants"], amount: 4 }] },
+  { volume: 1, chapter: "Chapitre 3", title: "Libérer Altinmered", condition: "Libérer Altinmered de sa captivité.", source: "Blood Lords #1 — Zombie Feast, p. 62", effects: [{ label: "Exportateurs", faction_id: factionIds.exportation, amount: 4 }] },
+  { volume: 1, chapter: "Épilogue", title: "Confier la banque aux Percepteurs", condition: "Permettre à Vaskish de rouvrir la banque.", source: "Blood Lords #1 — Zombie Feast, p. 63", choice: "v1-graydirge-bank", effects: [{ label: "Percepteurs", faction_id: factionIds.uci, amount: 8 }, { label: "Bâtisseurs", faction_id: factionIds["bâtisseurs"], amount: -4 }] },
+  { volume: 1, chapter: "Épilogue", title: "Confier la banque aux Bâtisseurs", condition: "Révéler la revendication légale des Bâtisseurs.", source: "Blood Lords #1 — Zombie Feast, p. 63", choice: "v1-graydirge-bank", effects: [{ label: "Bâtisseurs", faction_id: factionIds["bâtisseurs"], amount: 8 }, { label: "Percepteurs", faction_id: factionIds.uci, amount: -4 }] },
+  { volume: 2, chapter: "Chapitre 1", title: "Remettre le carnet de Gessamon aux Convoyeurs", condition: "Transmettre le carnet compromettant au Consortium.", source: "Blood Lords #2 — Graveclaw, p. 13", effects: [{ label: "Convoyeurs", faction_id: factionIds.charretiers, amount: 1 }] },
+  { volume: 2, chapter: "Chapitre 4", title: "Suivre les entreprises de Zthni", condition: "Le gain dépend du nombre d’entreprises accomplies.", source: "Blood Lords #2 — Graveclaw, p. 60", effects: [{ label: "Célébrants", faction_id: factionIds["célébrants"], amount_min: 1, amount_max: 5 }] },
+  { volume: 3, chapter: "Chapitre 1", title: "Reloger Thornhearth à Graydirge", condition: "Installer les habitants spécifiquement à Graydirge.", source: "Blood Lords #3 — Field of Maidens, p. 22", effects: [{ label: "Percepteurs", faction_id: factionIds.uci, amount: 2 }, { label: "Réanimateurs", faction_id: factionIds["réanimateurs"], amount: 1 }] },
+  { volume: 4, chapter: "Chapitre 1", title: "Mener la procession", condition: "Attribuer le résultat à la faction soutenue.", source: "Blood Lords #4 — The Ghouls Hunger, p. 7", effects: [{ label: "Faction soutenue", scope: "any", amount_min: 1, amount_max: 3 }] },
+  { volume: 5, chapter: "Chapitre 2", title: "Participer à la représentation", condition: "Au moins un PJ accepte de jouer.", source: "Blood Lords #5 — A Taste of Ashes, p. 33", effects: [{ label: "Grandes Factions", scope: "all_great", amount: 1 }] },
+  { volume: 6, chapter: "Chapitre 1", title: "Préserver le secret de Castel", condition: "Rester discret au sujet de la base secrète.", source: "Blood Lords #6 — Ghost King’s Rage, p. 6", effects: [{ label: "Convoyeurs", faction_id: factionIds.charretiers, amount: 2 }] },
+];
 
-export const mockMilestones: Milestone[] = milestoneRows.map((row, index) => ({
-  id: `00000000-0000-4000-8700-${String(index + 1).padStart(12, "0")}`,
-  campaign_id: CAMPAIGN_ID,
-  volume: 1,
-  chapter: null,
-  title: row[0],
-  beneficiary_faction_id: factionIds[row[1]],
-  beneficiary_name: factionSeeds.find((f) => f[0] === row[1])![2],
-  rp_gain: row[2],
-  harmed_faction_id: row[3] ? factionIds[row[3]] : null,
-  harmed_name: row[3] ? factionSeeds.find((f) => f[0] === row[3])![2] : null,
-  rp_loss: row[4],
-  condition: row[5],
-  source_reference: "Blood Lords #1 — Zombie Feast",
-  applied: index === 0,
-  gm_notes: null,
-}));
+export const mockMilestones: Milestone[] = milestoneRows.map((row, index) => {
+  const succeeded = index === 0;
+  return {
+    id: `00000000-0000-4000-8700-${String(index + 1).padStart(12, "0")}`,
+    campaign_id: CAMPAIGN_ID,
+    volume: row.volume,
+    chapter: row.chapter,
+    title: row.title,
+    beneficiary_faction_id: null,
+    beneficiary_name: null,
+    rp_gain: 0,
+    harmed_faction_id: null,
+    harmed_name: null,
+    rp_loss: 0,
+    condition: row.condition,
+    source_reference: row.source,
+    applied: succeeded,
+    gm_notes: null,
+    sort_order: index + 1,
+    status: succeeded ? "succeeded" : "pending",
+    resolution_note: null,
+    choice_group: row.choice ?? null,
+    reward_effects: row.effects,
+    resolved_effects: succeeded ? [{ label: "Réanimateurs", faction_id: factionIds["réanimateurs"], amount: 5 }] : null,
+    resolved_at: succeeded ? "2026-05-10T12:00:00Z" : null,
+    excluded_by_milestone_id: null,
+    excluded_by_title: null,
+    status_before_exclusion: null,
+  };
+});
 
 export const mockCampaignData: CampaignData = {
   settings: mockSettings,

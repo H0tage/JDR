@@ -24,10 +24,10 @@ import {
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   addJournalEntry,
-  applyMilestone,
   currentSession,
   deleteJournalEntry,
   loadGmData,
+  resolveMilestone,
   saveContact,
   signInWithPassword,
   signOut,
@@ -47,6 +47,9 @@ import type {
   FactionOverview,
   JournalEntry,
   Milestone,
+  MilestoneEffect,
+  MilestoneEffectTemplate,
+  MilestoneStatus,
   Relationship,
   RelationshipColor,
   Service,
@@ -492,15 +495,171 @@ function PoliticsTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
 
 function ProgressionTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
   const volumeGuides = [
-    ["Présenter les factions", "Nommer un contact et un service concret à chaque seuil atteint.", "Ne pas ajouter des RP uniquement pour accélérer la progression."],
-    ["Introduire les Convoyeurs", "Faire apparaître au plus une conséquence importante par chapitre.", "Éviter de transformer chaque détour en test de loyauté."],
-    ["Soutenir la diplomatie", "Employer contacts et faveurs pour préparer les scènes d’influence.", "Ne pas rallonger les sous-systèmes d’Influence existants."],
-    ["Valoriser les temps morts", "Autoriser projets, travaux, recherches et faveurs institutionnelles.", "Les services ne doivent pas effacer les coûts narratifs majeurs."],
-    ["Réutiliser les relations", "Faire revenir contacts, dettes et promesses antérieures.", "Éviter les bonus universels sans lien avec la fiction."],
-    ["Conclure les alliances", "Appliquer d’abord les raccourcis gratuits prévus par l’aventure.", "Ne pas faire payer ce que le texte accorde déjà."],
+    { title: "Zombie Feast", stakes: "Graydirge, la ferme de Berline et le sort de la banque.", factions: "Réanimateurs · Célébrants · Exportateurs · Bâtisseurs/Percepteurs" },
+    { title: "Graveclaw", stakes: "Pagked, la coven Graveclaw et les premières manœuvres des Convoyeurs.", factions: "Les six factions" },
+    { title: "Field of Maidens", stakes: "L’avenir de Thornhearth et les choix diplomatiques du Marché de Chair Creuse.", factions: "Percepteurs · Réanimateurs · Convoyeurs · Célébrants · Exportateurs" },
+    { title: "The Ghouls Hunger", stakes: "Yled, les Mangeurs de Secrets et les alliances institutionnelles.", factions: "Les six factions" },
+    { title: "A Taste of Ashes", stakes: "Le théâtre de Yled et la grande bataille de réputation.", factions: "Les cinq Grandes Factions" },
+    { title: "Ghost King’s Rage", stakes: "Les reliques, les ultimes arbitrages et la conclusion des alliances.", factions: "Les six factions" },
   ];
-  async function apply(item: Milestone) { if (!window.confirm(`Appliquer « ${item.title} » au journal ?`)) return; await mutate(() => applyMilestone(item.id), "Jalon appliqué au journal.", (previous) => { previous.milestones.find((m) => m.id === item.id)!.applied = true; const add = (factionId: string | null, delta: number, label: string) => { if (!factionId || !delta) return; const faction = previous.factions.find((f) => f.faction_id === factionId)!; faction.rp = Math.max(0, faction.rp + delta); if (delta > 0) faction.jf = Math.min(previous.settings.jf_cap, faction.jf + delta); previous.journal.unshift({ id: crypto.randomUUID(), campaign_id: previous.settings.campaign_id, faction_id: factionId, faction_name: faction.short_name, occurred_on: new Date().toISOString().slice(0,10), volume: item.volume, title: `${item.title} — ${label}`, details: item.condition, rp_delta: delta, jf_delta: delta > 0 ? delta : 0, tension_delta: 0, visibility: "ready", source_reference: item.source_reference }); }; add(item.beneficiary_faction_id, item.rp_gain, "gain"); add(item.harmed_faction_id, item.rp_loss, "perte"); return previous; }); }
-  return <div className="page-stack"><SectionHeading eyebrow="Six volumes, une campagne" title="Progression MJ" /><section className="volume-track">{volumeGuides.map((guide, index) => <article key={index} className={data.settings.current_volume === index + 1 ? "current" : data.settings.current_volume > index + 1 ? "past" : ""}><span>{index + 1}</span><div><strong>{guide[0]}</strong><p>{guide[1]}</p><small>{guide[2]}</small></div></article>)}</section><SectionHeading eyebrow="Récompenses officielles vérifiées" title="Jalons du volume 1" /><div className="table-wrap"><table className="data-table"><thead><tr><th>Volume</th><th>Jalon</th><th>Gain</th><th>Perte liée</th><th>Condition</th><th>État</th></tr></thead><tbody>{data.milestones.map((item) => <tr key={item.id}><td>V{item.volume}</td><td><strong>{item.title}</strong><small>{item.source_reference}</small></td><td>{item.beneficiary_name ? `${item.beneficiary_name} +${item.rp_gain}` : "—"}</td><td>{item.harmed_name ? `${item.harmed_name} ${item.rp_loss}` : "—"}</td><td>{item.condition}</td><td>{item.applied ? <span className="applied">Appliqué</span> : <button className="button tiny" onClick={() => void apply(item)}>Appliquer</button>}</td></tr>)}</tbody></table></div><p className="footnote">Ce relevé initial couvre le volume 1 et complète sa lecture sans la remplacer. Chaque application crée des lignes distinctes dans le journal.</p></div>;
+  const [selectedVolume, setSelectedVolume] = useState(data.settings.current_volume);
+  const [selected, setSelected] = useState<Milestone | null>(null);
+  const visible = data.milestones.filter((item) => item.volume === selectedVolume);
+  const count = (volume: number, status: MilestoneStatus) => data.milestones.filter((item) => item.volume === volume && item.status === status).length;
+
+  return <div className="page-stack">
+    <SectionHeading eyebrow="Six volumes, une campagne" title="Progression MJ" />
+    <section className="volume-track" aria-label="Filtrer les jalons par volume">{volumeGuides.map((guide, index) => {
+      const volume = index + 1;
+      const total = data.milestones.filter((item) => item.volume === volume).length;
+      const resolved = count(volume, "succeeded") + count(volume, "missed") + count(volume, "excluded");
+      return <button type="button" key={volume} className={`${selectedVolume === volume ? "selected" : ""} ${data.settings.current_volume === volume ? "current" : ""}`} onClick={() => setSelectedVolume(volume)}>
+        <span>{volume}</span><div><strong>Volume {volume}</strong><em>{guide.title}</em><p>{guide.stakes}</p><small>{guide.factions}</small><footer>{resolved}/{total} jalons classés{data.settings.current_volume === volume && <i>Volume actuel</i>}</footer></div>
+      </button>;
+    })}</section>
+    <div className="progression-heading"><SectionHeading eyebrow="Récompenses officielles vérifiées" title={`Jalons du volume ${selectedVolume}`} /><div className="status-legend"><span className="milestone-status succeeded">Réussi</span><span className="milestone-status missed">Manqué</span><span className="milestone-status excluded">Écarté</span><span className="milestone-status pending">En attente</span></div></div>
+    <div className="table-wrap"><table className="data-table milestone-table"><thead><tr><th>Chapitre</th><th>Jalon</th><th>Effets prévus</th><th>Condition</th><th>État</th></tr></thead><tbody>{visible.map((item) => <tr key={item.id} className={`milestone-row ${item.status}`}><td>{item.chapter ?? "—"}</td><td><strong>{item.title}</strong><small>{item.source_reference}</small>{item.resolution_note && <em>Note : {item.resolution_note}</em>}</td><td>{describeEffects(item.reward_effects, data)}</td><td>{item.condition}</td><td><span className={`milestone-status ${item.status}`}>{statusLabel(item.status)}</span>{item.status === "excluded" && item.excluded_by_title && <small>par « {item.excluded_by_title} »</small>}<button className="button tiny secondary" onClick={() => setSelected(item)}>{item.status === "pending" ? "Résoudre" : item.status === "excluded" ? "Choisir plutôt" : "Modifier"}</button></td></tr>)}</tbody></table></div>
+    <p className="footnote">Changer de carte filtre uniquement cette liste : le volume actuel de la campagne reste inchangé. Un choix réussi écarte automatiquement ses alternatives ; le modifier annule proprement ses effets dans le journal.</p>
+    {selected && <MilestoneResolutionModal item={selected} data={data} mutate={mutate} onClose={() => setSelected(null)} />}
+  </div>;
+}
+
+type EffectDraft = { key: string; label: string; faction_id: string; amount: number; min: number; max: number; locked: boolean; scope?: MilestoneEffectTemplate["scope"]; distinct_group?: string; exclude_faction_ids?: string[] };
+
+function statusLabel(status: MilestoneStatus) {
+  return { pending: "En attente", succeeded: "Réussi", missed: "Manqué", excluded: "Écarté" }[status];
+}
+
+function factionName(data: CampaignData, factionId: string) {
+  return data.factions.find((faction) => faction.faction_id === factionId)?.short_name ?? "Faction";
+}
+
+function isConvoyeurs(faction: FactionOverview) { return faction.short_name === "Convoyeurs"; }
+
+function signed(value: number) { return value > 0 ? `+${value}` : String(value); }
+
+function describeEffects(effects: MilestoneEffectTemplate[], data: CampaignData) {
+  if (!effects?.length) return "Aucun effet automatique";
+  return effects.map((effect) => {
+    const range = effect.amount !== undefined ? signed(effect.amount) : `${signed(effect.amount_min ?? 0)} à ${signed(effect.amount_max ?? 0)}`;
+    if (effect.scope === "all_great") return `Toutes les Grandes Factions ${range}`;
+    if (effect.scope === "transfer_carters") return "Transfert intégral des RP des Convoyeurs";
+    if (effect.faction_ids) return `${effect.faction_ids.map((id) => factionName(data, id)).join(" et ")} ${range}`;
+    return `${effect.faction_id ? factionName(data, effect.faction_id) : effect.label} ${range}`;
+  }).join(" · ");
+}
+
+function draftEffects(item: Milestone, data: CampaignData): EffectDraft[] {
+  const previous = item.resolved_effects ?? [];
+  let previousIndex = 0;
+  const drafts: EffectDraft[] = [];
+  item.reward_effects.forEach((template, templateIndex) => {
+    const ids = template.faction_ids ?? (template.scope === "all_great" ? data.factions.filter((faction) => !isConvoyeurs(faction)).map((faction) => faction.faction_id) : [template.faction_id ?? ""]);
+    if (template.scope === "transfer_carters") {
+      const carters = data.factions.find(isConvoyeurs);
+      const target = previous.find((effect) => effect.amount > 0);
+      drafts.push({ key: `${templateIndex}-transfer`, label: template.label, faction_id: target?.faction_id ?? data.factions.find((faction) => !isConvoyeurs(faction))?.faction_id ?? "", amount: target?.amount ?? carters?.rp ?? 0, min: 0, max: 999, locked: false, scope: template.scope, exclude_faction_ids: carters ? [carters.faction_id] : [] });
+      return;
+    }
+    ids.forEach((id, idIndex) => {
+      const resolved = previous[previousIndex++];
+      drafts.push({
+        key: `${templateIndex}-${idIndex}`,
+        label: ids.length > 1 ? factionName(data, id) : template.label,
+        faction_id: resolved?.faction_id ?? id,
+        amount: resolved?.amount ?? template.amount ?? template.amount_min ?? 0,
+        min: template.amount ?? template.amount_min ?? -999,
+        max: template.amount ?? template.amount_max ?? 999,
+        locked: Boolean(template.faction_id || template.faction_ids || template.scope === "all_great"),
+        scope: template.scope,
+        distinct_group: template.distinct_group,
+        exclude_faction_ids: template.exclude_faction_ids,
+      });
+    });
+  });
+  return drafts;
+}
+
+function MilestoneResolutionModal({ item, data, mutate, onClose }: { item: Milestone; data: CampaignData; mutate: Mutate; onClose: () => void }) {
+  const initialOutcome = item.status === "missed" ? "missed" : "succeeded";
+  const [outcome, setOutcome] = useState<"succeeded" | "missed">(initialOutcome);
+  const [note, setNote] = useState(item.resolution_note ?? "");
+  const [effects, setEffects] = useState(() => draftEffects(item, data));
+  const [validation, setValidation] = useState<string | null>(null);
+  const eligibleFactions = (effect: EffectDraft) => data.factions.filter((faction) => !effect.exclude_faction_ids?.includes(faction.faction_id) && (effect.scope !== "any_great" || !isConvoyeurs(faction)));
+  const setEffect = (key: string, patch: Partial<EffectDraft>) => setEffects((current) => current.map((effect) => effect.key === key ? { ...effect, ...patch } : effect));
+
+  function resolvedEffects(): MilestoneEffect[] {
+    const duplicateGroups = effects.filter((effect) => effect.distinct_group).reduce<Record<string, string[]>>((groups, effect) => ({ ...groups, [effect.distinct_group!]: [...(groups[effect.distinct_group!] ?? []), effect.faction_id] }), {});
+    if (Object.values(duplicateGroups).some((ids) => new Set(ids).size !== ids.length)) throw new Error("Choisissez une faction différente pour chaque récompense de cette série.");
+    const result: MilestoneEffect[] = [];
+    effects.forEach((effect) => {
+      if (!effect.faction_id) throw new Error("Chaque récompense doit désigner une faction.");
+      if (effect.amount < effect.min || effect.amount > effect.max) throw new Error(`Le montant de « ${effect.label} » doit être compris entre ${effect.min} et ${effect.max}.`);
+      if (effect.scope === "transfer_carters") {
+        const carters = data.factions.find(isConvoyeurs);
+        if (!carters) throw new Error("Le Consortium des Convoyeurs est introuvable.");
+        result.push({ label: "Convoyeurs — transfert", faction_id: carters.faction_id, amount: -Math.abs(effect.amount), jf_amount: 0 });
+        result.push({ label: effect.label, faction_id: effect.faction_id, amount: Math.abs(effect.amount), jf_amount: 0 });
+      } else result.push({ label: effect.label, faction_id: effect.faction_id, amount: effect.amount });
+    });
+    return result;
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setValidation(null);
+    let resolved: MilestoneEffect[] | null = null;
+    try { if (outcome === "succeeded") resolved = resolvedEffects(); } catch (caught) { setValidation(caught instanceof Error ? caught.message : "Récompense invalide."); return; }
+    const saved = await mutate(
+      () => resolveMilestone(item.id, outcome, note.trim() || null, resolved),
+      outcome === "succeeded" ? "Jalon réussi et journal recalculé." : "Jalon classé comme manqué, sans gain de réputation.",
+      (previous) => applyLocalMilestoneResolution(previous, item.id, outcome, note.trim() || null, resolved),
+    );
+    if (saved) onClose();
+  }
+
+  async function reopen() {
+    const saved = await mutate(() => resolveMilestone(item.id, "pending", null, null), "Jalon remis en attente.", (previous) => applyLocalMilestoneResolution(previous, item.id, "pending", null, null));
+    if (saved) onClose();
+  }
+
+  return <div className="modal-backdrop"><form className="modal-card wide milestone-modal" onSubmit={submit}>
+    <div className="modal-head"><div><p className="eyebrow">Volume {item.volume} · {item.chapter}</p><h3>{item.title}</h3></div><button type="button" className="icon-button" onClick={onClose}><X /></button></div>
+    {item.status === "excluded" && <p className="choice-warning">Ce choix est actuellement écarté par « {item.excluded_by_title} ». Le réussir remplacera automatiquement ce choix et annulera ses effets.</p>}
+    <fieldset className="outcome-picker"><legend>Issue du jalon</legend><button type="button" className={outcome === "succeeded" ? "active succeeded" : ""} onClick={() => setOutcome("succeeded")}><strong>Réussi</strong><small>Appliquer les gains et pertes au journal</small></button><button type="button" className={outcome === "missed" ? "active missed" : ""} onClick={() => setOutcome("missed")}><strong>Manqué</strong><small>Classer le jalon sans distribuer de points</small></button></fieldset>
+    {outcome === "succeeded" && <section className="reward-editor"><div><p className="eyebrow">Effets à appliquer</p><small>Les valeurs fixes sont verrouillées ; les choix et fourchettes viennent directement du livre.</small></div>{effects.map((effect) => <div className="reward-row" key={effect.key}><label><span>{effect.label}</span><select value={effect.faction_id} disabled={effect.locked} onChange={(event) => setEffect(effect.key, { faction_id: event.target.value })}>{eligibleFactions(effect).map((faction) => <option key={faction.faction_id} value={faction.faction_id}>{faction.short_name}</option>)}</select></label><label><span>RP</span><input type="number" value={effect.amount} min={effect.min} max={effect.max} disabled={effect.min === effect.max || effect.scope === "transfer_carters"} onChange={(event) => setEffect(effect.key, { amount: Number(event.target.value) })} /></label>{effect.min !== effect.max && <small>Valeur permise : {effect.min} à {effect.max}</small>}</div>)}</section>}
+    <label className="milestone-note"><span>Détails ou raison {outcome === "missed" ? "de l’échec" : "du résultat"} <small>(facultatif)</small></span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder={outcome === "missed" ? "Ex. Les PJ ont confié Altinmered à une tierce personne…" : "Une précision propre à cette campagne…"} /></label>
+    {validation && <p className="form-error">{validation}</p>}
+    <div className="modal-actions">{(item.status === "succeeded" || item.status === "missed") && <button type="button" className="button ghost danger" onClick={() => void reopen()}>Remettre en attente</button>}<span className="modal-spacer" /><button type="button" className="button secondary" onClick={onClose}>Annuler</button><button className="button primary">Enregistrer l’issue</button></div>
+  </form></div>;
+}
+
+function applyLocalMilestoneResolution(previous: CampaignData, milestoneId: string, outcome: Exclude<MilestoneStatus, "excluded">, note: string | null, effects: MilestoneEffect[] | null) {
+  const item = previous.milestones.find((milestone) => milestone.id === milestoneId)!;
+  const undo = (id: string) => {
+    previous.journal.filter((entry) => entry.milestone_id === id).forEach((entry) => {
+      const faction = previous.factions.find((candidate) => candidate.faction_id === entry.faction_id);
+      if (faction) { faction.rp = Math.max(0, faction.rp - entry.rp_delta); faction.jf = Math.max(0, faction.jf - entry.jf_delta); }
+    });
+    previous.journal = previous.journal.filter((entry) => entry.milestone_id !== id);
+  };
+  const restoreExcluded = (winnerId: string) => previous.milestones.filter((milestone) => milestone.excluded_by_milestone_id === winnerId).forEach((milestone) => { milestone.status = milestone.status_before_exclusion ?? "pending"; milestone.status_before_exclusion = null; milestone.excluded_by_milestone_id = null; milestone.excluded_by_title = null; });
+  undo(item.id);
+  restoreExcluded(item.id);
+  if (outcome === "succeeded" && item.choice_group) {
+    previous.milestones.filter((milestone) => milestone.choice_group === item.choice_group && milestone.id !== item.id && milestone.status === "succeeded").forEach((winner) => { undo(winner.id); restoreExcluded(winner.id); Object.assign(winner, { status: "pending", applied: false, applied_at: null, resolved_at: null, resolved_effects: null, resolution_note: null }); });
+    previous.milestones.filter((milestone) => milestone.choice_group === item.choice_group && milestone.id !== item.id).forEach((sibling) => { sibling.status_before_exclusion = sibling.status === "excluded" ? sibling.status_before_exclusion ?? "pending" : sibling.status; sibling.status = "excluded"; sibling.excluded_by_milestone_id = item.id; sibling.excluded_by_title = item.title; sibling.applied = false; });
+  }
+  if (outcome === "succeeded") (effects ?? []).forEach((effect) => {
+    const faction = previous.factions.find((candidate) => candidate.faction_id === effect.faction_id)!;
+    const jf = effect.jf_amount ?? Math.max(effect.amount, 0);
+    faction.rp = Math.max(0, faction.rp + effect.amount);
+    faction.jf = Math.max(0, Math.min(previous.settings.jf_cap, faction.jf + jf));
+    previous.journal.unshift({ id: crypto.randomUUID(), campaign_id: previous.settings.campaign_id, faction_id: effect.faction_id, faction_name: faction.short_name, occurred_on: new Date().toISOString().slice(0, 10), volume: item.volume, title: `${item.title} — ${effect.amount < 0 ? "perte" : "gain"}`, details: note ?? item.condition, rp_delta: effect.amount, jf_delta: jf, tension_delta: 0, visibility: "ready", source_reference: item.source_reference, milestone_id: item.id });
+  });
+  Object.assign(item, { status: outcome, applied: outcome === "succeeded", resolution_note: note, resolved_effects: outcome === "succeeded" ? effects : null, resolved_at: outcome === "pending" ? null : new Date().toISOString(), excluded_by_milestone_id: null, excluded_by_title: null, status_before_exclusion: null });
+  return previous;
 }
 
 function SettingsTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {

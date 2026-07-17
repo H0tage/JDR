@@ -3,6 +3,27 @@ export type FactionStatus = "Indifférents" | "Appréciés" | "Admirés" | "Rév
 export type ServiceScale = "Mineure" | "Modérée" | "Majeure";
 export type Evidence = "E" | "S" | "H" | "E/S" | "S/H";
 export type RelationshipColor = "favorable" | "uncertain" | "hostile";
+export type MilestoneStatus = "pending" | "succeeded" | "missed" | "excluded";
+
+export interface MilestoneEffectTemplate {
+  label: string;
+  faction_id?: string;
+  faction_ids?: string[];
+  scope?: "any" | "any_great" | "all_great" | "transfer_carters";
+  exclude_faction_ids?: string[];
+  amount?: number;
+  amount_min?: number;
+  amount_max?: number;
+  jf_amount?: number;
+  distinct_group?: string;
+}
+
+export interface MilestoneEffect {
+  label: string;
+  faction_id: string;
+  amount: number;
+  jf_amount?: number;
+}
 
 export interface CampaignSettings {
   campaign_id: string;
@@ -56,6 +77,7 @@ export interface JournalEntry {
   tension_delta: number;
   visibility: Visibility;
   source_reference: string | null;
+  milestone_id?: string | null;
   created_at?: string;
 }
 
@@ -143,6 +165,16 @@ export interface Milestone {
   source_reference: string;
   applied: boolean;
   gm_notes: string | null;
+  sort_order: number;
+  status: MilestoneStatus;
+  resolution_note: string | null;
+  choice_group: string | null;
+  reward_effects: MilestoneEffectTemplate[];
+  resolved_effects: MilestoneEffect[] | null;
+  resolved_at: string | null;
+  excluded_by_milestone_id: string | null;
+  excluded_by_title?: string | null;
+  status_before_exclusion: Exclude<MilestoneStatus, "excluded"> | null;
 }
 
 export interface CampaignData {

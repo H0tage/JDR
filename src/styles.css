@@ -311,13 +311,51 @@ textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
 
 /* Progress and settings */
 .volume-track { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
-.volume-track article { min-height: 190px; border: 1px solid var(--line-soft); border-radius: 9px; padding: 14px; background: var(--surface); opacity: .55; }
-.volume-track article.current { opacity: 1; border-color: var(--gold); box-shadow: inset 0 2px var(--gold); }
-.volume-track article.past { opacity: .78; }
-.volume-track article > span { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: #232d28; color: var(--gold); font-family: Georgia, serif; }
-.volume-track strong { display: block; margin: 16px 0 8px; font-family: Georgia, serif; color: var(--ivory); font-weight: 500; line-height: 1.25; }
-.volume-track p { margin: 0 0 9px; color: #aeb7b0; font-size: .7rem; line-height: 1.45; }
-.volume-track small { font-size: .64rem; line-height: 1.4; }
+.volume-track > button { min-width: 0; min-height: 230px; display: flex; flex-direction: column; align-items: stretch; border: 1px solid var(--line-soft); border-radius: 9px; padding: 14px; background: var(--surface); color: inherit; text-align: left; cursor: pointer; opacity: .72; transition: .18s ease; }
+.volume-track > button:hover { opacity: 1; border-color: #536159; transform: translateY(-2px); }
+.volume-track > button.selected { opacity: 1; border-color: var(--gold); background: linear-gradient(150deg, #1c251f, #151c19); box-shadow: inset 0 2px var(--gold); }
+.volume-track > button.current:not(.selected) { box-shadow: inset 0 2px #65746b; }
+.volume-track > button > span { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: #232d28; color: var(--gold); font-family: Georgia, serif; }
+.volume-track strong { display: block; margin: 14px 0 2px; font-family: Georgia, serif; color: var(--ivory); font-weight: 500; line-height: 1.25; }
+.volume-track em { display: block; color: var(--gold); font-size: .61rem; font-style: normal; line-height: 1.35; }
+.volume-track p { margin: 9px 0; color: #aeb7b0; font-size: .67rem; line-height: 1.42; }
+.volume-track small { display: block; font-size: .6rem; line-height: 1.4; }
+.volume-track footer { min-height: 24px; display: flex; align-items: end; justify-content: space-between; gap: 6px; margin-top: 12px; border-top: 1px solid var(--line-soft); padding-top: 8px; color: #879188; font-size: .58rem; }
+.volume-track footer i { border-radius: 99px; padding: 3px 5px; background: #28342e; color: #b3c0b6; font-style: normal; white-space: nowrap; }
+.progression-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.status-legend { display: flex; flex-wrap: wrap; justify-content: end; gap: 6px; }
+.milestone-status { width: max-content; display: inline-flex; align-items: center; border-radius: 99px; padding: 4px 8px; font-size: .62rem; font-weight: 800; white-space: nowrap; }
+.milestone-status.succeeded { background: #24382b; color: #9fc6aa; }
+.milestone-status.missed { background: #44272d; color: #e09aa7; }
+.milestone-status.excluded { background: #2b302d; color: #929a94; text-decoration: line-through; }
+.milestone-status.pending { background: #40361f; color: #dfbe73; }
+.milestone-table th:nth-child(1) { width: 90px; }
+.milestone-table th:nth-child(2) { width: 25%; }
+.milestone-table th:nth-child(3) { width: 22%; }
+.milestone-table th:last-child { width: 125px; }
+.milestone-table td:last-child small { max-width: 150px; margin: 6px 0; }
+.milestone-table td:last-child .button { margin-top: 8px; }
+.milestone-row.excluded td { opacity: .58; }
+.milestone-row.excluded td:last-child { opacity: 1; }
+.choice-warning { border: 1px solid #665c42; border-radius: 8px; padding: 11px 13px; background: #30291a; color: #dfc686; font-size: .76rem; line-height: 1.5; }
+.outcome-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 0; border: 0; padding: 0; }
+.outcome-picker legend { grid-column: 1 / -1; margin-bottom: 8px; color: #cbd2cc; font-size: .78rem; font-weight: 700; }
+.outcome-picker button { display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 9px; padding: 13px; background: #111714; color: #c6cec7; text-align: left; cursor: pointer; }
+.outcome-picker button small { font-size: .68rem; font-weight: 400; }
+.outcome-picker button.active.succeeded { border-color: #648b70; background: #1d3024; }
+.outcome-picker button.active.missed { border-color: #975363; background: #382126; }
+.reward-editor { display: grid; gap: 10px; margin-top: 18px; border: 1px solid var(--line-soft); border-radius: 9px; padding: 14px; background: #111714; }
+.reward-editor > div:first-child { margin-bottom: 2px; }
+.reward-editor > div:first-child small { font-size: .68rem; }
+.reward-row { display: grid; grid-template-columns: minmax(200px, 1fr) 90px; gap: 9px; align-items: end; border-top: 1px solid var(--line-soft); padding-top: 10px; }
+.reward-row > small { grid-column: 1 / -1; margin-top: -5px; font-size: .62rem; }
+.reward-row label span { font-size: .68rem; }
+.reward-row select:disabled, .reward-row input:disabled { opacity: .72; color: #c0c8c1; }
+.milestone-note { margin-top: 18px; }
+.milestone-note > span small { font-weight: 400; }
+.milestone-note textarea { min-height: 105px; }
+.modal-spacer { flex: 1; }
+.button.danger { color: #df9292; }
 .settings-layout { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .settings-panel { padding: 19px; }
 .settings-panel h3 { margin: 0 0 16px; font-family: Georgia, serif; color: var(--ivory); font-weight: 500; }
@@ -448,8 +486,13 @@ textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
   .dossier-directions > div + div, .dossier-grid > div:nth-child(even) { border-left: 0; }
   .stat-strip { grid-template-columns: 1fr 1fr; }
   .volume-track { grid-template-columns: 1fr; }
-  .volume-track article { min-height: 0; display: flex; gap: 12px; }
+  .volume-track > button { min-height: 0; display: grid; grid-template-columns: auto 1fr; gap: 12px; }
   .volume-track strong { margin-top: 0; }
+  .progression-heading { align-items: start; flex-direction: column; }
+  .status-legend { justify-content: start; }
+  .outcome-picker { grid-template-columns: 1fr; }
+  .reward-row { grid-template-columns: 1fr 75px; }
+  .milestone-modal .modal-actions { flex-wrap: wrap; }
   .settings-submit, .player-footer { align-items: stretch; flex-direction: column; }
   .player-hero { min-height: 290px; padding-top: 38px; padding-bottom: 38px; }
   .player-tabs { justify-content: start; }

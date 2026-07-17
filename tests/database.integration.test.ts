@@ -9,6 +9,7 @@ const migrationFiles = [
   "20260717122000_seed_dossiers.sql",
   "20260717130000_update_faction_names.sql",
   "20260717132000_relationship_color_overrides.sql",
+  "20260717133000_progression_overhaul.sql",
 ];
 
 it("installe les migrations, les données et la frontière MJ/joueurs", async () => {
@@ -49,7 +50,7 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
       (select count(*)::int from public.bilateral_dossiers) dossiers,
       (select count(*)::int from public.reputation_milestones) milestones
   `)).rows[0];
-  expect(counts).toEqual({ campaigns: 1, factions: 6, services: 18, relationships: 30, dossiers: 15, milestones: 5 });
+  expect(counts).toEqual({ campaigns: 1, factions: 6, services: 18, relationships: 30, dossiers: 15, milestones: 77 });
 
   const factionNames = (await db.query<{ name: string; short_name: string }>(`
     select name, short_name from public.factions order by sort_order
@@ -110,12 +111,47 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
   `)).rows[0];
   expect(reanimators).toEqual({ rp: 5, jf: 5, tension: 0, status: "Appréciés" });
 
+  const campaignId = "00000000-0000-4000-8000-000000000001";
+  const buildersId = "00000000-0000-4000-8100-000000000101";
+  const collectorsId = "00000000-0000-4000-8100-000000000105";
+  const collectorsChoice = "00000000-0000-4000-8700-000000000004";
+  const buildersChoice = "00000000-0000-4000-8700-000000000005";
+  const altinmered = "00000000-0000-4000-8700-000000000003";
+
   const gmUserId = "10000000-0000-4000-8000-000000000001";
   await db.exec(`
     insert into auth.users (id, email) values ('${gmUserId}', 'mj@example.test');
     insert into public.campaign_members (campaign_id, user_id)
-    values ('00000000-0000-4000-8000-000000000001', '${gmUserId}');
+    values ('${campaignId}', '${gmUserId}');
     select set_config('request.jwt.claim.sub', '${gmUserId}', false);
+  `);
+
+  await db.query(`select public.resolve_reputation_milestone(
+    '${collectorsChoice}', 'succeeded', 'La banque revient aux Percepteurs.',
+    '[{"label":"Percepteurs","faction_id":"${collectorsId}","amount":8},{"label":"Bâtisseurs","faction_id":"${buildersId}","amount":-4}]'::jsonb
+  )`);
+  expect((await db.query<{ status: string; excluded_by_title: string | null }>(`
+    select status, excluded_by_title from public.gm_milestones where id = '${buildersChoice}'
+  `)).rows[0]).toEqual({ status: "excluded", excluded_by_title: "Confier la banque aux Percepteurs" });
+
+  await db.query(`select public.resolve_reputation_milestone(
+    '${buildersChoice}', 'succeeded', 'Le groupe change finalement de camp.',
+    '[{"label":"Bâtisseurs","faction_id":"${buildersId}","amount":8},{"label":"Percepteurs","faction_id":"${collectorsId}","amount":-4}]'::jsonb
+  )`);
+  expect((await db.query<{ builders_rp: number; collectors_rp: number }>(`
+    select
+      (select rp::int from public.gm_faction_overview where faction_id = '${buildersId}') builders_rp,
+      (select rp::int from public.gm_faction_overview where faction_id = '${collectorsId}') collectors_rp
+  `)).rows[0]).toEqual({ builders_rp: 8, collectors_rp: 0 });
+  expect((await db.query<{ status: string }>(`select status from public.reputation_milestones where id = '${collectorsChoice}'`)).rows[0].status).toBe("excluded");
+  expect((await db.query<{ count: number }>(`select count(*)::int count from public.journal_entries where milestone_id in ('${collectorsChoice}', '${buildersChoice}')`)).rows[0].count).toBe(2);
+
+  const journalBeforeMiss = (await db.query<{ count: number }>(`select count(*)::int count from public.journal_entries`)).rows[0].count;
+  await db.query(`select public.resolve_reputation_milestone('${altinmered}', 'missed', 'Confié à un tiers.', null)`);
+  expect((await db.query<{ status: string; resolution_note: string }>(`select status, resolution_note from public.reputation_milestones where id = '${altinmered}'`)).rows[0]).toEqual({ status: "missed", resolution_note: "Confié à un tiers." });
+  expect((await db.query<{ count: number }>(`select count(*)::int count from public.journal_entries`)).rows[0].count).toBe(journalBeforeMiss);
+
+  await db.exec(`
     set role anon;
   `);
   await expect(db.query("select * from public.journal_entries")).rejects.toThrow(/permission denied/i);
