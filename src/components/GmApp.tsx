@@ -391,6 +391,7 @@ function PoliticsTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
   const [dossier, setDossier] = useState(data.dossiers[0]?.id ?? "");
   const selectedDossier = data.dossiers.find((item) => item.id === dossier);
   function relation(source: FactionOverview, target: FactionOverview) { return data.relationships.find((item) => item.source_faction_id === source.faction_id && item.target_faction_id === target.faction_id); }
+  function factionShortName(factionId: string) { return data.factions.find((item) => item.faction_id === factionId)?.short_name ?? "Faction inconnue"; }
   function openRelationship(item: Relationship) {
     setSelected(item);
     setDraft({ headline: item.headline, detail: item.detail, color: item.color ?? defaultColor(item), visibility: item.visibility });
@@ -463,7 +464,7 @@ function PoliticsTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
       </div>
       <section className="dossier-section">
         <div className="dossier-picker"><p className="eyebrow">15 dossiers bilatéraux</p><select value={dossier} onChange={(e) => setDossier(e.target.value)}>{data.dossiers.map((item) => <option key={item.id} value={item.id}>{item.pair_name}</option>)}</select></div>
-        {selectedDossier && <article className="dossier-card"><div className="dossier-core"><span>Noyau canon</span><p>{selectedDossier.canon_core}</p></div><div className="dossier-directions"><div><span>Première faction → seconde</span><p>{selectedDossier.a_to_b}</p></div><div><span>Seconde faction → première</span><p>{selectedDossier.b_to_a}</p></div></div><div className="dossier-grid"><div><span>Intérêt commun</span><p>{selectedDossier.common_interest}</p></div><div><span>Ligne de fracture</span><p>{selectedDossier.fracture}</p></div><div><span>Déclencheurs utiles</span><p>{selectedDossier.triggers}</p></div><div><span>Scène prête à jouer</span><p>{selectedDossier.scene_hook}</p></div></div><footer>{selectedDossier.evidence_note}</footer></article>}
+        {selectedDossier && <article className="dossier-card"><div className="dossier-core"><span>Noyau canon</span><p>{selectedDossier.canon_core}</p></div><div className="dossier-directions"><div><span>{factionShortName(selectedDossier.faction_a_id)} → {factionShortName(selectedDossier.faction_b_id)}</span><p>{selectedDossier.a_to_b}</p></div><div><span>{factionShortName(selectedDossier.faction_b_id)} → {factionShortName(selectedDossier.faction_a_id)}</span><p>{selectedDossier.b_to_a}</p></div></div><div className="dossier-grid"><div><span>Intérêt commun</span><p>{selectedDossier.common_interest}</p></div><div><span>Ligne de fracture</span><p>{selectedDossier.fracture}</p></div><div><span>Déclencheurs utiles</span><p>{selectedDossier.triggers}</p></div><div><span>Scène prête à jouer</span><p>{selectedDossier.scene_hook}</p></div></div><footer>{selectedDossier.evidence_note}</footer></article>}
       </section>
       {selected && draft && <div className="modal-backdrop">
         <form className="modal-card wide" onSubmit={saveRelationship}>

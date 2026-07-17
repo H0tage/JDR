@@ -80,3 +80,15 @@ it("personnalise une relation puis restaure son texte et sa couleur par défaut"
   const restoredButton = await waitFor(() => buttonContaining("Défiance informationnelle"));
   expect(restoredButton.closest("td")?.classList.contains("uncertain")).toBe(true);
 });
+
+it("nomme les deux directions d’un dossier avec les factions concernées", async () => {
+  await act(async () => { root.render(<GmApp />); });
+  const politicsButton = await waitFor(() => buttonContaining("Politique"));
+  act(() => politicsButton.click());
+
+  const directions = await waitFor(() => container.querySelector<HTMLElement>(".dossier-directions"));
+  const labels = Array.from(directions.querySelectorAll("span")).map((element) => element.textContent?.trim());
+  expect(labels).toEqual(["Bâtisseurs → Célébrants", "Célébrants → Bâtisseurs"]);
+  expect(directions.textContent).not.toContain("Première faction");
+  expect(directions.textContent).not.toContain("Seconde faction");
+});
