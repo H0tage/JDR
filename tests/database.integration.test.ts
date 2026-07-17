@@ -7,6 +7,7 @@ const migrationFiles = [
   "20260717120000_initial_schema.sql",
   "20260717121000_seed_blood_lords.sql",
   "20260717122000_seed_dossiers.sql",
+  "20260717130000_update_faction_names.sql",
 ];
 
 it("installe les migrations, les données et la frontière MJ/joueurs", async () => {
@@ -48,6 +49,18 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
       (select count(*)::int from public.reputation_milestones) milestones
   `)).rows[0];
   expect(counts).toEqual({ campaigns: 1, factions: 6, services: 18, relationships: 30, dossiers: 15, milestones: 5 });
+
+  const factionNames = (await db.query<{ name: string; short_name: string }>(`
+    select name, short_name from public.factions order by sort_order
+  `)).rows;
+  expect(factionNames).toEqual([
+    { name: "Ligue des Bâtisseurs", short_name: "Bâtisseurs" },
+    { name: "Célébrants", short_name: "Célébrants" },
+    { name: "Guilde des Exportateurs", short_name: "Exportateurs" },
+    { name: "Réanimateurs", short_name: "Réanimateurs" },
+    { name: "Syndicats des Percepteurs d’Impôts", short_name: "Percepteurs" },
+    { name: "Consortium des Convoyeurs", short_name: "Convoyeurs" },
+  ]);
 
   const reanimators = (await db.query<{ rp: number; jf: number; tension: number; status: string }>(`
     select rp, jf, tension, status from public.gm_faction_overview where slug = 'réanimateurs'

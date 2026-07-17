@@ -9,10 +9,10 @@ insert into public.campaign_settings (campaign_id) values
 insert into public.factions (id, slug, name, short_name, accent, domain, public_description, sort_order) values
   ('00000000-0000-4000-8100-000000000101', 'bâtisseurs', 'Ligue des Bâtisseurs', 'Bâtisseurs', '#8f7a5a', 'Architecture, ouvrages et secrets', 'Architectes traditionalistes et occultistes chargés des grands ouvrages de Geb.', 1),
   ('00000000-0000-4000-8100-000000000102', 'célébrants', 'Célébrants', 'Célébrants', '#a64052', 'Culte public, cérémonies et propagande', 'Prêtres, organisateurs et maîtres du récit public de la nation.', 2),
-  ('00000000-0000-4000-8100-000000000103', 'exportation', 'Guilde de l’Exportation', 'Exportation', '#4c7d73', 'Commerce extérieur et diplomatie', 'Gestionnaires du commerce extérieur, des cargaisons et des partenaires étrangers.', 3),
-  ('00000000-0000-4000-8100-000000000104', 'réanimateurs', 'Ligue des Réanimateurs', 'Réanimateurs', '#7a5d93', 'Nécromancie, agriculture et main-d’œuvre', 'Nécromanciens responsables de la production agricole et du travail mort-vivant.', 4),
-  ('00000000-0000-4000-8100-000000000105', 'uci', 'Union des Collecteurs d’Impôts', 'UCI', '#b18335', 'Finance, fiscalité et contrats', 'Aristocrates, banquiers et percepteurs qui transforment la richesse en influence.', 5),
-  ('00000000-0000-4000-8100-000000000106', 'charretiers', 'Consortium des Charretiers', 'Charretiers', '#65717c', 'Transport intérieur et logistique', 'Ancienne grande faction déchue, toujours indispensable aux routes et aux convois.', 6);
+  ('00000000-0000-4000-8100-000000000103', 'exportation', 'Guilde des Exportateurs', 'Exportateurs', '#4c7d73', 'Commerce extérieur et diplomatie', 'Gestionnaires du commerce extérieur, des cargaisons et des partenaires étrangers.', 3),
+  ('00000000-0000-4000-8100-000000000104', 'réanimateurs', 'Réanimateurs', 'Réanimateurs', '#7a5d93', 'Nécromancie, agriculture et main-d’œuvre', 'Nécromanciens responsables de la production agricole et du travail mort-vivant.', 4),
+  ('00000000-0000-4000-8100-000000000105', 'uci', 'Syndicats des Percepteurs d’Impôts', 'Percepteurs', '#b18335', 'Finance, fiscalité et contrats', 'Aristocrates, banquiers et percepteurs qui transforment la richesse en influence.', 5),
+  ('00000000-0000-4000-8100-000000000106', 'charretiers', 'Consortium des Convoyeurs', 'Convoyeurs', '#65717c', 'Transport intérieur et logistique', 'Ancienne grande faction déchue, toujours indispensable aux routes et aux convois.', 6);
 
 insert into public.campaign_factions (campaign_id, faction_id, public_summary, is_player_visible)
 select '00000000-0000-4000-8000-000000000001', id,
@@ -55,7 +55,7 @@ values
 insert into public.journal_entries
   (id, campaign_id, faction_id, occurred_on, volume, title, details, rp_delta, jf_delta, visibility, source_reference)
 values
-  ('00000000-0000-4000-8600-000000000001','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8100-000000000104','2026-05-10',1,'Crise de la ferme du vieux Hergag résolue','Berline Haldoli fait connaître l’efficacité du groupe auprès de la Ligue des Réanimateurs.',5,5,'players','Zombie Feast, p. 20');
+  ('00000000-0000-4000-8600-000000000001','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8100-000000000104','2026-05-10',1,'Crise de la ferme du vieux Hergag résolue','Berline Haldoli fait connaître l’efficacité du groupe auprès des Réanimateurs.',5,5,'players','Zombie Feast, p. 20');
 
 insert into public.faction_relationships
   (id, campaign_id, source_faction_id, target_faction_id, headline, detail, evidence, tone, visibility)
@@ -97,15 +97,15 @@ values
   ('00000000-0000-4000-8700-000000000001','00000000-0000-4000-8000-000000000001',1,'Résoudre la crise de la ferme','00000000-0000-4000-8100-000000000104',5,null,0,'Récompense prévue par l’aventure.','Blood Lords #1 — Zombie Feast, p. 20',true,1),
   ('00000000-0000-4000-8700-000000000002','00000000-0000-4000-8000-000000000001',1,'Secourir Se-Maut-Get','00000000-0000-4000-8100-000000000102',4,null,0,'Se-Maut-Get doit survivre à l’aventure.','Blood Lords #1 — Zombie Feast, p. 59',false,2),
   ('00000000-0000-4000-8700-000000000003','00000000-0000-4000-8000-000000000001',1,'Libérer Altinmered','00000000-0000-4000-8100-000000000103',4,null,0,'Libérer Altinmered.','Blood Lords #1 — Zombie Feast, p. 62',false,3),
-  ('00000000-0000-4000-8700-000000000004','00000000-0000-4000-8000-000000000001',1,'Choisir la branche UCI de la banque','00000000-0000-4000-8100-000000000105',8,'00000000-0000-4000-8100-000000000101',-4,'Choix exclusif avec la branche des Bâtisseurs.','Blood Lords #1 — Zombie Feast, p. 64',false,4),
-  ('00000000-0000-4000-8700-000000000005','00000000-0000-4000-8000-000000000001',1,'Choisir la branche des Bâtisseurs','00000000-0000-4000-8100-000000000101',8,'00000000-0000-4000-8100-000000000105',-4,'Choix exclusif avec la branche UCI.','Blood Lords #1 — Zombie Feast, p. 64',false,5);
+  ('00000000-0000-4000-8700-000000000004','00000000-0000-4000-8000-000000000001',1,'Choisir la branche SPI de la banque','00000000-0000-4000-8100-000000000105',8,'00000000-0000-4000-8100-000000000101',-4,'Choix exclusif avec la branche des Bâtisseurs.','Blood Lords #1 — Zombie Feast, p. 64',false,4),
+  ('00000000-0000-4000-8700-000000000005','00000000-0000-4000-8000-000000000001',1,'Choisir la branche des Bâtisseurs','00000000-0000-4000-8100-000000000101',8,'00000000-0000-4000-8100-000000000105',-4,'Choix exclusif avec la branche SPI.','Blood Lords #1 — Zombie Feast, p. 64',false,5);
 
 insert into public.source_references
   (campaign_id, source_type, title, reference, usage_note, locator, sort_order)
 values
   ('00000000-0000-4000-8000-000000000001','Officiel','Pathfinder Gamemastery Guide','pp. 164–165','Seuils et fonctionnement de la Réputation.','PZO2103 Pathfinder 2E - Gamemastery Guide.pdf',1),
   ('00000000-0000-4000-8000-000000000001','Officiel','Blood Lords #1 — Zombie Feast','Volume 1','Factions, premiers gains de RP et choix de la banque.','PZO90181 Pathfinder Adventure Path #181 - Blood Lords #1 - Zombie Feast.pdf',2),
-  ('00000000-0000-4000-8000-000000000001','Officiel','Blood Lords #2 — Graveclaw','Volume 2','Développement de la campagne et Charretiers.','PZO90182 Pathfinder Adventure Path #182 - Blood Lords #2 - Graveclaw.pdf',3),
+  ('00000000-0000-4000-8000-000000000001','Officiel','Blood Lords #2 — Graveclaw','Volume 2','Développement de la campagne et Convoyeurs.','PZO90182 Pathfinder Adventure Path #182 - Blood Lords #2 - Graveclaw.pdf',3),
   ('00000000-0000-4000-8000-000000000001','Officiel','Blood Lords #3 — Field of Maidens','Volume 3','Diplomatie et progression.','PZO90183 Pathfinder Adventure Path #183 - Blood Lords #3 - Field of Maidens.pdf',4),
   ('00000000-0000-4000-8000-000000000001','Officiel','Blood Lords #4 — The Ghouls Hunger','Volume 4','Usage institutionnel et temps morts.','PZO90184 Pathfinder Adventure Path #184 - Blood Lords #4 - The Ghouls Hunger.pdf',5),
   ('00000000-0000-4000-8000-000000000001','Officiel','Blood Lords #5 — A Taste of Ashes','Volume 5','Réemploi des relations et contacts.','PZO90185 Pathfinder Adventure Path #185 - Blood Lords #5 - A Taste of Ashes.pdf',6),
