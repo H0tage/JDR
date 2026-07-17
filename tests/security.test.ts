@@ -8,7 +8,7 @@ const migration = readFileSync(
 );
 
 const relationshipOverridesMigration = readFileSync(
-  resolve(process.cwd(), "supabase/migrations/20260717131000_relation_text_overrides.sql"),
+  resolve(process.cwd(), "supabase/migrations/20260717132000_relationship_color_overrides.sql"),
   "utf8",
 );
 
@@ -71,6 +71,8 @@ describe("player data boundary", () => {
     expect(relationships).not.toContain("as default_detail");
     expect(relationships).not.toMatch(/^\s*r\.headline_override\s*,/m);
     expect(relationships).not.toMatch(/^\s*r\.detail_override\s*,/m);
+    expect(relationships).not.toContain("as default_color");
+    expect(relationships).not.toMatch(/r\.color_override\s+as\s+/i);
     expect(relationships).not.toContain("r.evidence");
   });
 });

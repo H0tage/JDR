@@ -38,7 +38,7 @@ function enterText(element: HTMLInputElement | HTMLTextAreaElement, value: strin
   element.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-it("personnalise une relation puis restaure son texte par défaut", async () => {
+it("personnalise une relation puis restaure son texte et sa couleur par défaut", async () => {
   await act(async () => { root.render(<GmApp />); });
   const politicsButton = await waitFor(() => buttonContaining("Politique"));
   act(() => politicsButton.click());
@@ -53,24 +53,30 @@ it("personnalise une relation puis restaure son texte par défaut", async () => 
   act(() => {
     enterText(headline, "Rivalité des secrets");
     enterText(detail, "La version propre à cette campagne.");
+    buttonContaining("Hostile")!.click();
     buttonContaining("Visible joueurs")!.click();
   });
   await act(async () => {
     buttonContaining("Enregistrer")!.click();
     await new Promise((resolve) => window.setTimeout(resolve, 0));
   });
-  await waitFor(() => buttonContaining("Rivalité des secrets"));
+  const customizedButton = await waitFor(() => buttonContaining("Rivalité des secrets"));
+  expect(customizedButton.closest("td")?.classList.contains("hostile")).toBe(true);
 
   act(() => buttonContaining("Rivalité des secrets")!.click());
-  const resetButtons = await waitFor(() => {
-    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>(".relationship-field .text-button"));
-    return buttons.length === 2 ? buttons : null;
+  const headlineReset = await waitFor(() => container.querySelector<HTMLButtonElement>("#relationship-headline-reset"));
+  const detailReset = container.querySelector<HTMLButtonElement>("#relationship-detail-reset")!;
+  const colorReset = container.querySelector<HTMLButtonElement>("#relationship-color-reset")!;
+  act(() => {
+    headlineReset.click();
+    detailReset.click();
+    colorReset.click();
   });
-  act(() => resetButtons.forEach((button) => button.click()));
   expect(container.querySelector<HTMLInputElement>("#relationship-headline")!.value).toBe("Défiance informationnelle");
   await act(async () => {
     buttonContaining("Enregistrer")!.click();
     await new Promise((resolve) => window.setTimeout(resolve, 0));
   });
-  await waitFor(() => buttonContaining("Défiance informationnelle"));
+  const restoredButton = await waitFor(() => buttonContaining("Défiance informationnelle"));
+  expect(restoredButton.closest("td")?.classList.contains("uncertain")).toBe(true);
 });

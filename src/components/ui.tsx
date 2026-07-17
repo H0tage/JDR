@@ -1,9 +1,5 @@
 import type { ReactNode } from "react";
-import type { Evidence, Visibility } from "../lib/types";
-
-export function EvidenceBadge({ evidence }: { evidence: Evidence }) {
-  return <span className={`evidence evidence-${evidence.replace("/", "").toLowerCase()}`}>{evidence}</span>;
-}
+import type { Visibility } from "../lib/types";
 
 export function VisibilityBadge({ visibility }: { visibility: Visibility }) {
   const labels: Record<Visibility, string> = {

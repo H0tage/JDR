@@ -2,6 +2,7 @@ export type Visibility = "gm_only" | "ready" | "players";
 export type FactionStatus = "Indifférents" | "Appréciés" | "Admirés" | "Révérés";
 export type ServiceScale = "Mineure" | "Modérée" | "Majeure";
 export type Evidence = "E" | "S" | "H" | "E/S" | "S/H";
+export type RelationshipColor = "favorable" | "uncertain" | "hostile";
 
 export interface CampaignSettings {
   campaign_id: string;
@@ -102,6 +103,9 @@ export interface Relationship {
   default_detail?: string;
   headline_override?: string | null;
   detail_override?: string | null;
+  color: RelationshipColor;
+  default_color?: RelationshipColor;
+  color_override?: RelationshipColor | null;
   evidence: Evidence;
   tone: "alliance" | "cooperation" | "tension" | "hostility" | "unclear";
   visibility: Visibility;

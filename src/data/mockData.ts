@@ -7,6 +7,7 @@ import type {
   JournalEntry,
   Milestone,
   Relationship,
+  RelationshipColor,
   Service,
 } from "../lib/types";
 
@@ -132,6 +133,12 @@ const relationshipRows = [
   ["charretiers", "uci", "Contrôle mal accepté", "Le crédit est nécessaire, les péages et la tutelle restent humiliants.", "S/H", "tension"],
 ] as const;
 
+function defaultRelationshipColor(tone: Relationship["tone"]): RelationshipColor {
+  if (tone === "hostility") return "hostile";
+  if (tone === "tension" || tone === "unclear") return "uncertain";
+  return "favorable";
+}
+
 export const mockRelationships: Relationship[] = relationshipRows.map((row, index) => ({
   id: `00000000-0000-4000-8300-${String(index + 1).padStart(12, "0")}`,
   campaign_id: CAMPAIGN_ID,
@@ -145,6 +152,9 @@ export const mockRelationships: Relationship[] = relationshipRows.map((row, inde
   default_detail: row[3],
   headline_override: null,
   detail_override: null,
+  color: defaultRelationshipColor(row[5]),
+  default_color: defaultRelationshipColor(row[5]),
+  color_override: null,
   evidence: row[4],
   tone: row[5],
   visibility: "gm_only",

@@ -157,7 +157,12 @@ export async function saveContact(contact: Contact): Promise<void> {
 
 export async function updateRelationship(
   id: string,
-  patch: { headline_override: string | null; detail_override: string | null; visibility: Visibility },
+  patch: {
+    headline_override: string | null;
+    detail_override: string | null;
+    color_override: Relationship["color_override"];
+    visibility: Visibility;
+  },
 ): Promise<void> {
   const client = requireClient();
   const { error } = await client.from("faction_relationships").update(patch).eq("id", id);

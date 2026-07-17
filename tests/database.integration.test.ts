@@ -8,7 +8,7 @@ const migrationFiles = [
   "20260717121000_seed_blood_lords.sql",
   "20260717122000_seed_dossiers.sql",
   "20260717130000_update_faction_names.sql",
-  "20260717131000_relation_text_overrides.sql",
+  "20260717132000_relationship_color_overrides.sql",
 ];
 
 it("installe les migrations, les données et la frontière MJ/joueurs", async () => {
@@ -71,29 +71,38 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
     default_detail: string;
     headline_override: string | null;
     detail_override: string | null;
-  }>(`select headline, detail, default_headline, default_detail, headline_override, detail_override
+    color: string;
+    default_color: string;
+    color_override: string | null;
+  }>(`select headline, detail, default_headline, default_detail, headline_override, detail_override, color, default_color, color_override
       from public.gm_relationships where id = '${relationshipId}'`)).rows[0];
   expect(defaultRelationship).toMatchObject({
     headline: "Défiance informationnelle",
     default_headline: "Défiance informationnelle",
     headline_override: null,
     detail_override: null,
+    color: "uncertain",
+    default_color: "uncertain",
+    color_override: null,
   });
 
   await db.exec(`
     update public.faction_relationships
     set headline_override = 'Rivalité des secrets',
         detail_override = 'La version propre à cette campagne.',
+        color_override = 'hostile',
         visibility = 'players'
     where id = '${relationshipId}';
   `);
-  const customizedRelationship = (await db.query<{ headline: string; detail: string; default_headline: string }>(`
-    select headline, detail, default_headline from public.gm_relationships where id = '${relationshipId}'
+  const customizedRelationship = (await db.query<{ headline: string; detail: string; default_headline: string; color: string; default_color: string }>(`
+    select headline, detail, default_headline, color, default_color from public.gm_relationships where id = '${relationshipId}'
   `)).rows[0];
   expect(customizedRelationship).toEqual({
     headline: "Rivalité des secrets",
     detail: "La version propre à cette campagne.",
     default_headline: "Défiance informationnelle",
+    color: "hostile",
+    default_color: "uncertain",
   });
 
   const reanimators = (await db.query<{ rp: number; jf: number; tension: number; status: string }>(`
@@ -113,9 +122,10 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
   await expect(db.query(`update public.faction_relationships set headline_override = 'Intrusion' where id = '${relationshipId}'`)).rejects.toThrow(/permission denied/i);
   expect((await db.query<{ count: number }>("select count(*)::int as count from public.player_faction_overview")).rows[0].count).toBe(6);
   expect((await db.query<{ tension: number | null }>("select tension from public.player_faction_overview where slug = 'réanimateurs'")).rows[0].tension).toBeNull();
-  expect((await db.query<{ headline: string; detail: string }>(`select headline, detail from public.player_relationships where id = '${relationshipId}'`)).rows[0]).toEqual({
+  expect((await db.query<{ headline: string; detail: string; color: string }>(`select headline, detail, color from public.player_relationships where id = '${relationshipId}'`)).rows[0]).toEqual({
     headline: "Rivalité des secrets",
     detail: "La version propre à cette campagne.",
+    color: "hostile",
   });
 
   await db.exec("reset role; set role authenticated;");
