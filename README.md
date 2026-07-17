@@ -17,8 +17,11 @@ Le projet est une aide de jeu non officielle. Pathfinder et les noms associés a
 - contacts, promesses, dettes et conséquences ;
 - matrice politique directionnelle enrichie ;
 - 15 dossiers bilatéraux jouables ;
-- jalons officiels vérifiés du volume 1, applicables au journal ;
-- publication élément par élément : `MJ uniquement`, `Prêt à révéler`, `Visible joueurs` ;
+- registre de 77 jalons officiels vérifiés sur les six volumes ;
+- filtre par volume et états `En attente`, `Réussi`, `Manqué`, `Écarté` ;
+- résolution des récompenses variables et choix de faction directement dans l’interface ;
+- exclusion automatique des branches incompatibles, avec annulation propre en cas de changement de choix ;
+- publication élément par élément : `MJ uniquement` ou `Visible joueurs` ;
 - actualisation automatique de la vue joueurs ;
 - impression de la vue publique.
 
@@ -53,6 +56,17 @@ supabase login
 supabase link --project-ref ajrehwjevfttrxnztryr
 supabase db push
 ```
+
+Sur une installation déjà en ligne, exécuter seulement les nouvelles migrations,
+dans l’ordre de leur nom. Pour cette évolution de la progression :
+
+```text
+supabase/migrations/20260717133000_progression_overhaul.sql
+```
+
+Le registre suit les **jalons narratifs finis**. Les activités génériques et
+répétables de temps mort du volume 4, ainsi que les sanctions libres décidées
+par le MJ, restent à saisir dans le journal ordinaire.
 
 Ensuite :
 

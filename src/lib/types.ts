@@ -1,4 +1,4 @@
-export type Visibility = "gm_only" | "ready" | "players";
+export type Visibility = "gm_only" | "players";
 export type FactionStatus = "Indifférents" | "Appréciés" | "Admirés" | "Révérés";
 export type ServiceScale = "Mineure" | "Modérée" | "Majeure";
 export type Evidence = "E" | "S" | "H" | "E/S" | "S/H";

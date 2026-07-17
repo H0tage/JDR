@@ -24,6 +24,13 @@ function unwrap<T>(result: { data: T | null; error: { message: string } | null }
   return result.data as NonNullable<T>;
 }
 
+function normalizeVisibility<T extends { visibility: string }>(items: T[]): T[] {
+  return items.map((item) => ({
+    ...item,
+    visibility: item.visibility === "players" ? "players" : "gm_only",
+  })) as T[];
+}
+
 export async function loadGmData(demo = false): Promise<CampaignData> {
   if (demo) return structuredClone(mockCampaignData);
   const client = requireClient();
@@ -47,10 +54,10 @@ export async function loadGmData(demo = false): Promise<CampaignData> {
   return {
     settings: unwrap(settings, "Configuration") as CampaignSettings,
     factions: unwrap(factions, "Factions") as CampaignData["factions"],
-    journal: unwrap(journal, "Journal") as CampaignData["journal"],
-    contacts: unwrap(contacts, "Contacts") as CampaignData["contacts"],
+    journal: normalizeVisibility(unwrap(journal, "Journal") as CampaignData["journal"]),
+    contacts: normalizeVisibility(unwrap(contacts, "Contacts") as CampaignData["contacts"]),
     services: unwrap(services, "Services") as CampaignData["services"],
-    relationships: unwrap(relationships, "Relations") as CampaignData["relationships"],
+    relationships: normalizeVisibility(unwrap(relationships, "Relations") as CampaignData["relationships"]),
     dossiers: unwrap(dossiers, "Dossiers") as CampaignData["dossiers"],
     milestones: unwrap(milestones, "Progression") as CampaignData["milestones"],
   };
@@ -264,6 +271,5 @@ export function subscribeToCampaign(campaignId: string, onChange: () => void) {
 
 export function relationVisibilityLabel(relationship: Relationship): string {
   if (relationship.visibility === "players") return "Visible des joueurs";
-  if (relationship.visibility === "ready") return "Prête à révéler";
   return "MJ uniquement";
 }

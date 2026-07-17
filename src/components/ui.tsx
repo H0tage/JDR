@@ -4,7 +4,6 @@ import type { Visibility } from "../lib/types";
 export function VisibilityBadge({ visibility }: { visibility: Visibility }) {
   const labels: Record<Visibility, string> = {
     gm_only: "MJ uniquement",
-    ready: "Prêt à révéler",
     players: "Visible joueurs",
   };
   return <span className={`visibility visibility-${visibility}`}>{labels[visibility]}</span>;

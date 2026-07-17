@@ -210,7 +210,6 @@ textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
 .customized-copy { display: inline-flex; align-items: center; border-radius: 99px; padding: 3px 7px; background: var(--gold-soft); color: #ddc183; font-size: .59rem; font-weight: 850; letter-spacing: .04em; }
 .visibility { display: inline-flex; width: max-content; align-items: center; justify-content: center; border-radius: 99px; padding: 3px 7px; font-size: .59rem; font-weight: 850; letter-spacing: .04em; }
 .visibility-gm_only { background: #2d3330; color: #aab2ac; }
-.visibility-ready { background: #41361f; color: #e0c17a; }
 .visibility-players { background: #24382b; color: #9fc6aa; }
 .relationship-colors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .relationship-colors button { display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line-soft); border-radius: 8px; padding: 10px; background: #111714; color: var(--muted); font-size: .72rem; cursor: pointer; }

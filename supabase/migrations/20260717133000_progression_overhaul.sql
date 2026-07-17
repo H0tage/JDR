@@ -207,7 +207,7 @@ begin
           (m.campaign_id, v_faction_id, current_date, m.volume,
            m.title || case when v_amount < 0 then ' — perte' else ' — gain' end,
            coalesce(nullif(btrim(p_note), ''), m.condition),
-           v_amount, v_jf_amount, 'ready', m.source_reference, m.id);
+           v_amount, v_jf_amount, 'gm_only', m.source_reference, m.id);
       end if;
     end loop;
   else

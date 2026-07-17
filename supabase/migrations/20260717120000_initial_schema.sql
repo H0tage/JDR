@@ -4,7 +4,7 @@
 
 create extension if not exists pgcrypto with schema extensions;
 
-create type public.visibility_status as enum ('gm_only', 'ready', 'players');
+create type public.visibility_status as enum ('gm_only', 'players');
 create type public.service_scale as enum ('Mineure', 'Modérée', 'Majeure');
 create type public.relationship_evidence as enum ('E', 'S', 'H', 'E/S', 'S/H');
 create type public.relationship_tone as enum ('alliance', 'cooperation', 'tension', 'hostility', 'unclear');
@@ -490,13 +490,13 @@ begin
     insert into public.journal_entries
       (campaign_id, faction_id, occurred_on, volume, title, details, rp_delta, jf_delta, visibility, source_reference)
     values
-      (m.campaign_id, m.beneficiary_faction_id, current_date, m.volume, m.title || ' — gain', m.condition, m.rp_gain, m.rp_gain, 'ready', m.source_reference);
+      (m.campaign_id, m.beneficiary_faction_id, current_date, m.volume, m.title || ' — gain', m.condition, m.rp_gain, m.rp_gain, 'gm_only', m.source_reference);
   end if;
   if m.harmed_faction_id is not null and m.rp_loss < 0 then
     insert into public.journal_entries
       (campaign_id, faction_id, occurred_on, volume, title, details, rp_delta, jf_delta, visibility, source_reference)
     values
-      (m.campaign_id, m.harmed_faction_id, current_date, m.volume, m.title || ' — perte', m.condition, m.rp_loss, 0, 'ready', m.source_reference);
+      (m.campaign_id, m.harmed_faction_id, current_date, m.volume, m.title || ' — perte', m.condition, m.rp_loss, 0, 'gm_only', m.source_reference);
   end if;
 
   update public.reputation_milestones set applied = true, applied_at = now() where id = milestone_id;
