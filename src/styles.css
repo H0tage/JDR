@@ -200,6 +200,14 @@ textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
 .modal-actions { display: flex; justify-content: end; gap: 8px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
 .modal-prose { color: #c5ccc6; line-height: 1.65; }
 .relation-meta { display: flex; gap: 8px; margin: 18px 0; }
+.relationship-editor { display: grid; gap: 17px; }
+.relationship-field { display: grid; gap: 7px; }
+.relationship-field-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.relationship-field-head label { color: #cbd2cc; }
+.relationship-field-head .text-button { flex: 0 0 auto; font-size: .72rem; }
+.relationship-field textarea { min-height: 132px; }
+.relationship-field small { line-height: 1.45; }
+.customized-copy { display: inline-flex; align-items: center; border-radius: 99px; padding: 3px 7px; background: var(--gold-soft); color: #ddc183; font-size: .59rem; font-weight: 850; letter-spacing: .04em; }
 .visibility, .evidence { display: inline-flex; width: max-content; align-items: center; justify-content: center; border-radius: 99px; padding: 3px 7px; font-size: .59rem; font-weight: 850; letter-spacing: .04em; }
 .visibility-gm_only { background: #2d3330; color: #aab2ac; }
 .visibility-ready { background: #41361f; color: #e0c17a; }
@@ -446,6 +454,7 @@ textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
   .player-tabs { justify-content: start; }
   .public-timeline article { grid-template-columns: 1fr; gap: 7px; }
   .reveal-actions { grid-template-columns: 1fr; }
+  .relationship-field-head { align-items: flex-start; flex-direction: column; gap: 5px; }
 }
 
 @media print {

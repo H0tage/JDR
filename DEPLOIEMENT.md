@@ -1,64 +1,31 @@
-# Déploiement de `jdr.regalade.ch`
+# Éditeur des textes de relations — déploiement
 
-Ce projet affiche une seule campagne : **Blood Lords**. Le champ `campaign_id` permet une extension ultérieure, mais aucun sélecteur de campagne n’apparaît dans l’interface.
+Ce paquet est cumulatif : il contient aussi la terminologie française des factions déjà validée.
 
-## 1. Installer la base Supabase
+## 1. Mettre à jour Supabase en premier
 
-Depuis la racine du dépôt :
+Dans **Supabase > SQL Editor**, ouvrir puis exécuter le contenu de :
 
-```bash
-supabase login
-supabase link --project-ref ajrehwjevfttrxnztryr
-supabase db push
-```
+`supabase/migrations/20260717131000_relation_text_overrides.sql`
 
-Les migrations sont appliquées dans cet ordre :
+Le résultat normal est : `Success. No rows returned`.
 
-1. schéma, vues et politiques RLS ;
-2. données Blood Lords et état initial du groupe ;
-3. quinze dossiers politiques bilatéraux.
+La migration ajoute deux champs de personnalisation facultatifs et recrée les vues MJ/joueur. Les textes existants restent les valeurs par défaut.
 
-Créer ensuite le compte du MJ dans **Supabase Dashboard → Authentication → Users**, puis exécuter `supabase/setup/assign_gm.sql` dans le SQL Editor après avoir remplacé `REMPLACER-PAR-EMAIL-MJ`.
+## 2. Mettre à jour GitHub
 
-La clé `service_role` et le mot de passe PostgreSQL ne doivent jamais être placés dans le dépôt ou dans une variable `VITE_*`.
+Décompresser ce paquet, puis déposer les dossiers `src`, `supabase` et `tests` à la racine du dépôt `H0tage/JDR` en acceptant le remplacement des fichiers existants.
 
-## 2. Publier sur GitHub Pages
+Ne pas déposer le dossier extérieur `publication_editeur_relations_v1` dans le dépôt.
 
-Dans le dépôt GitHub :
+GitHub Actions doit ensuite lancer automatiquement le build et le déploiement.
 
-1. créer les variables Actions `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` ;
-2. dans **Settings → Pages**, choisir **GitHub Actions** ;
-3. pousser la branche `main` ou lancer manuellement le workflow **Deploy GitHub Pages**.
+## 3. Vérifier
 
-Le workflow installe les dépendances, construit les trois pages et publie `dist`.
+1. Ouvrir `/MJsecretscreen/`, puis l'onglet **Politique**.
+2. Cliquer sur une relation de la matrice.
+3. Modifier son titre ou son descriptif, choisir sa visibilité et enregistrer.
+4. Si elle est publique, vérifier son texte final dans `/playerscreen/`.
+5. Revenir dans l'éditeur et tester **Reprendre le défaut**.
 
-Le dépôt `H0tage/JDR` étant privé, GitHub Pages demande un abonnement GitHub Pro, Team ou Enterprise. Avec GitHub Free, deux possibilités : rendre ce dépôt public ou publier le site depuis un second dépôt public.
-
-## 3. Relier le sous-domaine
-
-Avant toute modification DNS, ouvrir **Settings → Pages → Custom domain**, saisir `jdr.regalade.ch`, puis enregistrer. Chez Infomaniak, créer ensuite l’enregistrement :
-
-| Type | Nom | Cible |
-| --- | --- | --- |
-| CNAME | `jdr` | `H0tage.github.io` |
-
-Le fichier `public/CNAME` contient déjà `jdr.regalade.ch`, mais un workflow GitHub Actions exige malgré tout le réglage **Custom domain** dans GitHub. Une fois le DNS propagé, activer **Enforce HTTPS** si l’option n’est pas encore cochée.
-
-## 4. Vérifications après publication
-
-- `https://jdr.regalade.ch/` affiche l’entrée du registre ;
-- `https://jdr.regalade.ch/MJsecretscreen/` demande une authentification ;
-- `https://jdr.regalade.ch/playerscreen/` fonctionne sans compte ;
-- les joueurs voient 5 RP et 5 JF auprès des Réanimateurs ;
-- aucune relation politique n’est publique tant que le MJ ne la révèle pas ;
-- une relation marquée **Prête à révéler** reste invisible des joueurs ;
-- une relation marquée **Visible joueurs** apparaît après l’actualisation automatique.
-
-## 5. Contrôles locaux
-
-```bash
-npm test
-npm run build
-```
-
-La suite de tests exécute les migrations dans un PostgreSQL embarqué et vérifie notamment les permissions `anon`, les politiques MJ, les totaux initiaux et l’absence de colonnes privées dans les vues publiques.
+Validation locale effectuée : 14 tests automatisés réussis et build de production réussi.

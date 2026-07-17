@@ -98,6 +98,10 @@ export interface Relationship {
   target_name: string;
   headline: string;
   detail: string;
+  default_headline?: string;
+  default_detail?: string;
+  headline_override?: string | null;
+  detail_override?: string | null;
   evidence: Evidence;
   tone: "alliance" | "cooperation" | "tension" | "hostility" | "unclear";
   visibility: Visibility;

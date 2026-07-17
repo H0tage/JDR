@@ -7,12 +7,25 @@ const migration = readFileSync(
   "utf8",
 );
 
+const relationshipOverridesMigration = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20260717131000_relation_text_overrides.sql"),
+  "utf8",
+);
+
 function viewBody(name: string, nextName: string) {
   const start = migration.indexOf(`create or replace view public.${name}`);
   const end = migration.indexOf(`create or replace view public.${nextName}`, start + 1);
   expect(start).toBeGreaterThan(-1);
   expect(end).toBeGreaterThan(start);
   return migration.slice(start, end);
+}
+
+function finalPlayerRelationshipsView() {
+  const start = relationshipOverridesMigration.indexOf(
+    "create or replace view public.player_relationships",
+  );
+  expect(start).toBeGreaterThan(-1);
+  return relationshipOverridesMigration.slice(start);
 }
 
 describe("player data boundary", () => {
@@ -46,6 +59,18 @@ describe("player data boundary", () => {
     expect(factions).toContain("case when s.show_numeric_tension then least(s.tension_max, t.tension_raw) else null end");
     expect(journal).toContain("case when s.show_numeric_tension then j.tension_delta else null end");
     expect(journal).not.toContain("source_reference");
+    expect(relationships).not.toContain("r.evidence");
+  });
+
+  it("publishes only the effective relationship wording, not its editing fields", () => {
+    const relationships = finalPlayerRelationshipsView();
+    expect(relationships).toContain("where r.visibility = 'players'");
+    expect(relationships).toContain("r.headline) as headline");
+    expect(relationships).toContain("r.detail) as detail");
+    expect(relationships).not.toContain("as default_headline");
+    expect(relationships).not.toContain("as default_detail");
+    expect(relationships).not.toMatch(/^\s*r\.headline_override\s*,/m);
+    expect(relationships).not.toMatch(/^\s*r\.detail_override\s*,/m);
     expect(relationships).not.toContain("r.evidence");
   });
 });

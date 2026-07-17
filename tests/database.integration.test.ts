@@ -8,6 +8,7 @@ const migrationFiles = [
   "20260717121000_seed_blood_lords.sql",
   "20260717122000_seed_dossiers.sql",
   "20260717130000_update_faction_names.sql",
+  "20260717131000_relation_text_overrides.sql",
 ];
 
 it("installe les migrations, les données et la frontière MJ/joueurs", async () => {
@@ -62,6 +63,39 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
     { name: "Consortium des Convoyeurs", short_name: "Convoyeurs" },
   ]);
 
+  const relationshipId = "00000000-0000-4000-8300-000000000001";
+  const defaultRelationship = (await db.query<{
+    headline: string;
+    detail: string;
+    default_headline: string;
+    default_detail: string;
+    headline_override: string | null;
+    detail_override: string | null;
+  }>(`select headline, detail, default_headline, default_detail, headline_override, detail_override
+      from public.gm_relationships where id = '${relationshipId}'`)).rows[0];
+  expect(defaultRelationship).toMatchObject({
+    headline: "Défiance informationnelle",
+    default_headline: "Défiance informationnelle",
+    headline_override: null,
+    detail_override: null,
+  });
+
+  await db.exec(`
+    update public.faction_relationships
+    set headline_override = 'Rivalité des secrets',
+        detail_override = 'La version propre à cette campagne.',
+        visibility = 'players'
+    where id = '${relationshipId}';
+  `);
+  const customizedRelationship = (await db.query<{ headline: string; detail: string; default_headline: string }>(`
+    select headline, detail, default_headline from public.gm_relationships where id = '${relationshipId}'
+  `)).rows[0];
+  expect(customizedRelationship).toEqual({
+    headline: "Rivalité des secrets",
+    detail: "La version propre à cette campagne.",
+    default_headline: "Défiance informationnelle",
+  });
+
   const reanimators = (await db.query<{ rp: number; jf: number; tension: number; status: string }>(`
     select rp, jf, tension, status from public.gm_faction_overview where slug = 'réanimateurs'
   `)).rows[0];
@@ -76,8 +110,13 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
     set role anon;
   `);
   await expect(db.query("select * from public.journal_entries")).rejects.toThrow(/permission denied/i);
+  await expect(db.query(`update public.faction_relationships set headline_override = 'Intrusion' where id = '${relationshipId}'`)).rejects.toThrow(/permission denied/i);
   expect((await db.query<{ count: number }>("select count(*)::int as count from public.player_faction_overview")).rows[0].count).toBe(6);
   expect((await db.query<{ tension: number | null }>("select tension from public.player_faction_overview where slug = 'réanimateurs'")).rows[0].tension).toBeNull();
+  expect((await db.query<{ headline: string; detail: string }>(`select headline, detail from public.player_relationships where id = '${relationshipId}'`)).rows[0]).toEqual({
+    headline: "Rivalité des secrets",
+    detail: "La version propre à cette campagne.",
+  });
 
   await db.exec("reset role; set role authenticated;");
   expect((await db.query<{ count: number }>("select count(*)::int as count from public.gm_faction_overview")).rows[0].count).toBe(6);

@@ -35,7 +35,7 @@ import {
   subscribeToCampaign,
   updateFactionDetails,
   updateJournalVisibility,
-  updateRelationshipVisibility,
+  updateRelationship,
   updateSettings,
 } from "../lib/api";
 import { quoteService, unlockedServices } from "../lib/domain";
@@ -172,8 +172,10 @@ function GmWorkspace({ demo }: { demo: boolean }) {
         await refresh();
       }
       announce(success);
+      return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Modification impossible.");
+      return false;
     }
   }
 
@@ -226,7 +228,7 @@ function GmWorkspace({ demo }: { demo: boolean }) {
   );
 }
 
-type Mutate = (action: () => Promise<void>, success: string, local?: (previous: CampaignData) => CampaignData) => Promise<void>;
+type Mutate = (action: () => Promise<void>, success: string, local?: (previous: CampaignData) => CampaignData) => Promise<boolean>;
 
 function DashboardTab({ data, onNavigate }: { data: CampaignData; onNavigate: (tab: Tab) => void }) {
   const liked = data.factions.filter((f) => f.rp >= data.settings.liked_threshold).length;
@@ -372,11 +374,52 @@ function ContactsTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
 
 function PoliticsTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
   const [selected, setSelected] = useState<Relationship | null>(null);
+  const [draft, setDraft] = useState<{ headline: string; detail: string; visibility: Visibility } | null>(null);
   const [dossier, setDossier] = useState(data.dossiers[0]?.id ?? "");
   const selectedDossier = data.dossiers.find((item) => item.id === dossier);
   function relation(source: FactionOverview, target: FactionOverview) { return data.relationships.find((item) => item.source_faction_id === source.faction_id && item.target_faction_id === target.faction_id); }
-  return <div className="page-stack"><SectionHeading eyebrow="Lecture directionnelle" title="Politique des factions" /><div className="legend-row"><span><EvidenceBadge evidence="E" />Explicite</span><span><EvidenceBadge evidence="S" />Synthèse forte</span><span><EvidenceBadge evidence="H" />Hook optionnel</span><p>Aucune relation ne transfère automatiquement des RP.</p></div><div className="matrix-wrap"><table className="politics-matrix"><thead><tr><th>Point de vue ↓</th>{data.factions.map((f) => <th key={f.faction_id}>{f.short_name}</th>)}</tr></thead><tbody>{data.factions.map((source) => <tr key={source.faction_id}><th>{source.short_name}</th>{data.factions.map((target) => { const item = relation(source, target); return <td key={target.faction_id} className={!item ? "diagonal" : item.tone}><button disabled={!item} onClick={() => item && setSelected(item)}>{item ? <><strong>{item.headline}</strong><span><EvidenceBadge evidence={item.evidence} />{item.visibility === "players" ? <Eye size={14} /> : item.visibility === "ready" ? <Sparkles size={14} /> : <EyeOff size={14} />}</span></> : "—"}</button></td>; })}</tr>)}</tbody></table></div><section className="dossier-section"><div className="dossier-picker"><p className="eyebrow">15 dossiers bilatéraux</p><select value={dossier} onChange={(e) => setDossier(e.target.value)}>{data.dossiers.map((item) => <option key={item.id} value={item.id}>{item.pair_name}</option>)}</select></div>{selectedDossier && <article className="dossier-card"><div className="dossier-core"><span>Noyau canon</span><p>{selectedDossier.canon_core}</p></div><div className="dossier-directions"><div><span>Première faction → seconde</span><p>{selectedDossier.a_to_b}</p></div><div><span>Seconde faction → première</span><p>{selectedDossier.b_to_a}</p></div></div><div className="dossier-grid"><div><span>Intérêt commun</span><p>{selectedDossier.common_interest}</p></div><div><span>Ligne de fracture</span><p>{selectedDossier.fracture}</p></div><div><span>Déclencheurs utiles</span><p>{selectedDossier.triggers}</p></div><div><span>Scène prête à jouer</span><p>{selectedDossier.scene_hook}</p></div></div><footer>{selectedDossier.evidence_note}</footer></article>}</section>{selected && <div className="modal-backdrop"><div className="modal-card"><div className="modal-head"><div><p className="eyebrow">{selected.source_name} → {selected.target_name}</p><h3>{selected.headline}</h3></div><button className="icon-button" onClick={() => setSelected(null)}><X /></button></div><p className="modal-prose">{selected.detail}</p><div className="relation-meta"><EvidenceBadge evidence={selected.evidence} /><VisibilityBadge visibility={selected.visibility} /></div><div className="reveal-actions"><button className={selected.visibility === "gm_only" ? "active" : ""} onClick={() => changeRelation("gm_only")}><EyeOff />MJ uniquement</button><button className={selected.visibility === "ready" ? "active" : ""} onClick={() => changeRelation("ready")}><Sparkles />Prête à révéler</button><button className={selected.visibility === "players" ? "active" : ""} onClick={() => changeRelation("players")}><Eye />Visible joueurs</button></div></div></div>}</div>;
-  async function changeRelation(visibility: Visibility) { if (!selected) return; await mutate(() => updateRelationshipVisibility(selected.id, visibility), "Visibilité de la relation modifiée.", (previous) => { previous.relationships.find((item) => item.id === selected.id)!.visibility = visibility; return previous; }); setSelected({ ...selected, visibility }); }
+  function openRelationship(item: Relationship) {
+    setSelected(item);
+    setDraft({ headline: item.headline, detail: item.detail, visibility: item.visibility });
+  }
+  function closeRelationship() {
+    setSelected(null);
+    setDraft(null);
+  }
+  function defaultHeadline(item: Relationship) { return item.default_headline ?? item.headline; }
+  function defaultDetail(item: Relationship) { return item.default_detail ?? item.detail; }
+  function normalizedOverride(value: string, fallback: string) {
+    const normalized = value.trim();
+    return !normalized || normalized === fallback.trim() ? null : normalized;
+  }
+  async function saveRelationship(event: FormEvent) {
+    event.preventDefault();
+    if (!selected || !draft) return;
+    const fallbackHeadline = defaultHeadline(selected);
+    const fallbackDetail = defaultDetail(selected);
+    const headlineOverride = normalizedOverride(draft.headline, fallbackHeadline);
+    const detailOverride = normalizedOverride(draft.detail, fallbackDetail);
+    const saved = await mutate(
+      () => updateRelationship(selected.id, {
+        headline_override: headlineOverride,
+        detail_override: detailOverride,
+        visibility: draft.visibility,
+      }),
+      "Relation enregistrée.",
+      (previous) => {
+        const item = previous.relationships.find((candidate) => candidate.id === selected.id)!;
+        item.headline_override = headlineOverride;
+        item.detail_override = detailOverride;
+        item.headline = headlineOverride ?? fallbackHeadline;
+        item.detail = detailOverride ?? fallbackDetail;
+        item.visibility = draft.visibility;
+        return previous;
+      },
+    );
+    if (saved) closeRelationship();
+  }
+
+  return <div className="page-stack"><SectionHeading eyebrow="Lecture directionnelle" title="Politique des factions" /><div className="legend-row"><span><EvidenceBadge evidence="E" />Explicite</span><span><EvidenceBadge evidence="S" />Synthèse forte</span><span><EvidenceBadge evidence="H" />Hook optionnel</span><p>Aucune relation ne transfère automatiquement des RP.</p></div><div className="matrix-wrap"><table className="politics-matrix"><thead><tr><th>Point de vue ↓</th>{data.factions.map((f) => <th key={f.faction_id}>{f.short_name}</th>)}</tr></thead><tbody>{data.factions.map((source) => <tr key={source.faction_id}><th>{source.short_name}</th>{data.factions.map((target) => { const item = relation(source, target); return <td key={target.faction_id} className={!item ? "diagonal" : item.tone}><button disabled={!item} onClick={() => item && openRelationship(item)}>{item ? <><strong>{item.headline}</strong><span><EvidenceBadge evidence={item.evidence} />{item.visibility === "players" ? <Eye size={14} /> : item.visibility === "ready" ? <Sparkles size={14} /> : <EyeOff size={14} />}</span></> : "—"}</button></td>; })}</tr>)}</tbody></table></div><section className="dossier-section"><div className="dossier-picker"><p className="eyebrow">15 dossiers bilatéraux</p><select value={dossier} onChange={(e) => setDossier(e.target.value)}>{data.dossiers.map((item) => <option key={item.id} value={item.id}>{item.pair_name}</option>)}</select></div>{selectedDossier && <article className="dossier-card"><div className="dossier-core"><span>Noyau canon</span><p>{selectedDossier.canon_core}</p></div><div className="dossier-directions"><div><span>Première faction → seconde</span><p>{selectedDossier.a_to_b}</p></div><div><span>Seconde faction → première</span><p>{selectedDossier.b_to_a}</p></div></div><div className="dossier-grid"><div><span>Intérêt commun</span><p>{selectedDossier.common_interest}</p></div><div><span>Ligne de fracture</span><p>{selectedDossier.fracture}</p></div><div><span>Déclencheurs utiles</span><p>{selectedDossier.triggers}</p></div><div><span>Scène prête à jouer</span><p>{selectedDossier.scene_hook}</p></div></div><footer>{selectedDossier.evidence_note}</footer></article>}</section>{selected && draft && <div className="modal-backdrop"><form className="modal-card wide" onSubmit={saveRelationship}><div className="modal-head"><div><p className="eyebrow">{selected.source_name} → {selected.target_name}</p><h3>{draft.headline.trim() || defaultHeadline(selected)}</h3></div><button type="button" className="icon-button" onClick={closeRelationship}><X /></button></div><div className="relationship-editor"><div className="relationship-field"><div className="relationship-field-head"><label htmlFor="relationship-headline">Titre affiché dans la matrice</label><button type="button" className="text-button" onClick={() => setDraft((current) => current ? { ...current, headline: defaultHeadline(selected) } : current)}>Reprendre le défaut</button></div><input id="relationship-headline" value={draft.headline} onChange={(event) => setDraft((current) => current ? { ...current, headline: event.target.value } : current)} placeholder={defaultHeadline(selected)} /><small>Vider le champ réactive automatiquement le titre de référence.</small></div><div className="relationship-field"><div className="relationship-field-head"><label htmlFor="relationship-detail">Description affichée</label><button type="button" className="text-button" onClick={() => setDraft((current) => current ? { ...current, detail: defaultDetail(selected) } : current)}>Reprendre le défaut</button></div><textarea id="relationship-detail" value={draft.detail} onChange={(event) => setDraft((current) => current ? { ...current, detail: event.target.value } : current)} placeholder={defaultDetail(selected)} /><small>Ce même texte apparaîtra côté joueurs lorsque la relation sera publique.</small></div></div><div className="relation-meta"><EvidenceBadge evidence={selected.evidence} /><VisibilityBadge visibility={draft.visibility} />{(normalizedOverride(draft.headline, defaultHeadline(selected)) || normalizedOverride(draft.detail, defaultDetail(selected))) && <span className="customized-copy">Texte personnalisé</span>}</div><div className="reveal-actions"><button type="button" className={draft.visibility === "gm_only" ? "active" : ""} onClick={() => setDraft((current) => current ? { ...current, visibility: "gm_only" } : current)}><EyeOff />MJ uniquement</button><button type="button" className={draft.visibility === "ready" ? "active" : ""} onClick={() => setDraft((current) => current ? { ...current, visibility: "ready" } : current)}><Sparkles />Prête à révéler</button><button type="button" className={draft.visibility === "players" ? "active" : ""} onClick={() => setDraft((current) => current ? { ...current, visibility: "players" } : current)}><Eye />Visible joueurs</button></div><div className="modal-actions"><button type="button" className="button secondary" onClick={closeRelationship}>Annuler</button><button className="button primary"><Save size={17} />Enregistrer</button></div></form></div>}</div>;
 }
 
 function ProgressionTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
