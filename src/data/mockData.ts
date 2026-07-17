@@ -10,6 +10,7 @@ import type {
   RelationshipColor,
   Service,
 } from "../lib/types";
+import { dossierEnrichment } from "./dossierEnrichment";
 
 export const CAMPAIGN_ID = "00000000-0000-4000-8000-000000000001";
 
@@ -178,21 +179,25 @@ const dossierRows = [
   ["uci", "charretiers", "Percepteurs ↔ Convoyeurs", "Taxes, crédit, transport et relais contre ancienne Grande Faction déchue.", "Les SPI traitent le Consortium comme débiteur, contribuable et outil logistique.", "Les Convoyeurs ressentent péages et tutelle mais ont besoin de crédit et de reconnaissance.", "Péages, financement, assurance, saisies et relais.", "Dette, autonomie et contrôle des flux.", "Hausse de péage ; saisie ; audit ; dette ancienne ; reprise de contrôle.", "Financer un relais contre l’abandon de l’autonomie sur la meilleure route.", "Statut et actifs explicites ; créancier optionnel."],
 ] as const;
 
-export const mockDossiers: BilateralDossier[] = dossierRows.map((row, index) => ({
-  id: `00000000-0000-4000-8400-${String(index + 1).padStart(12, "0")}`,
-  campaign_id: CAMPAIGN_ID,
-  faction_a_id: factionIds[row[0]],
-  faction_b_id: factionIds[row[1]],
-  pair_name: row[2],
-  canon_core: row[3],
-  a_to_b: row[4],
-  b_to_a: row[5],
-  common_interest: row[6],
-  fracture: row[7],
-  triggers: row[8],
-  scene_hook: row[9],
-  evidence_note: row[10],
-}));
+export const mockDossiers: BilateralDossier[] = dossierRows.map((row, index) => {
+  const id = `00000000-0000-4000-8400-${String(index + 1).padStart(12, "0")}`;
+  const enriched = dossierEnrichment[id];
+  return {
+    id,
+    campaign_id: CAMPAIGN_ID,
+    faction_a_id: factionIds[row[0]],
+    faction_b_id: factionIds[row[1]],
+    pair_name: row[2],
+    canon_core: enriched?.canon_core ?? row[3],
+    a_to_b: enriched?.a_to_b ?? row[4],
+    b_to_a: enriched?.b_to_a ?? row[5],
+    common_interest: enriched?.common_interest ?? row[6],
+    fracture: enriched?.fracture ?? row[7],
+    triggers: row[8],
+    scene_hook: row[9],
+    evidence_note: row[10],
+  };
+});
 
 export const mockContacts: Contact[] = factionSeeds.map((faction, index) => {
   const values = [

@@ -10,6 +10,7 @@ const migrationFiles = [
   "20260717130000_update_faction_names.sql",
   "20260717132000_relationship_color_overrides.sql",
   "20260717133000_progression_overhaul.sql",
+  "20260718100000_enrich_bilateral_dossiers.sql",
 ];
 
 it("installe les migrations, les données et la frontière MJ/joueurs", async () => {
@@ -51,6 +52,14 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
       (select count(*)::int from public.reputation_milestones) milestones
   `)).rows[0];
   expect(counts).toEqual({ campaigns: 1, factions: 6, services: 18, relationships: 30, dossiers: 15, milestones: 77 });
+
+  const dossier = (await db.query<{ canon_core: string; common_interest: string }>(`
+    select canon_core, common_interest
+    from public.bilateral_dossiers
+    where id = '00000000-0000-4000-8400-000000000001'
+  `)).rows[0];
+  expect(dossier.canon_core).toContain("Les Célébrants désignent la Ligue des Bâtisseurs parmi leurs ennemis");
+  expect(dossier.common_interest.trim().split(/\s+/u)).toHaveLength(46);
 
   const factionNames = (await db.query<{ name: string; short_name: string }>(`
     select name, short_name from public.factions order by sort_order

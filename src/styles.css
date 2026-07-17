@@ -310,7 +310,6 @@ textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
 .dossier-directions, .dossier-grid { display: grid; grid-template-columns: 1fr 1fr; }
 .dossier-directions > div, .dossier-grid > div { padding: 17px 20px; border-top: 1px solid var(--line-soft); }
 .dossier-directions > div + div, .dossier-grid > div:nth-child(even) { border-left: 1px solid var(--line-soft); }
-.dossier-card footer { padding: 12px 20px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: .66rem; }
 .reveal-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
 .reveal-actions button { display: grid; justify-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px; padding: 11px 7px; background: #111714; color: var(--muted); cursor: pointer; font-size: .66rem; }
 .reveal-actions button.active { border-color: var(--gold); color: var(--ivory); background: var(--gold-soft); }

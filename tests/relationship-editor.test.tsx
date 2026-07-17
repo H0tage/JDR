@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { GmApp } from "../src/components/GmApp";
+import { dossierEnrichment } from "../src/data/dossierEnrichment";
 
 let root: Root;
 let container: HTMLDivElement;
@@ -91,4 +92,22 @@ it("nomme les deux directions d’un dossier avec les factions concernées", asy
   expect(labels).toEqual(["Bâtisseurs → Célébrants", "Célébrants → Bâtisseurs"]);
   expect(directions.textContent).not.toContain("Première faction");
   expect(directions.textContent).not.toContain("Seconde faction");
+
+  const dossierCard = directions.closest(".dossier-card")!;
+  expect(dossierCard.querySelectorAll("p")).toHaveLength(5);
+  expect(dossierCard.querySelector("footer")).toBeNull();
+  expect(dossierCard.textContent).not.toContain("Déclencheurs utiles");
+  expect(dossierCard.textContent).not.toContain("Scène prête à jouer");
+});
+
+it("fournit cinq paragraphes enrichis de 40 à 50 mots pour chacun des 15 dossiers", () => {
+  expect(Object.keys(dossierEnrichment)).toHaveLength(15);
+  for (const dossier of Object.values(dossierEnrichment)) {
+    expect(Object.keys(dossier)).toHaveLength(5);
+    for (const paragraph of Object.values(dossier)) {
+      const wordCount = paragraph.trim().split(/\s+/u).length;
+      expect(wordCount).toBeGreaterThanOrEqual(40);
+      expect(wordCount).toBeLessThanOrEqual(50);
+    }
+  }
 });
