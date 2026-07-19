@@ -4,6 +4,7 @@ export type ServiceScale = "Mineure" | "Modérée" | "Majeure";
 export type Evidence = "E" | "S" | "H" | "E/S" | "S/H";
 export type RelationshipColor = "favorable" | "uncertain" | "hostile";
 export type MilestoneStatus = "pending" | "succeeded" | "missed" | "excluded";
+export type TranslationOrigin = "none" | "attested" | "site" | "custom";
 
 export interface MilestoneEffectTemplate {
   label: string;
@@ -186,4 +187,59 @@ export interface CampaignData {
   relationships: Relationship[];
   dossiers: BilateralDossier[];
   milestones: Milestone[];
+}
+
+export interface ArchiveCharacter {
+  id: string;
+  campaign_id: string;
+  template_key: string | null;
+  sort_order: number;
+  first_name: string;
+  last_name: string | null;
+  translated_name: string | null;
+  translation_origin: TranslationOrigin;
+  role_text: string | null;
+  first_volume: number;
+  first_page: number | null;
+  is_custom: boolean;
+}
+
+export interface ArchivePlace {
+  id: string;
+  campaign_id: string;
+  template_key: string | null;
+  sort_order: number;
+  original_name: string;
+  translated_name: string | null;
+  translation_origin: TranslationOrigin;
+  place_type: string | null;
+  function_text: string | null;
+  first_volume: number;
+  first_page: number | null;
+  is_custom: boolean;
+}
+
+export interface LootEntry {
+  id: string;
+  campaign_id: string;
+  template_key: string | null;
+  sort_order: number;
+  original_name: string;
+  quantity: string;
+  description: string | null;
+  unit_value: string | null;
+  total_value: string | null;
+  location_name: string | null;
+  position: string | null;
+  volume: number;
+  page: number | null;
+  nature: string | null;
+  notes: string | null;
+  is_custom: boolean;
+}
+
+export interface ArchivesData {
+  characters: ArchiveCharacter[];
+  places: ArchivePlace[];
+  show_translations: boolean;
 }

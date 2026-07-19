@@ -21,7 +21,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   addJournalEntry,
   currentSession,
@@ -57,7 +57,10 @@ import type {
 } from "../lib/types";
 import { EmptyState, ErrorPanel, LoadingScreen, SectionHeading, VisibilityBadge } from "./ui";
 
-type Tab = "dashboard" | "journal" | "factions" | "services" | "contacts" | "politics" | "progression" | "settings";
+const ArchivesTab = lazy(() => import("./ReferenceTables").then((module) => ({ default: module.ArchivesTab })));
+const LootTab = lazy(() => import("./ReferenceTables").then((module) => ({ default: module.LootTab })));
+
+type Tab = "dashboard" | "journal" | "factions" | "services" | "contacts" | "politics" | "progression" | "archives" | "loot" | "settings";
 
 const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> = [
   { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
@@ -67,6 +70,8 @@ const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> 
   { id: "contacts", label: "Contacts et dettes", icon: Users },
   { id: "politics", label: "Politique", icon: Network },
   { id: "progression", label: "Progression", icon: BookOpenText },
+  { id: "archives", label: "Archives", icon: Archive },
+  { id: "loot", label: "Butins", icon: CircleDollarSign },
   { id: "settings", label: "Réglages", icon: Settings },
 ];
 
@@ -225,6 +230,8 @@ function GmWorkspace({ demo }: { demo: boolean }) {
           {tab === "contacts" && <ContactsTab data={data} mutate={mutate} />}
           {tab === "politics" && <PoliticsTab data={data} mutate={mutate} />}
           {tab === "progression" && <ProgressionTab data={data} mutate={mutate} />}
+          {tab === "archives" && <Suspense fallback={<LoadingScreen label="Ouverture des archives…" />}><ArchivesTab campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} /></Suspense>}
+          {tab === "loot" && <Suspense fallback={<LoadingScreen label="Inventaire des trésors…" />}><LootTab campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} /></Suspense>}
           {tab === "settings" && <SettingsTab data={data} mutate={mutate} />}
         </div>
       </main>

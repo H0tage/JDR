@@ -11,6 +11,7 @@ const migrationFiles = [
   "20260717132000_relationship_color_overrides.sql",
   "20260717133000_progression_overhaul.sql",
   "20260718100000_enrich_bilateral_dossiers.sql",
+  "20260719120000_archives_and_loot.sql",
 ];
 
 it("installe les migrations, les données et la frontière MJ/joueurs", async () => {
@@ -42,6 +43,9 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
     relationships: number;
     dossiers: number;
     milestones: number;
+    characters: number;
+    places: number;
+    loot: number;
   }>(`
     select
       (select count(*)::int from public.campaigns) campaigns,
@@ -49,9 +53,12 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
       (select count(*)::int from public.services) services,
       (select count(*)::int from public.faction_relationships) relationships,
       (select count(*)::int from public.bilateral_dossiers) dossiers,
-      (select count(*)::int from public.reputation_milestones) milestones
+      (select count(*)::int from public.reputation_milestones) milestones,
+      (select count(*)::int from public.archive_characters) characters,
+      (select count(*)::int from public.archive_places) places,
+      (select count(*)::int from public.campaign_loot) loot
   `)).rows[0];
-  expect(counts).toEqual({ campaigns: 1, factions: 6, services: 18, relationships: 30, dossiers: 15, milestones: 77 });
+  expect(counts).toEqual({ campaigns: 1, factions: 6, services: 18, relationships: 30, dossiers: 15, milestones: 77, characters: 233, places: 307, loot: 406 });
 
   const dossier = (await db.query<{ canon_core: string; common_interest: string }>(`
     select canon_core, common_interest
@@ -135,6 +142,25 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
     select set_config('request.jwt.claim.sub', '${gmUserId}', false);
   `);
 
+  await db.exec(`
+    update public.archive_places
+    set translated_name = 'Traduction du MJ', translation_origin = 'custom'
+    where template_key = 'place-0001';
+    delete from public.archive_characters where template_key = 'person-0001';
+    insert into public.campaign_loot
+      (campaign_id, sort_order, original_name, quantity, volume, is_custom)
+    values ('${campaignId}', 999, 'Custom treasure', '1', 1, true);
+  `);
+  await db.query(`select public.reset_campaign_reference_data('${campaignId}', 'archives')`);
+  await db.query(`select public.reset_campaign_reference_data('${campaignId}', 'loot')`);
+  expect((await db.query<{ characters: number; loot: number; custom_loot: number; graydirge: string }>(`
+    select
+      (select count(*)::int from public.archive_characters where campaign_id = '${campaignId}') characters,
+      (select count(*)::int from public.campaign_loot where campaign_id = '${campaignId}') loot,
+      (select count(*)::int from public.campaign_loot where campaign_id = '${campaignId}' and is_custom) custom_loot,
+      (select translated_name from public.archive_places where campaign_id = '${campaignId}' and original_name = 'Graydirge') graydirge
+  `)).rows[0]).toEqual({ characters: 233, loot: 406, custom_loot: 0, graydirge: "Griseplainte" });
+
   await db.query(`select public.resolve_reputation_milestone(
     '${collectorsChoice}', 'succeeded', 'La banque revient aux Percepteurs.',
     '[{"label":"Percepteurs","faction_id":"${collectorsId}","amount":8},{"label":"Bâtisseurs","faction_id":"${buildersId}","amount":-4}]'::jsonb
@@ -164,6 +190,8 @@ it("installe les migrations, les données et la frontière MJ/joueurs", async ()
     set role anon;
   `);
   await expect(db.query("select * from public.journal_entries")).rejects.toThrow(/permission denied/i);
+  await expect(db.query("select * from public.archive_character_templates")).rejects.toThrow(/permission denied/i);
+  await expect(db.query("select * from public.archive_characters")).rejects.toThrow(/permission denied/i);
   await expect(db.query(`update public.faction_relationships set headline_override = 'Intrusion' where id = '${relationshipId}'`)).rejects.toThrow(/permission denied/i);
   expect((await db.query<{ count: number }>("select count(*)::int as count from public.player_faction_overview")).rows[0].count).toBe(6);
   expect((await db.query<{ tension: number | null }>("select tension from public.player_faction_overview where slug = 'réanimateurs'")).rows[0].tension).toBeNull();
