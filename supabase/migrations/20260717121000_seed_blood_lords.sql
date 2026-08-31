@@ -1,0 +1,2 @@
+-- No campaign content is stored in the public repository.
+-- Install a private campaign package separately when a GM needs reference data.

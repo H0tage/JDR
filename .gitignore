@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+supabase/.temp/
+supabase/data-*.sql
+supabase/roles-*.sql
+
+# Sources éditoriales privées utilisées uniquement comme contexte Codex.
+private-references/

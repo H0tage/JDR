@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirection…</title>
+    <script>
+      (function () {
+        var route = window.location.pathname + window.location.search + window.location.hash;
+        try {
+          window.sessionStorage.setItem('regalade-spa-route', route);
+          window.location.replace('/');
+        } catch (error) {
+          window.location.replace('/?route=' + encodeURIComponent(route));
+        }
+      }());
+    </script>
+  </head>
+  <body></body>
+</html>

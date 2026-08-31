@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111714" />
+    <meta name="description" content="Gestionnaire de factions pour la campagne Pathfinder Blood Lords." />
+    <title>Les Registres de Geb</title>
+    <script>
+      (function () {
+        try {
+          var route = window.sessionStorage.getItem('regalade-spa-route');
+          if (route) {
+            window.sessionStorage.removeItem('regalade-spa-route');
+            window.history.replaceState(null, '', route);
+          }
+        } catch (error) {
+          // Le repli ?route= de la page 404 reste pris en charge par l’application.
+        }
+      }());
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
