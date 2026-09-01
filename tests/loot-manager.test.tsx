@@ -36,3 +36,24 @@ it("charge le registre puis conserve un ordre de hooks stable", async () => {
   expect(title).toBeTruthy();
   expect(container.textContent).toContain("Trésors du récit");
 });
+
+it("affiche les lieux du volume et filtre les blocs correspondants", async () => {
+  await act(async () => {
+    root.render(<LootManager campaignId="00000000-0000-4000-8000-000000000001" demo onNotice={() => undefined} onError={() => undefined} />);
+  });
+
+  const volumeOne = await waitFor(() => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "V1"));
+  await act(async () => { volumeOne.click(); });
+
+  const locationFilter = await waitFor(() => container.querySelector<HTMLElement>(".loot-location-filter"));
+  expect(locationFilter.textContent).toContain("Tous les lieux");
+  expect(locationFilter.textContent).toContain("Lieu 1");
+  expect(locationFilter.textContent).toContain("Lieu 2");
+
+  const locationTwo = Array.from(locationFilter.querySelectorAll("button")).find((button) => button.textContent === "Lieu 2");
+  expect(locationTwo).toBeTruthy();
+  await act(async () => { locationTwo!.click(); });
+
+  expect(container.querySelectorAll(".loot-site-group")).toHaveLength(1);
+  expect(container.querySelector(".loot-site-heading")?.textContent).toContain("Lieu 2");
+});

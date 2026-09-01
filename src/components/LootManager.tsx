@@ -52,11 +52,14 @@ function nextOrder(items: LootEntry[]) {
 }
 
 function lootLocationKey(item: LootEntry) {
-  return item.location_name?.trim() || ungroupedLocationKey;
+  const prefix = item.area_code?.match(/^([A-Za-z]+)/)?.[1]?.toUpperCase();
+  return `${item.volume}:${item.location_name?.trim() || prefix || ungroupedLocationKey}`;
 }
 
-function lootLocationLabel(item: LootEntry) {
-  return item.location_name?.trim() || "Autres scènes du volume";
+function lootLocationLabel(item: LootEntry, includeVolume = false) {
+  const prefix = item.area_code?.match(/^([A-Za-z]+)/)?.[1]?.toUpperCase();
+  const label = item.location_name?.trim() || (prefix ? `Zone ${prefix}` : "Autres scènes du volume");
+  return includeVolume ? `V${item.volume} · ${label}` : label;
 }
 
 function newLoot(campaignId: string, volume: number, items: LootEntry[]): LootEntry {
@@ -170,13 +173,13 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
     const groups = new Map<string, { key: string; label: string; treasure: LootEntry[]; carried: LootEntry[] }>();
     filtered.filter((item) => lootLaneKind(item) !== "unlocated").forEach((item) => {
       const key = lootLocationKey(item);
-      const group = groups.get(key) ?? { key, label: lootLocationLabel(item), treasure: [], carried: [] };
+      const group = groups.get(key) ?? { key, label: lootLocationLabel(item, volume === 0), treasure: [], carried: [] };
       if (lootLaneKind(item) === "carried") group.carried.push(item);
       else group.treasure.push(item);
       groups.set(key, group);
     });
     return [...groups.values()];
-  }, [filtered]);
+  }, [filtered, volume]);
 
   if (!items) return <LoadingScreen label="Ouverture du registre des butins…" />;
 
