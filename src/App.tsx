@@ -12,8 +12,13 @@ function LoadedApp({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<LoadingScreen label="Chargement de l’application…" />}>{children}</Suspense>;
 }
 
+function redirectedRoute() {
+  const route = new URLSearchParams(window.location.search).get("route");
+  return route?.startsWith("/") ? route : null;
+}
+
 function routePath() {
-  const redirected = new URLSearchParams(window.location.search).get("route");
+  const redirected = redirectedRoute();
   return (redirected ? redirected.split("?")[0] : window.location.pathname).replace(/\/+$/, "") || "/";
 }
 
@@ -49,15 +54,19 @@ function CampaignRoute({ campaignRef, view }: { campaignRef: string; view: "play
 }
 
 export function App() {
+  const redirected = redirectedRoute();
   const path = routePath();
   const normalizedPath = path.toLowerCase();
-  const query = new URLSearchParams(window.location.search);
+  const query = new URLSearchParams(redirected?.split("?")[1] ?? window.location.search);
   const campaign = path.match(/^\/campaign\/([a-z0-9-]+)\/(playerscreen|mj)$/i);
   const invite = path.match(/^\/join\/([0-9a-f-]{36})$/i);
   const demo = query.get("demo") === "1";
   useEffect(() => {
     document.title = titleForPath(path, demo);
   }, [path, demo]);
+  useEffect(() => {
+    if (redirected) window.history.replaceState(null, "", redirected);
+  }, [redirected]);
   if (campaign) return <CampaignRoute campaignRef={campaign[1]} view={campaign[2] === "mj" ? "gm" : "player"} />;
   if (invite) return <JoinCampaign token={invite[1]} />;
   if (path === "/auth/callback") return <AuthCallback />;
