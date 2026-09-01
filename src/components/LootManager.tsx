@@ -40,6 +40,7 @@ type LootManagerProps = {
 
 type StatusFilter = "all" | LootDiscoveryStatus;
 const volumes = [0, 1, 2, 3, 4, 5, 6];
+const ungroupedLocationKey = "__ungrouped__";
 
 function clean(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
@@ -48,6 +49,14 @@ function clean(value: string | null | undefined): string | null {
 
 function nextOrder(items: LootEntry[]) {
   return Math.max(0, ...items.map((item) => item.sort_order)) + 1;
+}
+
+function lootLocationKey(item: LootEntry) {
+  return item.location_name?.trim() || ungroupedLocationKey;
+}
+
+function lootLocationLabel(item: LootEntry) {
+  return item.location_name?.trim() || "Autres scènes du volume";
 }
 
 function newLoot(campaignId: string, volume: number, items: LootEntry[]): LootEntry {
@@ -108,6 +117,7 @@ function StatusIcon({ status, size = 15 }: { status: LootDiscoveryStatus; size?:
 export function LootManager({ campaignId, demo, onNotice, onError }: LootManagerProps) {
   const [items, setItems] = useState<LootEntry[] | null>(null);
   const [volume, setVolume] = useState(0);
+  const [location, setLocation] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [editing, setEditing] = useState<{ original: LootEntry | null; draft: LootEntry } | null>(null);
@@ -123,10 +133,20 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
   }, [campaignId, demo, onError]);
 
   useEffect(() => { void refresh(); }, [refresh]);
-  useEffect(() => { setEditing(null); setExpandedId(null); }, [volume]);
+  useEffect(() => { setEditing(null); setExpandedId(null); setLocation(null); }, [volume]);
 
   const scopedItems = useMemo(() => (items ?? []).filter((item) => !volume || item.volume === volume), [items, volume]);
+  const availableLocations = useMemo(() => {
+    if (!volume) return [];
+    const locations = new Map<string, string>();
+    scopedItems
+      .filter((item) => lootLaneKind(item) !== "unlocated")
+      .forEach((item) => locations.set(lootLocationKey(item), lootLocationLabel(item)));
+    return [...locations.entries()].map(([key, label]) => ({ key, label }));
+  }, [scopedItems, volume]);
+
   const filtered = useMemo(() => scopedItems.filter((item) => {
+    if (location && lootLocationKey(item) !== location) return false;
     if (status !== "all" && item.discovery_status !== status) return false;
     const needle = query.trim().toLocaleLowerCase("fr");
     if (!needle) return true;
@@ -135,7 +155,7 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
       item.loot_category, item.source_owner, item.aon_legacy_name, item.acquisition_condition,
       item.availability_rule, item.pricing_basis, item.volume, item.chapter, item.source_page,
     ].some((value) => String(value ?? "").toLocaleLowerCase("fr").includes(needle));
-  }).sort((a, b) => a.sort_order - b.sort_order), [query, scopedItems, status]);
+  }).sort((a, b) => a.sort_order - b.sort_order), [location, query, scopedItems, status]);
 
   const metrics = useMemo(() => {
     const found = scopedItems.filter((item) => item.discovery_status === "found");
@@ -233,8 +253,17 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
     }
   }
 
-  const treasureItems = filtered.filter((item) => lootLaneKind(item) === "treasure");
-  const carriedItems = filtered.filter((item) => lootLaneKind(item) === "carried");
+  const siteGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; label: string; treasure: LootEntry[]; carried: LootEntry[] }>();
+    filtered.filter((item) => lootLaneKind(item) !== "unlocated").forEach((item) => {
+      const key = lootLocationKey(item);
+      const group = groups.get(key) ?? { key, label: lootLocationLabel(item), treasure: [], carried: [] };
+      if (lootLaneKind(item) === "carried") group.carried.push(item);
+      else group.treasure.push(item);
+      groups.set(key, group);
+    });
+    return [...groups.values()];
+  }, [filtered]);
   const unlocatedItems = filtered.filter((item) => lootLaneKind(item) === "unlocated");
 
   return <div className="page-stack loot-monitor">
@@ -261,15 +290,20 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
       </div>
     </section>
 
+    {volume !== 0 && availableLocations.length > 0 && <nav className="loot-location-filter panel" aria-label={`Lieux du volume ${volume}`}>
+      <span>Dans ce volume</span>
+      <div role="group" aria-label="Filtrer par lieu">
+        <button type="button" className={!location ? "active" : ""} onClick={() => setLocation(null)}>Tous les lieux</button>
+        {availableLocations.map((item) => <button key={item.key} type="button" className={location === item.key ? "active" : ""} onClick={() => setLocation(item.key)}>{item.label}</button>)}
+      </div>
+    </nav>}
+
     {editing && !editing.original && <LootEditor draft={editing.draft} busy={busyId === editing.draft.id} onChange={(draft) => setEditing({ ...editing, draft })} onSave={() => void persist()} onCancel={() => setEditing(null)} />}
 
     <section className="loot-source-board">
-      <LootLane
-        kind="treasure"
-        title="Trésors du récit"
-        subtitle="Coffres, récompenses, objets placés et découvertes décrites dans l’aventure."
-        icon={<Gem size={20} />}
-        items={treasureItems}
+      {siteGroups.map((group) => <LootSiteGroup
+        key={group.key}
+        group={group}
         expandedId={expandedId}
         editing={editing}
         busyId={busyId}
@@ -281,25 +315,8 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
         onDiscovery={(item, nextStatus) => void setDiscovery(item, nextStatus)}
         onVisibility={(item) => void toggleVisibility(item)}
         onDelete={(item) => void remove(item)}
-      />
-      <LootLane
-        kind="carried"
-        title="Sur les créatures"
-        subtitle="Équipement, objets portés et consommables encore présents après la rencontre."
-        icon={<Skull size={20} />}
-        items={carriedItems}
-        expandedId={expandedId}
-        editing={editing}
-        busyId={busyId}
-        onExpand={setExpandedId}
-        onBeginEdit={(item) => { setEditing({ original: item, draft: structuredClone(item) }); setExpandedId(item.id); }}
-        onEditChange={(draft) => setEditing((current) => current ? { ...current, draft } : current)}
-        onSave={() => void persist()}
-        onCancelEdit={() => setEditing(null)}
-        onDiscovery={(item, nextStatus) => void setDiscovery(item, nextStatus)}
-        onVisibility={(item) => void toggleVisibility(item)}
-        onDelete={(item) => void remove(item)}
-      />
+      />)}
+      {siteGroups.length === 0 && <EmptyState title="Aucun butin pour ce filtre">Essaie un autre volume, lieu, état ou terme de recherche.</EmptyState>}
     </section>
 
     {unlocatedItems.length > 0 && <section className="loot-unlocated panel">
@@ -319,6 +336,7 @@ type LootLaneProps = {
   title: string;
   subtitle: string;
   icon: ReactNode;
+  compact?: boolean;
   items: LootEntry[];
   expandedId: string | null;
   editing: { original: LootEntry | null; draft: LootEntry } | null;
@@ -333,9 +351,28 @@ type LootLaneProps = {
   onDelete: (item: LootEntry) => void;
 };
 
+type LootSiteGroupProps = Omit<LootLaneProps, "kind" | "title" | "subtitle" | "icon" | "items" | "compact"> & {
+  group: { key: string; label: string; treasure: LootEntry[]; carried: LootEntry[] };
+};
+
+function LootSiteGroup({ group, ...laneProps }: LootSiteGroupProps) {
+  const itemCount = group.treasure.length + group.carried.length;
+  const groupValue = [...group.treasure, ...group.carried].reduce((sum, item) => sum + (lootTotalValueInGp(item) ?? 0), 0);
+  return <section className="loot-site-group">
+    <header className="loot-site-heading">
+      <div><p className="eyebrow">Lieu de l’aventure</p><h3>{group.label}</h3></div>
+      <aside><strong>{itemCount}</strong><small>objet{itemCount > 1 ? "s" : ""} · {formatGoldValue(groupValue)}</small></aside>
+    </header>
+    <div className="loot-site-columns">
+      <LootLane {...laneProps} compact kind="treasure" title="Trésors du récit" subtitle="Coffres, récompenses et découvertes décrites dans l’aventure." icon={<Gem size={17} />} items={group.treasure} />
+      <LootLane {...laneProps} compact kind="carried" title="Sur les créatures" subtitle="Équipement et objets récupérables après la rencontre." icon={<Skull size={17} />} items={group.carried} />
+    </div>
+  </section>;
+}
+
 function LootLane(props: LootLaneProps) {
   const laneValue = props.items.reduce((sum, item) => sum + (lootTotalValueInGp(item) ?? 0), 0);
-  return <section className={`loot-lane loot-lane-${props.kind}`}>
+  return <section className={`loot-lane loot-lane-${props.kind} ${props.compact ? "loot-lane-compact" : ""}`}>
     <header><span>{props.icon}</span><div><h3>{props.title}</h3><p>{props.subtitle}</p></div><aside><strong>{props.items.length}</strong><small>{formatGoldValue(laneValue)}</small></aside></header>
     <div className="loot-lane-list">
       {props.items.map((item) => {

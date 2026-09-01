@@ -674,12 +674,26 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .loot-volume-filter { border: 1px solid var(--line-soft); border-radius: 8px; padding: 3px; background: var(--loot-card-alt); }
 .loot-volume-filter button, .loot-status-filter button { border: 0; border-radius: 5px; padding: 7px 9px; color: var(--muted); background: transparent; cursor: pointer; font-size: .67rem; font-weight: 800; white-space: nowrap; }
 .loot-volume-filter button.active { color: #16110a; background: var(--gold); }
+.loot-location-filter { display: flex; align-items: center; gap: 13px; padding: 9px 12px; overflow: hidden; }
+.loot-location-filter > span { flex: 0 0 auto; color: var(--muted); font-size: .61rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.loot-location-filter > div { display: flex; min-width: 0; gap: 4px; overflow-x: auto; scrollbar-width: thin; }
+.loot-location-filter button { flex: 0 0 auto; border: 1px solid transparent; border-radius: 6px; padding: 7px 10px; color: var(--muted); background: transparent; cursor: pointer; font-size: .67rem; font-weight: 800; white-space: nowrap; }
+.loot-location-filter button:hover { border-color: var(--line-soft); color: var(--loot-title); background: color-mix(in srgb, var(--gold) 6%, transparent); }
+.loot-location-filter button.active { border-color: color-mix(in srgb, var(--gold) 54%, var(--line-soft)); color: var(--loot-title); background: var(--gold-soft); }
 .loot-status-filter button { border: 1px solid transparent; }
 .loot-status-filter button:hover, .loot-status-filter button.active { border-color: var(--line); color: var(--loot-title); background: var(--surface-2); }
 .loot-monitor-search { position: relative; display: block; min-width: 0; }
 .loot-monitor-search svg { position: absolute; left: 11px; top: 50%; z-index: 1; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .loot-monitor-search input { padding-left: 36px; }
-.loot-source-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 14px; }
+.loot-source-board { display: grid; gap: 16px; }
+.loot-source-board > .empty-state { border: 1px dashed var(--line-soft); border-radius: 10px; }
+.loot-site-group { overflow: hidden; border: 1px solid var(--line-soft); border-radius: 11px; background: color-mix(in srgb, var(--surface) 72%, transparent); box-shadow: 0 14px 35px rgb(0 0 0 / 8%); }
+.loot-site-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line-soft); padding: 14px 18px; background: linear-gradient(100deg, color-mix(in srgb, var(--gold) 13%, var(--surface)), var(--surface)); }
+.loot-site-heading h3 { margin: 3px 0 0; color: var(--loot-title); font-family: Georgia, serif; font-size: 1.13rem; font-weight: 500; }
+.loot-site-heading aside { display: grid; justify-items: end; gap: 2px; }
+.loot-site-heading aside strong { color: var(--gold); font-family: Georgia, serif; font-size: 1.25rem; font-weight: 500; }
+.loot-site-heading aside small { color: var(--muted); font-size: .61rem; white-space: nowrap; }
+.loot-site-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line-soft); }
 .loot-lane { --lane-accent: var(--gold); overflow: hidden; border: 1px solid var(--line-soft); border-radius: 11px; background: color-mix(in srgb, var(--surface) 84%, transparent); box-shadow: 0 14px 35px rgb(0 0 0 / 10%); }
 .loot-lane-carried { --lane-accent: #b46775; }
 .loot-lane > header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 94px; border-bottom: 1px solid var(--line-soft); padding: 17px 18px; background: linear-gradient(110deg, color-mix(in srgb, var(--lane-accent) 12%, var(--surface)), var(--surface)); }
@@ -689,6 +703,12 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .loot-lane > header aside { display: grid; justify-items: end; gap: 3px; }
 .loot-lane > header aside strong { color: var(--lane-accent); font-family: Georgia, serif; font-size: 1.45rem; font-weight: 500; }
 .loot-lane > header aside small { font-size: .61rem; white-space: nowrap; }
+.loot-lane-compact { border: 0; border-radius: 0; box-shadow: none; }
+.loot-lane-compact > header { min-height: 62px; gap: 9px; padding: 11px 13px; }
+.loot-lane-compact > header > span { width: 31px; height: 31px; }
+.loot-lane-compact > header h3 { font-size: .92rem; }
+.loot-lane-compact > header p { display: none; }
+.loot-lane-compact > header aside strong { font-size: 1.15rem; }
 .loot-lane-list { display: grid; gap: 7px; padding: 9px; }
 .loot-lane-list > .empty-state { margin: 20px 10px; }
 .loot-monitor-card { overflow: hidden; border: 1px solid var(--line-soft); border-left: 3px solid #777f79; border-radius: 8px; background: var(--loot-card); transition: border-color .16s ease, background .16s ease; }
@@ -763,6 +783,9 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .gm-theme-light .loot-card-details { border-color: #d7cebd; background: #f3eddf; }
 .gm-theme-light .loot-detail-grid > div { border-color: #d7cebd; background: #fffaf0; }
 .gm-theme-light .loot-volume-filter { border-color: #c9c0ad; background: #eee8da; }
+.gm-theme-light .loot-location-filter, .gm-theme-light .loot-site-group { border-color: #c9c0ad; background-color: #f8f4ea; }
+.gm-theme-light .loot-site-heading { border-color: #d7cebd; background: linear-gradient(100deg, color-mix(in srgb, var(--gold) 11%, #f8f4ea), #f8f4ea); }
+.gm-theme-light .loot-site-columns { background: #d7cebd; }
 .gm-theme-light .loot-status-filter button.active { border-color: #a99e8a; background: #e4dccb; }
 .gm-theme-light .loot-quick-status button.active.pending { background: #e2e0d6; color: #4c5850; }
 .gm-theme-light .loot-quick-status button.active.found { background: #e1eee1; color: #397048; }
@@ -771,7 +794,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 @media (max-width: 1180px) {
   .loot-monitor-toolbar { grid-template-columns: 1fr; }
   .loot-volume-filter, .loot-status-filter { overflow-x: auto; }
-  .loot-source-board { grid-template-columns: 1fr; }
+  .loot-site-columns { grid-template-columns: 1fr; gap: 1px; }
   .loot-editor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -785,6 +808,9 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
   .loot-action-spacer { display: none; }
   .loot-aon-link { max-width: none; flex: 1; }
   .loot-editor-grid { grid-template-columns: 1fr; }
+  .loot-location-filter { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .loot-location-filter > div { width: 100%; }
+  .loot-site-heading { padding: 12px 13px; }
   .loot-editor-grid .span-2 { grid-column: auto; }
   .loot-monitor-footer { align-items: flex-start; flex-direction: column; }
 }
