@@ -4,15 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Redirection…</title>
+    <meta name="robots" content="noindex" />
     <script>
       (function () {
-        var route = window.location.pathname + window.location.search + window.location.hash;
-        try {
-          window.sessionStorage.setItem('regalade-spa-route', route);
-          window.location.replace('/');
-        } catch (error) {
-          window.location.replace('/?route=' + encodeURIComponent(route));
-        }
+        var path = window.location.pathname;
+
+        // GitHub Pages returns this document for client-side routes. Assets must
+        // remain a normal 404: redirecting an old JavaScript chunk would turn it
+        // into HTML and make an already-open page fail more confusingly.
+        if (path.indexOf('/assets/') === 0) return;
+
+        var route = path + window.location.search + window.location.hash;
+        window.location.replace('/?route=' + encodeURIComponent(route));
       }());
     </script>
   </head>
