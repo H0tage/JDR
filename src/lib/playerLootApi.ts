@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { anonymizeDemoLoot } from "../data/demoAnonymization";
+import { lootSeeds } from "../data/referenceSeed";
 import { formatLootValue } from "./lootMonitoring";
 import type { PlayerLootEntry, PlayerLootLifecycleStatus } from "./types";
 
@@ -11,7 +12,6 @@ function requireClient() {
 /** Ne lit que la projection publique, jamais la table complète des butins. */
 export async function loadPlayerLoot(campaignId: string, demo = false): Promise<PlayerLootEntry[]> {
   if (demo) {
-    const { lootSeeds } = await import("../data/referenceSeed");
     return anonymizeDemoLoot(lootSeeds)
       .filter((entry, index) => entry.player_visible === true || (entry.player_visible === undefined && index < 3))
       .map((entry, index) => ({

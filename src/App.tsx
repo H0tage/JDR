@@ -1,11 +1,11 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { AuthCallback, CampaignPortal, JoinCampaign, PasswordRecovery, PortalWithInvite } from "./components/CampaignPortal";
+import { GmApp } from "./components/GmApp";
+import { PlayerApp } from "./components/PlayerApp";
 import { listMyCampaigns, type CampaignMembership } from "./lib/campaignPortalApi";
 import { currentSession } from "./lib/api";
 import { ErrorPanel, LoadingScreen } from "./components/ui";
 
-const GmApp = lazy(() => import("./components/GmApp").then((module) => ({ default: module.GmApp })));
-const PlayerApp = lazy(() => import("./components/PlayerApp").then((module) => ({ default: module.PlayerApp })));
 const DEMO_CAMPAIGN_ID = "00000000-0000-4000-8000-000000000001";
 
 function LoadedApp({ children }: { children: React.ReactNode }) {

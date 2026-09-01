@@ -24,7 +24,7 @@ import {
   X,
   Moon,
 } from "lucide-react";
-import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   addJournalEntry,
   currentSession,
@@ -67,9 +67,8 @@ import { QuestJournalTab } from "./QuestJournalTab";
 import { QuestWritingTab } from "./QuestWritingTab";
 import { createCampaignInvite, listCampaignInvites, listCampaignMembers, removeCampaignPlayer, revokeCampaignInvite, type CampaignInvite, type CampaignMember } from "../lib/campaignPortalApi";
 import { listCampaignPlayerPages, type CampaignPlayerPage } from "../lib/playerPageApi";
-
-const ArchivesTab = lazy(() => import("./ReferenceTables").then((module) => ({ default: module.ArchivesTab })));
-const LootManager = lazy(() => import("./LootManager").then((module) => ({ default: module.LootManager })));
+import { ArchivesTab } from "./ReferenceTables";
+import { LootManager } from "./LootManager";
 
 type Tab = "dashboard" | "journal" | "factions" | "contacts" | "milestones" | "loot" | "references" | "bestiary" | "settings";
 type AppTheme = "light" | "original" | "dark";
