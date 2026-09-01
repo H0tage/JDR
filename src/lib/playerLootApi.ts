@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { anonymizeDemoLoot } from "../data/demoAnonymization";
+import { formatLootValue } from "./lootMonitoring";
 import type { PlayerLootEntry, PlayerLootLifecycleStatus } from "./types";
 
 function requireClient() {
@@ -13,14 +14,18 @@ export async function loadPlayerLoot(campaignId: string, demo = false): Promise<
     const { lootSeeds } = await import("../data/referenceSeed");
     return anonymizeDemoLoot(lootSeeds)
       .filter((entry, index) => entry.player_visible === true || (entry.player_visible === undefined && index < 3))
-      .map(({ campaign_id, sort_order, original_name, quantity, unit_value, location_name }, index) => ({
-        campaign_id,
-        sort_order,
-        original_name,
-        quantity,
-        unit_value,
-        location_name,
-        loot_id: `demo-${sort_order}`,
+      .map((entry, index) => ({
+        campaign_id: entry.campaign_id,
+        sort_order: entry.sort_order,
+        original_name: entry.item_name,
+        quantity: entry.quantity_recoverable,
+        unit_value: entry.book_unit_value_amount !== null
+          ? formatLootValue(entry.book_unit_value_amount, entry.book_unit_value_currency)
+          : formatLootValue(entry.aon_legacy_unit_value_amount, entry.aon_legacy_unit_value_currency),
+        location_name: entry.location_name || entry.area_title,
+        aon_legacy_name: entry.aon_legacy_name,
+        aon_legacy_url: entry.aon_legacy_url,
+        loot_id: `demo-${entry.sort_order}`,
         published_on: localCalendarDate(),
         owner_user_id: index === 0 ? "demo-arsene" : null,
         owner_display_name: index === 0 ? "Prénom1 Nom1" : null,
@@ -31,7 +36,7 @@ export async function loadPlayerLoot(campaignId: string, demo = false): Promise<
 
   const result = await requireClient()
     .from("player_loot")
-    .select("campaign_id, sort_order, original_name, quantity, unit_value, location_name, loot_id, published_on, owner_user_id, owner_display_name, lifecycle_status, legacy_owner_label")
+    .select("campaign_id, sort_order, original_name, quantity, unit_value, location_name, aon_legacy_name, aon_legacy_url, loot_id, published_on, owner_user_id, owner_display_name, lifecycle_status, legacy_owner_label")
     .eq("campaign_id", campaignId)
     .order("published_on")
     .order("sort_order");

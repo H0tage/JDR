@@ -324,23 +324,48 @@ export interface ArchivePlace {
 export interface LootEntry {
   id: string;
   campaign_id: string;
-  template_key: string | null;
+  reference_id: string | null;
   sort_order: number;
-  original_name: string;
-  quantity: string;
-  description: string | null;
-  unit_value: string | null;
-  total_value: string | null;
-  location_name: string | null;
-  position: string | null;
   volume: number;
-  page: number | null;
-  nature: string | null;
-  notes: string | null;
+  chapter: number | null;
+  source_page: number | null;
+  pdf_page: number | null;
+  stat_block_page: number | null;
+  area_code: string | null;
+  area_title: string | null;
+  location_name: string | null;
+  source_kind: LootSourceKind;
+  source_owner: string | null;
+  source_text: string | null;
+  item_name: string;
+  quantity_initial: string;
+  quantity_recoverable: string;
+  loot_category: string | null;
+  acquisition_condition: string | null;
+  consumable_during_encounter: boolean;
+  availability_rule: string | null;
+  book_unit_value_amount: number | null;
+  book_unit_value_currency: LootCurrency | null;
+  book_total_value_amount: number | null;
+  book_total_value_currency: LootCurrency | null;
+  aon_legacy_name: string | null;
+  aon_legacy_unit_value_amount: number | null;
+  aon_legacy_unit_value_currency: LootCurrency | null;
+  aon_legacy_total_value_amount: number | null;
+  aon_legacy_total_value_currency: LootCurrency | null;
+  aon_legacy_url: string | null;
+  pricing_basis: string | null;
+  pricing_status: string | null;
+  verification_status: string | null;
+  discovery_status: LootDiscoveryStatus;
+  player_visible: boolean;
   is_custom: boolean;
-  /** Visibilité explicite dans le registre des joueurs. Absente seulement dans les anciennes données de démonstration. */
-  player_visible?: boolean;
 }
+
+export type LootCurrency = "pp" | "gp" | "sp" | "cp";
+export type LootSourceKind = "treasure" | "reward" | "carried" | "infused_carried" | "narrative" | "chapter_checklist_only";
+export type LootLaneKind = "treasure" | "carried" | "unlocated";
+export type LootDiscoveryStatus = "pending" | "found" | "missed";
 
 /** Projection volontairement limitée des butins exposés aux joueurs. */
 export interface PlayerLootEntry {
@@ -350,6 +375,8 @@ export interface PlayerLootEntry {
   quantity: string;
   unit_value: string | null;
   location_name: string | null;
+  aon_legacy_name?: string | null;
+  aon_legacy_url?: string | null;
   /** Identifiant technique de la publication, jamais affiché aux joueurs. */
   loot_id: string;
   /** Date de partage, distincte de la fiche de référence MJ. */

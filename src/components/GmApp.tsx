@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Eye,
   EyeOff,
+  Gem,
   ImagePlus,
   LayoutDashboard,
   LogOut,
@@ -68,9 +69,9 @@ import { createCampaignInvite, listCampaignInvites, listCampaignMembers, removeC
 import { listCampaignPlayerPages, type CampaignPlayerPage } from "../lib/playerPageApi";
 
 const ArchivesTab = lazy(() => import("./ReferenceTables").then((module) => ({ default: module.ArchivesTab })));
-const LootTab = lazy(() => import("./ReferenceTables").then((module) => ({ default: module.LootTab })));
+const LootManager = lazy(() => import("./LootManager").then((module) => ({ default: module.LootManager })));
 
-type Tab = "dashboard" | "journal" | "factions" | "contacts" | "milestones" | "references" | "bestiary" | "settings";
+type Tab = "dashboard" | "journal" | "factions" | "contacts" | "milestones" | "loot" | "references" | "bestiary" | "settings";
 type AppTheme = "light" | "original" | "dark";
 
 const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> = [
@@ -79,6 +80,7 @@ const navItems: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> 
   { id: "factions", label: "Factions", icon: Building2 },
   { id: "contacts", label: "Contacts et dettes", icon: Users },
   { id: "milestones", label: "Jalons", icon: BookOpenText },
+  { id: "loot", label: "Butins", icon: Gem },
   { id: "references", label: "Références", icon: Archive },
   { id: "bestiary", label: "Bestiaire", icon: BookOpenText },
 ];
@@ -262,6 +264,7 @@ function GmWorkspace({ campaignId, campaignSlug, demo }: { campaignId: string; c
           {tab === "factions" && <FactionsHub data={data} mutate={mutate} />}
           {tab === "contacts" && <ContactsTab data={data} mutate={mutate} demo={demo} />}
           {tab === "milestones" && <ProgressionTab data={data} mutate={mutate} demo={demo} />}
+          {tab === "loot" && <Suspense fallback={<LoadingScreen label="Ouverture du registre des butins…" />}><LootManager campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} /></Suspense>}
           {tab === "references" && <ReferencesHub campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} />}
           {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
           {tab === "settings" && <SettingsTab data={data} mutate={mutate} campaignId={campaignId} />}
@@ -419,8 +422,7 @@ function FactionsHub({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
 }
 
 function ReferencesHub({ campaignId, demo, onNotice, onError }: { campaignId: string; demo: boolean; onNotice: (message: string) => void; onError: (message: string | null) => void }) {
-  const [section, setSection] = useState<"archives" | "loot">("archives");
-  return <div className="hub-stack"><div className="section-tabs" role="tablist" aria-label="Références de campagne"><button role="tab" aria-selected={section === "archives"} className={section === "archives" ? "active" : ""} onClick={() => setSection("archives")}>Archives</button><button role="tab" aria-selected={section === "loot"} className={section === "loot" ? "active" : ""} onClick={() => setSection("loot")}>Butins</button></div><Suspense fallback={<LoadingScreen label={section === "archives" ? "Ouverture des archives…" : "Inventaire des trésors…"} />}>{section === "archives" ? <ArchivesTab campaignId={campaignId} demo={demo} onNotice={onNotice} onError={onError} /> : <LootTab campaignId={campaignId} demo={demo} onNotice={onNotice} onError={onError} />}</Suspense></div>;
+  return <Suspense fallback={<LoadingScreen label="Ouverture des archives…" />}><ArchivesTab campaignId={campaignId} demo={demo} onNotice={onNotice} onError={onError} /></Suspense>;
 }
 
 function FactionsTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {

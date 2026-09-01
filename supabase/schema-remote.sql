@@ -703,13 +703,12 @@ CREATE OR REPLACE FUNCTION "public"."reset_campaign_reference_data"("p_campaign_
     AS $$
 begin
   if not public.is_campaign_gm(p_campaign_id) then raise exception 'Accès refusé'; end if;
-  if p_scope not in ('archives','loot','all') then raise exception 'Périmètre de restauration invalide'; end if;
-  if p_scope in ('archives','all') then
-    delete from public.archive_characters where campaign_id = p_campaign_id;
-    delete from public.archive_places where campaign_id = p_campaign_id;
+  if p_scope not in ('archives','all') then
+    raise exception 'Le nouveau registre de butin ne dépend plus d’un modèle global';
   end if;
-  if p_scope in ('loot','all') then delete from public.campaign_loot where campaign_id = p_campaign_id; end if;
-  perform public.seed_campaign_reference_data(p_campaign_id, p_scope);
+  delete from public.archive_characters where campaign_id = p_campaign_id;
+  delete from public.archive_places where campaign_id = p_campaign_id;
+  perform public.seed_campaign_reference_data(p_campaign_id, 'archives');
 end;
 $$;
 
@@ -986,13 +985,6 @@ begin
     from public.archive_place_templates
     on conflict (campaign_id, template_key) where template_key is not null do nothing;
   end if;
-  if p_scope in ('loot','all') then
-    insert into public.campaign_loot
-      (campaign_id, template_key, sort_order, original_name, quantity, description, unit_value, total_value, location_name, position, volume, page, nature, notes, is_custom)
-    select p_campaign_id, template_key, sort_order, original_name, quantity, description, unit_value, total_value, location_name, position, volume, page, nature, notes, false
-    from public.loot_templates
-    on conflict (campaign_id, template_key) where template_key is not null do nothing;
-  end if;
 end;
 $$;
 
@@ -1011,15 +1003,12 @@ begin
   from public.campaign_loot
   where id = p_loot_id;
 
-  if v_campaign_id is null then
-    raise exception 'Butin introuvable';
-  end if;
-  if not public.is_campaign_gm(v_campaign_id) then
-    raise exception 'Accès refusé';
-  end if;
+  if v_campaign_id is null then raise exception 'Butin introuvable'; end if;
+  if not public.is_campaign_gm(v_campaign_id) then raise exception 'Accès refusé'; end if;
 
   update public.campaign_loot
-  set player_visible = p_visible
+  set player_visible = p_visible,
+      discovery_status = case when p_visible then 'found' else discovery_status end
   where id = p_loot_id;
 
   if p_visible then
@@ -1372,28 +1361,69 @@ ALTER TABLE "public"."campaign_invites" OWNER TO "postgres";
 CREATE TABLE IF NOT EXISTS "public"."campaign_loot" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "campaign_id" "uuid" NOT NULL,
-    "template_key" "text",
-    "sort_order" integer NOT NULL,
-    "original_name" "text" NOT NULL,
-    "quantity" "text" DEFAULT '1'::"text" NOT NULL,
-    "description" "text",
-    "unit_value" "text",
-    "total_value" "text",
-    "location_name" "text",
-    "position" "text",
-    "volume" smallint NOT NULL,
-    "page" integer,
-    "nature" "text",
-    "notes" "text",
-    "is_custom" boolean DEFAULT false NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "reference_id" "text",
+    "sort_order" integer NOT NULL,
+    "volume" smallint NOT NULL,
+    "chapter" smallint,
+    "source_page" integer,
+    "pdf_page" integer,
+    "stat_block_page" integer,
+    "area_code" "text",
+    "area_title" "text",
+    "location_name" "text",
+    "source_kind" "text" NOT NULL,
+    "source_owner" "text",
+    "source_text" "text",
+    "item_name" "text" NOT NULL,
+    "quantity_initial" "text" DEFAULT '1'::"text" NOT NULL,
+    "quantity_recoverable" "text" DEFAULT '1'::"text" NOT NULL,
+    "loot_category" "text",
+    "acquisition_condition" "text",
+    "consumable_during_encounter" boolean DEFAULT false NOT NULL,
+    "availability_rule" "text",
+    "book_unit_value_amount" numeric,
+    "book_unit_value_currency" "text",
+    "book_total_value_amount" numeric,
+    "book_total_value_currency" "text",
+    "aon_legacy_name" "text",
+    "aon_legacy_unit_value_amount" numeric,
+    "aon_legacy_unit_value_currency" "text",
+    "aon_legacy_total_value_amount" numeric,
+    "aon_legacy_total_value_currency" "text",
+    "aon_legacy_url" "text",
+    "pricing_basis" "text",
+    "pricing_status" "text",
+    "verification_status" "text",
+    "discovery_status" "text" DEFAULT 'pending'::"text" NOT NULL,
     "player_visible" boolean DEFAULT false NOT NULL,
-    CONSTRAINT "campaign_loot_page_check" CHECK ((("page" IS NULL) OR ("page" > 0))),
+    "is_custom" boolean DEFAULT false NOT NULL,
+    CONSTRAINT "campaign_loot_aon_legacy_total_value_currency_check" CHECK ((("aon_legacy_total_value_currency" IS NULL) OR ("aon_legacy_total_value_currency" = ANY (ARRAY['pp'::"text", 'gp'::"text", 'sp'::"text", 'cp'::"text"])))),
+    CONSTRAINT "campaign_loot_aon_legacy_unit_value_currency_check" CHECK ((("aon_legacy_unit_value_currency" IS NULL) OR ("aon_legacy_unit_value_currency" = ANY (ARRAY['pp'::"text", 'gp'::"text", 'sp'::"text", 'cp'::"text"])))),
+    CONSTRAINT "campaign_loot_book_total_value_currency_check" CHECK ((("book_total_value_currency" IS NULL) OR ("book_total_value_currency" = ANY (ARRAY['pp'::"text", 'gp'::"text", 'sp'::"text", 'cp'::"text"])))),
+    CONSTRAINT "campaign_loot_book_unit_value_currency_check" CHECK ((("book_unit_value_currency" IS NULL) OR ("book_unit_value_currency" = ANY (ARRAY['pp'::"text", 'gp'::"text", 'sp'::"text", 'cp'::"text"])))),
+    CONSTRAINT "campaign_loot_discovery_status_check" CHECK (("discovery_status" = ANY (ARRAY['pending'::"text", 'found'::"text", 'missed'::"text"]))),
+    CONSTRAINT "campaign_loot_pdf_page_check" CHECK ((("pdf_page" IS NULL) OR ("pdf_page" > 0))),
+    CONSTRAINT "campaign_loot_source_kind_check" CHECK (("source_kind" = ANY (ARRAY['treasure'::"text", 'reward'::"text", 'carried'::"text", 'infused_carried'::"text", 'narrative'::"text", 'chapter_checklist_only'::"text"]))),
+    CONSTRAINT "campaign_loot_source_page_check" CHECK ((("source_page" IS NULL) OR ("source_page" > 0))),
+    CONSTRAINT "campaign_loot_stat_block_page_check" CHECK ((("stat_block_page" IS NULL) OR ("stat_block_page" > 0))),
     CONSTRAINT "campaign_loot_volume_check" CHECK ((("volume" >= 1) AND ("volume" <= 6)))
 );
 
 
 ALTER TABLE "public"."campaign_loot" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."campaign_loot" IS 'Registre neuf construit exclusivement depuis la source autoritative privée, complété par les saisies MJ.';
+
+
+
+COMMENT ON COLUMN "public"."campaign_loot"."book_total_value_amount" IS 'Valeur imprimée dans l’ouvrage ; elle n’est jamais remplacée par la valeur AoN.';
+
+
+
+COMMENT ON COLUMN "public"."campaign_loot"."aon_legacy_total_value_amount" IS 'Valeur de référence AoN Legacy, conservée séparément de la valeur du livre.';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."campaign_members" (
@@ -1903,28 +1933,6 @@ CREATE TABLE IF NOT EXISTS "public"."loot_player_publications" (
 ALTER TABLE "public"."loot_player_publications" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."loot_templates" (
-    "template_key" "text" NOT NULL,
-    "sort_order" integer NOT NULL,
-    "original_name" "text" NOT NULL,
-    "quantity" "text" DEFAULT '1'::"text" NOT NULL,
-    "description" "text",
-    "unit_value" "text",
-    "total_value" "text",
-    "location_name" "text",
-    "position" "text",
-    "volume" smallint NOT NULL,
-    "page" integer,
-    "nature" "text",
-    "notes" "text",
-    CONSTRAINT "loot_templates_page_check" CHECK ((("page" IS NULL) OR ("page" > 0))),
-    CONSTRAINT "loot_templates_volume_check" CHECK ((("volume" >= 1) AND ("volume" <= 6)))
-);
-
-
-ALTER TABLE "public"."loot_templates" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."player_campaign" WITH ("security_barrier"='true') AS
  SELECT "c"."id" AS "campaign_id",
     "c"."slug",
@@ -2075,10 +2083,16 @@ ALTER TABLE "public"."user_profiles" OWNER TO "postgres";
 CREATE OR REPLACE VIEW "public"."player_loot" WITH ("security_barrier"='true') AS
  SELECT "loot"."campaign_id",
     "loot"."sort_order",
-    "loot"."original_name",
-    "loot"."quantity",
-    "loot"."unit_value",
-    "loot"."location_name",
+    "loot"."item_name" AS "original_name",
+    "loot"."quantity_recoverable" AS "quantity",
+        CASE
+            WHEN ("loot"."book_unit_value_amount" IS NOT NULL) THEN ((("loot"."book_unit_value_amount")::"text" || ' '::"text") || "loot"."book_unit_value_currency")
+            WHEN ("loot"."aon_legacy_unit_value_amount" IS NOT NULL) THEN ((("loot"."aon_legacy_unit_value_amount")::"text" || ' '::"text") || "loot"."aon_legacy_unit_value_currency")
+            ELSE NULL::"text"
+        END AS "unit_value",
+    COALESCE("loot"."location_name", "loot"."area_title") AS "location_name",
+    "loot"."aon_legacy_name",
+    "loot"."aon_legacy_url",
     "loot"."id" AS "loot_id",
     "publication"."published_on",
     "publication"."owner_user_id",
@@ -2412,11 +2426,6 @@ ALTER TABLE ONLY "public"."loot_player_publications"
 
 
 
-ALTER TABLE ONLY "public"."loot_templates"
-    ADD CONSTRAINT "loot_templates_pkey" PRIMARY KEY ("template_key");
-
-
-
 ALTER TABLE ONLY "public"."player_pages"
     ADD CONSTRAINT "player_pages_pkey" PRIMARY KEY ("campaign_id", "user_id");
 
@@ -2500,15 +2509,11 @@ CREATE INDEX "campaign_invites_token_idx" ON "public"."campaign_invites" USING "
 
 
 
-CREATE INDEX "campaign_loot_player_visible_idx" ON "public"."campaign_loot" USING "btree" ("campaign_id", "sort_order") WHERE "player_visible";
+CREATE UNIQUE INDEX "campaign_loot_reference_idx" ON "public"."campaign_loot" USING "btree" ("campaign_id", "reference_id") WHERE ("reference_id" IS NOT NULL);
 
 
 
-CREATE UNIQUE INDEX "campaign_loot_template_idx" ON "public"."campaign_loot" USING "btree" ("campaign_id", "template_key") WHERE ("template_key" IS NOT NULL);
-
-
-
-CREATE INDEX "campaign_loot_volume_idx" ON "public"."campaign_loot" USING "btree" ("campaign_id", "volume", "sort_order");
+CREATE INDEX "campaign_loot_source_idx" ON "public"."campaign_loot" USING "btree" ("campaign_id", "volume", "source_kind", "discovery_status", "sort_order");
 
 
 
@@ -2706,11 +2711,6 @@ ALTER TABLE ONLY "public"."campaign_invites"
 
 ALTER TABLE ONLY "public"."campaign_loot"
     ADD CONSTRAINT "campaign_loot_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "public"."campaigns"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."campaign_loot"
-    ADD CONSTRAINT "campaign_loot_template_key_fkey" FOREIGN KEY ("template_key") REFERENCES "public"."loot_templates"("template_key") ON DELETE SET NULL;
 
 
 
@@ -2994,9 +2994,6 @@ CREATE POLICY "journal_gm_all" ON "public"."journal_entries" TO "authenticated" 
 
 
 ALTER TABLE "public"."loot_player_publications" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."loot_templates" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "members_gm_read" ON "public"."campaign_members" FOR SELECT TO "authenticated" USING ("public"."is_campaign_gm"("campaign_id"));
@@ -3500,10 +3497,6 @@ GRANT SELECT ON TABLE "public"."gm_services" TO "authenticated";
 
 
 GRANT ALL ON TABLE "public"."loot_player_publications" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."loot_templates" TO "service_role";
 
 
 

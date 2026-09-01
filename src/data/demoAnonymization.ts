@@ -165,13 +165,20 @@ export function anonymizeDemoLoot(entries: LootEntry[]): LootEntry[] {
     }
     return {
       ...entry,
-      original_name: `Item anonymisé ${index + 1}`,
-      description: redacted(entry.description, "Description anonymisée."),
+      item_name: `Item anonymisé ${index + 1}`,
+      source_text: redacted(entry.source_text, "Extrait anonymisé."),
       location_name: locationName,
-      position: null,
-      page: null,
-      nature: redacted(entry.nature, "Type anonymisé"),
-      notes: redacted(entry.notes, "Notes anonymisées."),
+      area_code: null,
+      area_title: redacted(entry.area_title, "Zone anonymisée"),
+      source_page: null,
+      pdf_page: null,
+      stat_block_page: null,
+      source_owner: redacted(entry.source_owner, `Créature ${index + 1}`),
+      aon_legacy_name: redacted(entry.aon_legacy_name, "Référence AoN de démonstration"),
+      aon_legacy_url: entry.aon_legacy_url ? "https://2e.aonprd.com/Weapons.aspx?ID=43&NoRedirect=1" : null,
+      acquisition_condition: redacted(entry.acquisition_condition, "Condition de récupération anonymisée."),
+      availability_rule: redacted(entry.availability_rule, "Règle de disponibilité anonymisée."),
+      pricing_basis: redacted(entry.pricing_basis, "Base de prix anonymisée."),
     };
   });
 }

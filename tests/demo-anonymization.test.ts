@@ -19,9 +19,9 @@ describe("anonymisation de la démonstration", () => {
     const gmLoot = anonymizeDemoLoot(lootSeeds);
     const playerLoot = await loadPlayerLoot("demo", true);
 
-    expect(gmLoot[0]?.original_name).toBe("Item anonymisé 1");
+    expect(gmLoot[0]?.item_name).toBe("Item anonymisé 1");
     for (const item of playerLoot) {
-      expect(item.original_name).toBe(gmLoot.find((candidate) => candidate.sort_order === item.sort_order)?.original_name);
+      expect(item.original_name).toBe(gmLoot.find((candidate) => candidate.sort_order === item.sort_order)?.item_name);
     }
     expect(JSON.stringify(gmLoot)).not.toContain("Objet de campagne réel");
   });
