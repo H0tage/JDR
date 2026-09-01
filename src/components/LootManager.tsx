@@ -166,6 +166,18 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
     return { found, missed, pending, knownValue, missedValue };
   }, [scopedItems]);
 
+  const siteGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; label: string; treasure: LootEntry[]; carried: LootEntry[] }>();
+    filtered.filter((item) => lootLaneKind(item) !== "unlocated").forEach((item) => {
+      const key = lootLocationKey(item);
+      const group = groups.get(key) ?? { key, label: lootLocationLabel(item), treasure: [], carried: [] };
+      if (lootLaneKind(item) === "carried") group.carried.push(item);
+      else group.treasure.push(item);
+      groups.set(key, group);
+    });
+    return [...groups.values()];
+  }, [filtered]);
+
   if (!items) return <LoadingScreen label="Ouverture du registre des butins…" />;
 
   async function persist(draftInput = editing?.draft, original = editing?.original) {
@@ -253,17 +265,6 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
     }
   }
 
-  const siteGroups = useMemo(() => {
-    const groups = new Map<string, { key: string; label: string; treasure: LootEntry[]; carried: LootEntry[] }>();
-    filtered.filter((item) => lootLaneKind(item) !== "unlocated").forEach((item) => {
-      const key = lootLocationKey(item);
-      const group = groups.get(key) ?? { key, label: lootLocationLabel(item), treasure: [], carried: [] };
-      if (lootLaneKind(item) === "carried") group.carried.push(item);
-      else group.treasure.push(item);
-      groups.set(key, group);
-    });
-    return [...groups.values()];
-  }, [filtered]);
   const unlocatedItems = filtered.filter((item) => lootLaneKind(item) === "unlocated");
 
   return <div className="page-stack loot-monitor">
