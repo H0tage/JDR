@@ -2084,6 +2084,12 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-light .player-page-possessions li { color: #304034; }
 .player-theme-light .player-loot-owner-select, .player-theme-light .player-page-card input,
 .player-theme-light .player-page-card textarea, .player-theme-light .contact-notes-editor textarea { border-color: #bfb49f; background: #fffaf0; color: #304034; }
+.player-theme-light .player-economy input,
+.player-theme-light .player-economy select,
+.player-theme-light .player-economy textarea { border-color: #bfb49f; background: #fffaf0; color: #304034; color-scheme: light; }
+.player-theme-light .player-economy select option { background: #fffaf0; color: #304034; }
+.player-theme-light .player-economy input::placeholder,
+.player-theme-light .player-economy textarea::placeholder { color: #7b8379; opacity: 1; }
 .player-theme-light .player-loot-view-picker { border-color: #c9c0ad; background: #eee8da; }
 .player-theme-light .player-loot-view-picker button { color: #687267; }
 .player-theme-light .player-loot-view-picker button.active { background: #30483a; color: #fffaf0; }
