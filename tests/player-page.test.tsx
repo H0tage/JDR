@@ -62,9 +62,16 @@ it("affiche Ma page au joueur et rappelle sa confidentialité", async () => {
   await act(async () => { focusButton?.click(); });
   expect(page.classList.contains("pathbuilder-focus-mode")).toBe(true);
   expect(document.body.style.overflowY).toBe("hidden");
-  await act(async () => { focusButton?.click(); });
-  expect(document.body.style.overflowY).toBe("");
+  expect(window.localStorage.getItem("blood-lords-pathbuilder-focused")).toBe("1");
   const registerButton = [...page.querySelectorAll<HTMLButtonElement>(".player-page-view-tabs button")].find((candidate) => candidate.textContent?.includes("Page Registre"));
+  await act(async () => { registerButton?.click(); });
+  expect(document.body.style.overflowY).toBe("");
+  await act(async () => { pathbuilderButton?.click(); });
+  expect(page.classList.contains("pathbuilder-focus-mode")).toBe(true);
+  expect(document.body.style.overflowY).toBe("hidden");
+  const releaseButton = [...page.querySelectorAll<HTMLButtonElement>(".player-page-view-controls > button")].find((candidate) => candidate.textContent?.includes("Libérer la page"));
+  await act(async () => { releaseButton?.click(); });
+  expect(window.localStorage.getItem("blood-lords-pathbuilder-focused")).toBe("0");
   await act(async () => { registerButton?.click(); });
   const editButton = [...page.querySelectorAll<HTMLButtonElement>("button")].find((candidate) => candidate.textContent?.includes("Modifier ma page"));
   await act(async () => { editButton?.click(); });

@@ -283,8 +283,19 @@ function emptyPlayerPageDraft(page: PlayerPage): PlayerPageDraft {
   };
 }
 
+const PATHBUILDER_FOCUS_STORAGE_KEY = "blood-lords-pathbuilder-focused";
+
+function storedPathbuilderFocus(): boolean {
+  try {
+    return window.localStorage.getItem(PATHBUILDER_FOCUS_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean }) {
   const [pageView, setPageView] = useState<"register" | "pathbuilder">("register");
+  const [pathbuilderFocusPreference, setPathbuilderFocusPreference] = useState(storedPathbuilderFocus);
   const [pathbuilderFocused, setPathbuilderFocused] = useState(false);
   const pageViewTabsRef = useRef<HTMLDivElement | null>(null);
   const scrollLockRef = useRef<{ bodyOverflowY: string; htmlOverscrollY: string } | null>(null);
@@ -308,16 +319,8 @@ function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean
     if (updateState) setPathbuilderFocused(false);
   }, []);
 
-  useEffect(() => () => releasePathbuilderFocus(false), [releasePathbuilderFocus]);
-  useEffect(() => {
-    if (pageView !== "pathbuilder" && pathbuilderFocused) releasePathbuilderFocus();
-  }, [pageView, pathbuilderFocused, releasePathbuilderFocus]);
-
-  function togglePathbuilderFocus() {
-    if (pathbuilderFocused) {
-      releasePathbuilderFocus();
-      return;
-    }
+  const activatePathbuilderFocus = useCallback(() => {
+    if (scrollLockRef.current) return;
     pageViewTabsRef.current?.scrollIntoView?.({ block: "start" });
     scrollLockRef.current = {
       bodyOverflowY: document.body.style.overflowY,
@@ -326,6 +329,31 @@ function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean
     document.body.style.overflowY = "hidden";
     document.documentElement.style.overscrollBehaviorY = "none";
     setPathbuilderFocused(true);
+  }, []);
+
+  useEffect(() => () => releasePathbuilderFocus(false), [releasePathbuilderFocus]);
+  useEffect(() => {
+    if (pageView !== "pathbuilder") {
+      if (pathbuilderFocused) releasePathbuilderFocus();
+      return;
+    }
+    if (pathbuilderFocusPreference && !pathbuilderFocused) activatePathbuilderFocus();
+    if (!pathbuilderFocusPreference && pathbuilderFocused) releasePathbuilderFocus();
+  }, [activatePathbuilderFocus, pageView, pathbuilderFocusPreference, pathbuilderFocused, releasePathbuilderFocus]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PATHBUILDER_FOCUS_STORAGE_KEY, pathbuilderFocusPreference ? "1" : "0");
+    } catch {
+      // Le mode reste utilisable même si le navigateur bloque le stockage local.
+    }
+  }, [pathbuilderFocusPreference]);
+
+  function togglePathbuilderFocus() {
+    const nextPreference = !pathbuilderFocusPreference;
+    setPathbuilderFocusPreference(nextPreference);
+    if (!nextPreference) {
+      releasePathbuilderFocus();
+    }
   }
 
   const refresh = useCallback(async () => {
