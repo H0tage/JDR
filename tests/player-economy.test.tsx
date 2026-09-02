@@ -72,3 +72,29 @@ it("permet de sélectionner plusieurs objets pour une action groupée", async ()
   expect(economy.querySelector(".economy-batch-bar")?.textContent).toContain("1 objet sélectionné");
   expect(economy.querySelector(".economy-batch-bar")?.textContent).toContain("Appliquer");
 });
+
+it("range les inventaires des autres joueurs dans des colonnes distinctes", async () => {
+  await act(async () => {
+    root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />);
+  });
+  const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));
+  const groupTab = [...economy.querySelectorAll<HTMLButtonElement>(".economy-sections button")].find((button) => button.textContent?.includes("Inventaires du groupe"));
+  await act(async () => { groupTab?.click(); });
+
+  const columns = [...economy.querySelectorAll<HTMLElement>(".economy-player-inventory")];
+  expect(columns).toHaveLength(2);
+  expect(columns.map((column) => column.querySelector("h2")?.textContent)).toEqual(["Prénom2 Nom2", "Prénom3 Nom3"]);
+  expect(columns[0]?.textContent).toContain("Item anonymisé 3");
+  expect(columns[1]?.textContent).toContain("Inventaire vide");
+  expect(economy.querySelectorAll(".economy-group-mobile-picker option")).toHaveLength(2);
+});
+
+it("montre au MJ une colonne pour chacun des joueurs", async () => {
+  await act(async () => {
+    root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="gm" />);
+  });
+  const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));
+  const groupTab = [...economy.querySelectorAll<HTMLButtonElement>(".economy-sections button")].find((button) => button.textContent?.includes("Inventaires du groupe"));
+  await act(async () => { groupTab?.click(); });
+  expect(economy.querySelectorAll(".economy-player-inventory")).toHaveLength(3);
+});

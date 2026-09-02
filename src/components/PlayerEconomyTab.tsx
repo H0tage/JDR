@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Banknote, Check, ChevronDown,
   CircleDollarSign, Coins, Gem, GitBranch, HandCoins, History, PackageOpen,
@@ -31,6 +31,7 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
   const [itemAction, setItemAction] = useState<ItemAction>(null);
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [mobileInventoryUserId, setMobileInventoryUserId] = useState("");
 
   const refresh = useCallback(async () => {
     try {
@@ -53,6 +54,10 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
     return () => window.clearInterval(interval);
   }, [demo, refresh]);
   useEffect(() => { setSelectedIds([]); }, [section]);
+  useEffect(() => {
+    const visiblePlayers = players.filter((player) => viewerRole === "gm" || player.user_id !== data?.viewer_user_id);
+    setMobileInventoryUserId((current) => visiblePlayers.some((player) => player.user_id === current) ? current : visiblePlayers[0]?.user_id ?? "");
+  }, [data?.viewer_user_id, players, viewerRole]);
 
   async function execute(operation: () => Promise<unknown>, success: string) {
     setSaving(true);
@@ -73,6 +78,7 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
 
   if (!data) return error ? <ErrorPanel error={error} onRetry={() => void refresh()} /> : <LoadingScreen label="Ouverture de la trésorerie…" />;
 
+  const viewerUserId = data.viewer_user_id;
   const activeItems = data.items.filter((item) => item.status === "active");
   const commonItems = activeItems.filter((item) => item.owner_user_id === null);
   const myItems = activeItems.filter((item) => item.owner_user_id === data.viewer_user_id);
@@ -88,13 +94,18 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
   const totalExited = data.totals.total_exited_cp;
   const incomingRequests = data.requests.filter((request) => request.status === "pending" && request.owner_user_id === data.viewer_user_id);
   const outgoingRequests = data.requests.filter((request) => request.status === "pending" && request.requester_user_id === data.viewer_user_id);
+  const groupInventoryPlayers = players.filter((player) => viewerRole === "gm" || player.user_id !== data.viewer_user_id);
 
-  const visibleItems = section === "common" ? commonItems : section === "mine" ? myItems : otherItems;
+  const visibleItems = section === "common" ? commonItems : myItems;
 
   function openItemAction(item: CampaignInventoryItem, action: ItemAction) {
     setSelectedItem(item);
     setItemAction(action);
     setMoneyAction(null);
+  }
+
+  function renderInventoryCard(item: CampaignInventoryItem, showOwner = true) {
+    return <InventoryCard key={item.id} item={item} allItems={activeItems} viewerId={viewerUserId} viewerRole={viewerRole} players={players} saving={saving} selected={selectedIds.includes(item.id)} showOwner={showOwner} onToggleSelected={() => setSelectedIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])} onOpenAction={openItemAction} onExecute={execute} />;
   }
 
   return <div className="page-stack player-economy">
@@ -147,14 +158,36 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
 
     {section !== "activity" && selectedIds.length > 0 && <BatchActionBar count={selectedIds.length} players={players} saving={saving} onClear={() => setSelectedIds([])} onApply={(action, targetUserId, comment) => void execute(async () => { await batchUpdateInventoryItems(selectedIds, action, targetUserId, comment); setSelectedIds([]); }, `${selectedIds.length} objet${selectedIds.length > 1 ? "s" : ""} mis à jour.`)} />}
 
-    {section !== "activity" ? visibleItems.length > 0 ? <section className="economy-item-grid">
-      {visibleItems.map((item) => <InventoryCard key={item.id} item={item} allItems={activeItems} viewerId={data.viewer_user_id} viewerRole={viewerRole} players={players} saving={saving} selected={selectedIds.includes(item.id)} onToggleSelected={() => setSelectedIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])} onOpenAction={openItemAction} onExecute={execute} />)}
-    </section> : <EmptyState title={section === "common" ? "Le pot commun est vide" : section === "mine" ? "Aucun objet personnel" : "Aucun objet chez les autres joueurs"}>Les objets apparaîtront ici au fil de leur attribution.</EmptyState> : <EconomyActivity data={data} saving={saving} onExecute={execute} />}
+    {section === "activity" ? <EconomyActivity data={data} saving={saving} onExecute={execute} />
+      : section === "others" ? <GroupInventories players={groupInventoryPlayers} items={otherItems} mobilePlayerId={mobileInventoryUserId} onMobilePlayer={setMobileInventoryUserId} renderItem={(item) => renderInventoryCard(item, false)} />
+        : visibleItems.length > 0 ? <section className="economy-item-grid">{visibleItems.map((item) => renderInventoryCard(item))}</section>
+          : <EmptyState title={section === "common" ? "Le pot commun est vide" : "Aucun objet personnel"}>Les objets apparaîtront ici au fil de leur attribution.</EmptyState>}
 
     {selectedItem && itemAction && <ItemActionPanel item={selectedItem} action={itemAction} mergeCandidates={activeItems.filter((candidate) => candidate.id !== selectedItem.id && candidate.name === selectedItem.name && candidate.owner_user_id === selectedItem.owner_user_id && candidate.unit_value_cp === selectedItem.unit_value_cp && candidate.aon_legacy_url === selectedItem.aon_legacy_url)} events={data.item_history.filter((event) => event.item_id === selectedItem.id || event.related_item_id === selectedItem.id)} saving={saving} onClose={() => { setSelectedItem(null); setItemAction(null); }} onExecute={execute} />}
 
     {data.debts.some((debt) => debt.status === "open") && <section className="economy-debts panel"><header><ReceiptText size={18} /><h2>Dettes en cours</h2></header>{data.debts.filter((debt) => debt.status === "open").map((debt) => <article key={debt.id}><div><strong>{debt.debtor_display_name} doit {formatCopper(debt.remaining_cp)} à {debt.creditor_display_name}</strong>{debt.comment && <small>{debt.comment}</small>}</div>{debt.debtor_user_id === data.viewer_user_id && <button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => payMoneyDebt(debt.id, debt.remaining_cp), "Dette remboursée." )}>Rembourser</button>}</article>)}</section>}
   </div>;
+}
+
+function GroupInventories({ players, items, mobilePlayerId, onMobilePlayer, renderItem }: { players: CampaignPlayer[]; items: CampaignInventoryItem[]; mobilePlayerId: string; onMobilePlayer: (userId: string) => void; renderItem: (item: CampaignInventoryItem) => ReactNode }) {
+  if (players.length === 0) return <EmptyState title="Aucun autre joueur">Les inventaires apparaîtront ici lorsque d’autres joueurs auront rejoint la campagne.</EmptyState>;
+  return <section className="economy-group-inventories-wrap">
+    <label className="economy-group-mobile-picker">Inventaire affiché<select value={mobilePlayerId} onChange={(event) => onMobilePlayer(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>
+    <div className="economy-group-inventories" style={{ "--inventory-column-count": Math.min(players.length, 5) } as CSSProperties}>
+      {players.map((player) => {
+        const playerItems = items.filter((item) => item.owner_user_id === player.user_id);
+        const itemCount = playerItems.reduce((total, item) => total + item.quantity, 0);
+        return <article key={player.user_id} className={`economy-player-inventory${player.user_id === mobilePlayerId ? " mobile-active" : ""}`}>
+          <header><div><UserInventoryIcon /><div><h2>{player.display_name}</h2><small>{formatQuantity(itemCount)} objet{itemCount !== 1 ? "s" : ""}</small></div></div></header>
+          <div>{playerItems.length > 0 ? playerItems.map(renderItem) : <p className="economy-empty-inventory">Inventaire vide</p>}</div>
+        </article>;
+      })}
+    </div>
+  </section>;
+}
+
+function UserInventoryIcon() {
+  return <WalletCards size={18} aria-hidden="true" />;
 }
 
 function BatchActionBar({ count, players, saving, onClear, onApply }: { count: number; players: CampaignPlayer[]; saving: boolean; onClear: () => void; onApply: (action: "assign" | "return" | "consumed" | "lost" | "donated", targetUserId: string | null, comment: string) => void }) {
@@ -171,13 +204,13 @@ function BatchActionBar({ count, players, saving, onClear, onApply }: { count: n
   </section>;
 }
 
-function InventoryCard({ item, allItems, viewerId, viewerRole, players, saving, selected, onToggleSelected, onOpenAction, onExecute }: { item: CampaignInventoryItem; allItems: CampaignInventoryItem[]; viewerId: string; viewerRole: "player" | "gm"; players: CampaignPlayer[]; saving: boolean; selected: boolean; onToggleSelected: () => void; onOpenAction: (item: CampaignInventoryItem, action: ItemAction) => void; onExecute: (operation: () => Promise<unknown>, success: string) => Promise<void> }) {
+function InventoryCard({ item, allItems, viewerId, viewerRole, players, saving, selected, showOwner = true, onToggleSelected, onOpenAction, onExecute }: { item: CampaignInventoryItem; allItems: CampaignInventoryItem[]; viewerId: string; viewerRole: "player" | "gm"; players: CampaignPlayer[]; saving: boolean; selected: boolean; showOwner?: boolean; onToggleSelected: () => void; onOpenAction: (item: CampaignInventoryItem, action: ItemAction) => void; onExecute: (operation: () => Promise<unknown>, success: string) => Promise<void> }) {
   const isCommon = item.owner_user_id === null;
   const isMine = item.owner_user_id === viewerId;
   const controllable = viewerRole === "gm" || isCommon || isMine;
   const canMerge = allItems.some((candidate) => candidate.id !== item.id && candidate.name === item.name && candidate.owner_user_id === item.owner_user_id && candidate.unit_value_cp === item.unit_value_cp && candidate.aon_legacy_url === item.aon_legacy_url);
   return <article className={`economy-item-card${selected ? " selected" : ""}`}>
-    <header><div>{controllable && <label className="economy-item-selector" title="Sélectionner pour une action groupée"><input type="checkbox" checked={selected} onChange={onToggleSelected} /><ListChecks size={16} /></label>}<Gem size={19} /><div><h2>{item.name}</h2><small>{item.owner_display_name ?? "Pot commun"}</small></div></div>{item.quantity !== 1 && <span>× {formatQuantity(item.quantity)}</span>}</header>
+    <header><div>{controllable && <label className="economy-item-selector" title="Sélectionner pour une action groupée"><input type="checkbox" checked={selected} onChange={onToggleSelected} /><ListChecks size={16} /></label>}<Gem size={19} /><div><h2>{item.name}</h2>{showOwner && <small>{item.owner_display_name ?? "Pot commun"}</small>}</div></div>{item.quantity !== 1 && <span>× {formatQuantity(item.quantity)}</span>}</header>
     <div className="economy-item-value"><span>Valeur unitaire</span><strong>{formatCopper(item.unit_value_cp)}</strong>{item.aon_legacy_url && <a href={item.aon_legacy_url} target="_blank" rel="noreferrer">AoN</a>}</div>
     {item.pending_request_count > 0 && <p className="economy-item-requests">{item.pending_request_count} demande{item.pending_request_count > 1 ? "s" : ""} en attente</p>}
     <footer>

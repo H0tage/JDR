@@ -1070,6 +1070,18 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .economy-batch-bar strong { color: var(--ivory); font-size: .7rem; }
 .economy-batch-bar select, .economy-batch-bar input { min-width: 0; padding: 7px 8px; font-size: .67rem; }
 .economy-item-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+.economy-group-inventories-wrap { min-width: 0; overflow-x: auto; padding-bottom: 5px; }
+.economy-group-mobile-picker { display: none; }
+.economy-group-inventories { min-width: calc(var(--inventory-column-count) * 230px); display: grid; grid-template-columns: repeat(var(--inventory-column-count), minmax(230px, 1fr)); gap: 11px; align-items: start; }
+.economy-player-inventory { min-width: 0; overflow: hidden; border: 1px solid var(--line-soft); border-radius: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); box-shadow: 0 12px 28px rgb(0 0 0 / 7%); }
+.economy-player-inventory > header { border-bottom: 1px solid var(--line-soft); padding: 13px 14px; background: linear-gradient(110deg, var(--gold-soft), transparent); }
+.economy-player-inventory > header > div { display: flex; align-items: center; gap: 9px; }
+.economy-player-inventory > header svg { flex: 0 0 auto; color: var(--gold); }
+.economy-player-inventory h2 { overflow: hidden; margin: 0; color: var(--ivory); font-family: Georgia, serif; font-size: .94rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.economy-player-inventory header small { color: var(--muted); font-size: .62rem; }
+.economy-player-inventory > div { display: grid; gap: 8px; padding: 8px; }
+.economy-player-inventory .economy-item-card { box-shadow: none; }
+.economy-empty-inventory { min-height: 94px; display: grid; place-items: center; margin: 0; border: 1px dashed var(--line); border-radius: 7px; color: var(--muted); font-size: .68rem; text-align: center; }
 .economy-item-card { min-width: 0; display: grid; grid-template-rows: auto 1fr auto auto; border: 1px solid var(--line-soft); border-radius: 9px; background: var(--economy-card); box-shadow: 0 12px 28px rgb(0 0 0 / 7%); }
 .economy-item-card.selected { border-color: color-mix(in srgb, var(--gold) 70%, var(--line)); box-shadow: 0 0 0 1px var(--gold-soft), 0 12px 28px rgb(0 0 0 / 9%); }
 .economy-item-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line-soft); padding: 13px 14px; }
@@ -1120,7 +1132,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .economy-debts article > div { display: grid; gap: 3px; }
 
 .player-theme-light .player-economy { --economy-card: #fffaf0; --economy-soft: #eee6d4; }
-.player-theme-light .economy-metrics strong, .player-theme-light .economy-player-balances h2, .player-theme-light .economy-player-balances article strong:not(.negative), .player-theme-light .economy-batch-bar strong, .player-theme-light .economy-action-panel h2, .player-theme-light .economy-requests h2, .player-theme-light .economy-debts h2, .player-theme-light .economy-requests strong, .player-theme-light .economy-debts strong, .player-theme-light .economy-sections button.active, .player-theme-light .economy-item-card h2, .player-theme-light .economy-item-value strong, .player-theme-light .economy-activity h2, .player-theme-light .economy-activity strong, .player-theme-light .item-timeline strong { color: #2f392f; }
+.player-theme-light .economy-metrics strong, .player-theme-light .economy-player-balances h2, .player-theme-light .economy-player-balances article strong:not(.negative), .player-theme-light .economy-batch-bar strong, .player-theme-light .economy-action-panel h2, .player-theme-light .economy-requests h2, .player-theme-light .economy-debts h2, .player-theme-light .economy-requests strong, .player-theme-light .economy-debts strong, .player-theme-light .economy-sections button.active, .player-theme-light .economy-player-inventory h2, .player-theme-light .economy-item-card h2, .player-theme-light .economy-item-value strong, .player-theme-light .economy-activity h2, .player-theme-light .economy-activity strong, .player-theme-light .item-timeline strong { color: #2f392f; }
 
 @media (max-width: 1050px) {
   .economy-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1131,6 +1143,12 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
   .economy-action-fields .span-2 { grid-column: auto; }
   .economy-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .economy-actions button { align-items: flex-start; }
+  .economy-group-inventories-wrap { overflow: visible; }
+  .economy-group-mobile-picker { display: grid; gap: 5px; margin-bottom: 9px; color: var(--muted); font-size: .66rem; font-weight: 800; }
+  .economy-group-mobile-picker select { padding: 8px 10px; }
+  .economy-group-inventories { min-width: 0; display: block; }
+  .economy-player-inventory { display: none; }
+  .economy-player-inventory.mobile-active { display: block; }
   .economy-batch-bar { position: static; grid-template-columns: 1fr auto; }
   .economy-batch-bar > div, .economy-batch-bar > select, .economy-batch-bar > input { grid-column: 1 / -1; }
   .economy-requests article, .economy-debts article { align-items: flex-start; flex-direction: column; }
