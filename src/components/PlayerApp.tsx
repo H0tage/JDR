@@ -157,7 +157,7 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
         {tab === "relations" && <PlayerRelations data={data} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "loot" && <PlayerEconomyTab campaignId={data.settings.campaign_id} demo={demo} viewerRole={viewerRole} />}
-        {tab === "my-page" && viewerRole === "player" && <PlayerPageTab campaignId={data.settings.campaign_id} demo={demo} />}
+        {viewerRole === "player" && <div className="persistent-player-page" hidden={tab !== "my-page"}><PlayerPageTab campaignId={data.settings.campaign_id} demo={demo} active={tab === "my-page"} /></div>}
         {tab === "player-pages" && viewerRole === "gm" && <PlayerPagesTab page={selectedPlayerPage} loading={playerPages === null && !playerPagesError} error={playerPagesError} />}
         {tab === "notes" && <QuestJournalTab campaignId={data.settings.campaign_id} entries={data.questEntries} factionHistory={[]} showFactionHistory={false} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "quest-journal" && <QuestWritingTab page={data.questJournalPage} revisions={data.questJournalRevisions} canRestoreHistory demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
@@ -293,7 +293,7 @@ function storedPathbuilderFocus(): boolean {
   }
 }
 
-function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean }) {
+function PlayerPageTab({ campaignId, demo, active }: { campaignId: string; demo: boolean; active: boolean }) {
   const [pageView, setPageView] = useState<"register" | "pathbuilder">("register");
   const [pathbuilderOpened, setPathbuilderOpened] = useState(false);
   const [pathbuilderFocusPreference, setPathbuilderFocusPreference] = useState(storedPathbuilderFocus);
@@ -334,13 +334,13 @@ function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean
 
   useEffect(() => () => releasePathbuilderFocus(false), [releasePathbuilderFocus]);
   useEffect(() => {
-    if (pageView !== "pathbuilder") {
+    if (!active || pageView !== "pathbuilder") {
       if (pathbuilderFocused) releasePathbuilderFocus();
       return;
     }
     if (pathbuilderFocusPreference && !pathbuilderFocused) activatePathbuilderFocus();
     if (!pathbuilderFocusPreference && pathbuilderFocused) releasePathbuilderFocus();
-  }, [activatePathbuilderFocus, pageView, pathbuilderFocusPreference, pathbuilderFocused, releasePathbuilderFocus]);
+  }, [activatePathbuilderFocus, active, pageView, pathbuilderFocusPreference, pathbuilderFocused, releasePathbuilderFocus]);
   useEffect(() => {
     try {
       window.localStorage.setItem(PATHBUILDER_FOCUS_STORAGE_KEY, pathbuilderFocusPreference ? "1" : "0");

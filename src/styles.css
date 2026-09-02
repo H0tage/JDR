@@ -997,6 +997,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-pages-submenu-message { display: block; padding: 9px 10px; color: #777d75; font-size: .76rem; white-space: nowrap; }
 .player-content { flex: 1 0 auto; padding: 40px clamp(18px, 7vw, 100px) 80px; }
 .player-content .page-stack { max-width: 1320px; }
+.persistent-player-page[hidden] { display: none; }
 .player-content .eyebrow { color: #7d6438; }
 .player-content .section-heading h2 { color: #222620; }
 .player-site-guide { max-width: 980px !important; }
