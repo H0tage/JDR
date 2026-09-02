@@ -50,6 +50,15 @@ it("affiche Ma page au joueur et rappelle sa confidentialité", async () => {
   expect(page.textContent).toContain("Le MJ peut la consulter");
   expect(page.querySelector(".player-character-sheet")).toBeTruthy();
   expect(page.querySelector("textarea")).toBeNull();
+  expect(page.querySelector("iframe")).toBeNull();
+  const pathbuilderButton = [...page.querySelectorAll<HTMLButtonElement>(".player-page-view-tabs button")].find((candidate) => candidate.textContent?.includes("Page Pathbuilder2e"));
+  expect(pathbuilderButton).toBeTruthy();
+  await act(async () => { pathbuilderButton?.click(); });
+  const pathbuilderFrame = page.querySelector<HTMLIFrameElement>(".pathbuilder-embed iframe");
+  expect(pathbuilderFrame?.getAttribute("src")).toBe("https://pathbuilder2e.com/app.html");
+  expect(pathbuilderFrame?.getAttribute("title")).toBe("Fiche de personnage dans Pathbuilder 2e");
+  const registerButton = [...page.querySelectorAll<HTMLButtonElement>(".player-page-view-tabs button")].find((candidate) => candidate.textContent?.includes("Page Registre"));
+  await act(async () => { registerButton?.click(); });
   const editButton = [...page.querySelectorAll<HTMLButtonElement>("button")].find((candidate) => candidate.textContent?.includes("Modifier ma page"));
   await act(async () => { editButton?.click(); });
   expect(page.querySelector(".player-page-edit textarea")).toBeTruthy();

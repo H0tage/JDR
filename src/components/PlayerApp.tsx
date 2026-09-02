@@ -11,6 +11,7 @@ import { BestiaryTab } from "./BestiaryTab";
 import { QuestJournalTab } from "./QuestJournalTab";
 import { QuestWritingTab } from "./QuestWritingTab";
 import { PlayerEconomyTab } from "./PlayerEconomyTab";
+import { PathbuilderEmbed } from "./PathbuilderEmbed";
 
 type PlayerTab = "dashboard" | "relations" | "bestiary" | "loot" | "my-page" | "player-pages" | "notes" | "quest-journal" | "help";
 type PlayerTheme = "light" | "original" | "dark";
@@ -283,6 +284,7 @@ function emptyPlayerPageDraft(page: PlayerPage): PlayerPageDraft {
 }
 
 function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean }) {
+  const [pageView, setPageView] = useState<"register" | "pathbuilder">("register");
   const [page, setPage] = useState<PlayerPage | null>(null);
   const [draft, setDraft] = useState<PlayerPageDraft | null>(null);
   const [possessions, setPossessions] = useState<CampaignInventoryItem[]>([]);
@@ -347,11 +349,14 @@ function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean
   const portrait = imagePreview ?? playerCharacterImageUrl(draft.image_path);
 
   return <div className="page-stack player-page-tab">
-    <div className="player-page-heading"><SectionHeading eyebrow={page.display_name ?? "Votre espace"} title="Ma page" />{!editing && <button className="button secondary" onClick={() => { setEditing(true); setSaved(false); }}><Pencil size={16} />Modifier ma page</button>}</div>
-    <p className="player-page-privacy"><LockKeyhole size={17} /><span><strong>Espace personnel.</strong> Vous seul pouvez modifier cette page. Le MJ peut la consulter, mais aucun autre joueur ne peut la voir.</span></p>
+    <div className="player-page-heading"><SectionHeading eyebrow={page.display_name ?? "Votre espace"} title="Ma page" />{pageView === "register" && !editing && <button className="button secondary" onClick={() => { setEditing(true); setSaved(false); }}><Pencil size={16} />Modifier ma page</button>}</div>
+    <nav className="player-page-view-tabs" aria-label="Contenu de ma page">
+      <button type="button" className={pageView === "register" ? "active" : ""} aria-current={pageView === "register" ? "page" : undefined} onClick={() => setPageView("register")}><UserRound size={17} />Page Registre</button>
+      <button type="button" className={pageView === "pathbuilder" ? "active" : ""} aria-current={pageView === "pathbuilder" ? "page" : undefined} onClick={() => setPageView("pathbuilder")}><BookOpen size={17} />Page Pathbuilder2e</button>
+    </nav>
     {error && <p className="form-error" role="alert">{error}</p>}
     {saved && <p className="form-success" role="status">Votre page est enregistrée.</p>}
-    {editing ? <form className="player-page-edit" onSubmit={save}>
+    {pageView === "pathbuilder" ? <PathbuilderEmbed /> : <><p className="player-page-privacy"><LockKeyhole size={17} /><span><strong>Espace personnel.</strong> Vous seul pouvez modifier cette page. Le MJ peut la consulter, mais aucun autre joueur ne peut la voir.</span></p>{editing ? <form className="player-page-edit" onSubmit={save}>
       <section className="player-page-edit-portrait"><div>{portrait ? <img src={portrait} alt="Aperçu du personnage" /> : <ImagePlus size={40} />}</div><label className="button secondary"><ImagePlus size={16} />Choisir une illustration<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseImage(event.target.files?.[0] ?? null)} /></label>{(draft.image_path || imageFile) && <button type="button" className="text-button danger-text" onClick={() => { chooseImage(null); setDraft({ ...draft, image_path: null }); }}>Retirer l’image</button>}<small>JPEG, PNG ou WebP · 8 Mo maximum.</small></section>
       <section className="player-page-edit-fields"><label>Nom du personnage<input maxLength={120} value={draft.character_name ?? ""} onChange={(event) => setDraft({ ...draft, character_name: event.target.value })} placeholder="Nom utilisé en jeu" /></label><label>Présentation<textarea maxLength={4000} value={draft.character_summary ?? ""} onChange={(event) => setDraft({ ...draft, character_summary: event.target.value })} placeholder="Concept, parcours et éléments importants…" /></label><label>Lien Pathbuilder<input type="url" maxLength={500} value={draft.pathbuilder_url ?? ""} onChange={(event) => setDraft({ ...draft, pathbuilder_url: event.target.value })} placeholder="https://pathbuilder2e.com/…" /></label></section>
       <section className="player-page-edit-wide"><label>Objectifs<textarea maxLength={10000} value={draft.objectives ?? ""} onChange={(event) => setDraft({ ...draft, objectives: event.target.value })} placeholder="Objectifs personnels, pistes à suivre, promesses…" /></label><label>Notes personnelles<textarea className="player-page-notes" maxLength={20000} value={draft.notes ?? ""} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="Ces notes ne sont visibles que par vous et le MJ." /></label></section>
@@ -361,7 +366,7 @@ function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean
       <div className="player-character-details"><section><p className="eyebrow">Intentions</p><h2>Objectifs</h2><p>{page.objectives || "Aucun objectif renseigné pour le moment."}</p></section><section><p className="eyebrow">Mémoire personnelle</p><h2>Notes</h2><p>{page.notes || "Aucune note personnelle."}</p></section></div>
       <section className="player-character-possessions player-page-possessions"><div><p className="eyebrow">Inventaire personnel</p><h2>Mes possessions</h2></div>{possessions.length ? <ul>{possessions.map((item) => <li key={item.id}><strong>{item.name}</strong><span>{item.quantity}{item.unit_value_cp !== null ? ` · ${formatCopper(item.unit_value_cp)}` : ""}</span></li>)}</ul> : <p>Aucun butin ne vous est attribué pour le moment.</p>}</section>
       <p className="player-character-updated">Dernière modification : {new Date(page.updated_at).toLocaleString("fr-FR")}</p>
-    </div>}
+    </div>}</>}
   </div>;
 }
 
