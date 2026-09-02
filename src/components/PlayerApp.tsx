@@ -1,4 +1,4 @@
-import { BookOpen, Check, CircleHelp, CircleOff, Cloud, Eye, Gem, Handshake, Heart, ImagePlus, LayoutDashboard, LockKeyhole, Moon, Network, Pencil, Save, ScrollText, Sun, TriangleAlert, UserRound, Users, X } from "lucide-react";
+import { BookOpen, Check, CircleHelp, CircleOff, Cloud, Eye, Focus, Gem, Handshake, Heart, ImagePlus, LayoutDashboard, LockKeyhole, Minimize2, Moon, Network, Pencil, Save, ScrollText, Sun, TriangleAlert, UserRound, Users, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { contactPortraitUrl, loadPlayerData, savePlayerContactNotes, subscribeToCampaign } from "../lib/api";
@@ -285,6 +285,9 @@ function emptyPlayerPageDraft(page: PlayerPage): PlayerPageDraft {
 
 function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean }) {
   const [pageView, setPageView] = useState<"register" | "pathbuilder">("register");
+  const [pathbuilderFocused, setPathbuilderFocused] = useState(false);
+  const pageViewTabsRef = useRef<HTMLDivElement | null>(null);
+  const scrollLockRef = useRef<{ bodyOverflowY: string; htmlOverscrollY: string } | null>(null);
   const [page, setPage] = useState<PlayerPage | null>(null);
   const [draft, setDraft] = useState<PlayerPageDraft | null>(null);
   const [possessions, setPossessions] = useState<CampaignInventoryItem[]>([]);
@@ -294,6 +297,36 @@ function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean
   const [editing, setEditing] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  const releasePathbuilderFocus = useCallback((updateState = true) => {
+    const previous = scrollLockRef.current;
+    if (previous) {
+      document.body.style.overflowY = previous.bodyOverflowY;
+      document.documentElement.style.overscrollBehaviorY = previous.htmlOverscrollY;
+      scrollLockRef.current = null;
+    }
+    if (updateState) setPathbuilderFocused(false);
+  }, []);
+
+  useEffect(() => () => releasePathbuilderFocus(false), [releasePathbuilderFocus]);
+  useEffect(() => {
+    if (pageView !== "pathbuilder" && pathbuilderFocused) releasePathbuilderFocus();
+  }, [pageView, pathbuilderFocused, releasePathbuilderFocus]);
+
+  function togglePathbuilderFocus() {
+    if (pathbuilderFocused) {
+      releasePathbuilderFocus();
+      return;
+    }
+    pageViewTabsRef.current?.scrollIntoView?.({ block: "start" });
+    scrollLockRef.current = {
+      bodyOverflowY: document.body.style.overflowY,
+      htmlOverscrollY: document.documentElement.style.overscrollBehaviorY,
+    };
+    document.body.style.overflowY = "hidden";
+    document.documentElement.style.overscrollBehaviorY = "none";
+    setPathbuilderFocused(true);
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -348,12 +381,12 @@ function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean
 
   const portrait = imagePreview ?? playerCharacterImageUrl(draft.image_path);
 
-  return <div className="page-stack player-page-tab">
+  return <div className={`page-stack player-page-tab${pathbuilderFocused ? " pathbuilder-focus-mode" : ""}`}>
     <div className="player-page-heading"><SectionHeading eyebrow={page.display_name ?? "Votre espace"} title="Ma page" />{pageView === "register" && !editing && <button className="button secondary" onClick={() => { setEditing(true); setSaved(false); }}><Pencil size={16} />Modifier ma page</button>}</div>
-    <nav className="player-page-view-tabs" aria-label="Contenu de ma page">
+    <div ref={pageViewTabsRef} className="player-page-view-controls"><nav className="player-page-view-tabs" aria-label="Contenu de ma page">
       <button type="button" className={pageView === "register" ? "active" : ""} aria-current={pageView === "register" ? "page" : undefined} onClick={() => setPageView("register")}><UserRound size={17} />Page Registre</button>
       <button type="button" className={pageView === "pathbuilder" ? "active" : ""} aria-current={pageView === "pathbuilder" ? "page" : undefined} onClick={() => setPageView("pathbuilder")}><BookOpen size={17} />Page Pathbuilder2e</button>
-    </nav>
+    </nav>{pageView === "pathbuilder" && <button type="button" className={`player-page-focus-button${pathbuilderFocused ? " active" : ""}`} aria-pressed={pathbuilderFocused} onClick={togglePathbuilderFocus}>{pathbuilderFocused ? <Minimize2 size={17} /> : <Focus size={17} />}<span>{pathbuilderFocused ? "Libérer la page" : "Cadrer Pathbuilder"}</span></button>}</div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {saved && <p className="form-success" role="status">Votre page est enregistrée.</p>}
     {pageView === "pathbuilder" ? <PathbuilderEmbed /> : <><p className="player-page-privacy"><LockKeyhole size={17} /><span><strong>Espace personnel.</strong> Vous seul pouvez modifier cette page. Le MJ peut la consulter, mais aucun autre joueur ne peut la voir.</span></p>{editing ? <form className="player-page-edit" onSubmit={save}>

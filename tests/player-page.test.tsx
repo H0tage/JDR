@@ -57,6 +57,13 @@ it("affiche Ma page au joueur et rappelle sa confidentialité", async () => {
   const pathbuilderFrame = page.querySelector<HTMLIFrameElement>(".pathbuilder-embed iframe");
   expect(pathbuilderFrame?.getAttribute("src")).toBe("https://pathbuilder2e.com/app.html");
   expect(pathbuilderFrame?.getAttribute("title")).toBe("Fiche de personnage dans Pathbuilder 2e");
+  expect(page.querySelector(".pathbuilder-embed > header")).toBeNull();
+  const focusButton = [...page.querySelectorAll<HTMLButtonElement>(".player-page-view-controls > button")].find((candidate) => candidate.textContent?.includes("Cadrer Pathbuilder"));
+  await act(async () => { focusButton?.click(); });
+  expect(page.classList.contains("pathbuilder-focus-mode")).toBe(true);
+  expect(document.body.style.overflowY).toBe("hidden");
+  await act(async () => { focusButton?.click(); });
+  expect(document.body.style.overflowY).toBe("");
   const registerButton = [...page.querySelectorAll<HTMLButtonElement>(".player-page-view-tabs button")].find((candidate) => candidate.textContent?.includes("Page Registre"));
   await act(async () => { registerButton?.click(); });
   const editButton = [...page.querySelectorAll<HTMLButtonElement>("button")].find((candidate) => candidate.textContent?.includes("Modifier ma page"));

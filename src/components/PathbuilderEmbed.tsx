@@ -4,14 +4,7 @@ const PATHBUILDER_URL = "https://pathbuilder2e.com/app.html";
 
 export function PathbuilderEmbed() {
   return <section className="pathbuilder-embed" aria-labelledby="pathbuilder-embed-title">
-    <header>
-      <div>
-        <p className="eyebrow">Outil externe intégré</p>
-        <h2 id="pathbuilder-embed-title">Pathbuilder 2e</h2>
-        <p>Vous utilisez directement Pathbuilder dans le registre. Les modifications sont enregistrées par Pathbuilder et restent indépendantes du gestionnaire de butins.</p>
-      </div>
-      <a className="button secondary" href={PATHBUILDER_URL} target="_blank" rel="noreferrer"><ExternalLink size={16} />Ouvrir séparément</a>
-    </header>
+    <h2 id="pathbuilder-embed-title" className="visually-hidden">Pathbuilder 2e</h2>
     <div className="pathbuilder-frame-wrap">
       <iframe
         src={PATHBUILDER_URL}
@@ -20,6 +13,6 @@ export function PathbuilderEmbed() {
         allow="clipboard-read; clipboard-write"
       />
     </div>
-    <p className="pathbuilder-fallback"><TriangleAlert size={15} /><span>Si Pathbuilder ne s’affiche pas ou si votre navigateur bloque sa connexion, utilisez « Ouvrir séparément ».</span></p>
+    <footer className="pathbuilder-fallback"><p><TriangleAlert size={15} /><span>Pathbuilder fonctionne indépendamment du gestionnaire de butins. Si l’intégration ne s’affiche pas, ouvrez-le séparément.</span></p><a className="button secondary" href={PATHBUILDER_URL} target="_blank" rel="noreferrer"><ExternalLink size={16} />Ouvrir séparément</a></footer>
   </section>;
 }
