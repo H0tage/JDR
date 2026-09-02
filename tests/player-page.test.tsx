@@ -66,7 +66,11 @@ it("affiche Ma page au joueur et rappelle sa confidentialité", async () => {
   const registerButton = [...page.querySelectorAll<HTMLButtonElement>(".player-page-view-tabs button")].find((candidate) => candidate.textContent?.includes("Page Registre"));
   await act(async () => { registerButton?.click(); });
   expect(document.body.style.overflowY).toBe("");
+  expect(page.querySelector(".player-page-pathbuilder-view")?.hasAttribute("hidden")).toBe(true);
+  expect(page.querySelector(".pathbuilder-embed iframe")).toBe(pathbuilderFrame);
   await act(async () => { pathbuilderButton?.click(); });
+  expect(page.querySelector(".player-page-pathbuilder-view")?.hasAttribute("hidden")).toBe(false);
+  expect(page.querySelector(".pathbuilder-embed iframe")).toBe(pathbuilderFrame);
   expect(page.classList.contains("pathbuilder-focus-mode")).toBe(true);
   expect(document.body.style.overflowY).toBe("hidden");
   const releaseButton = [...page.querySelectorAll<HTMLButtonElement>(".player-page-view-controls > button")].find((candidate) => candidate.textContent?.includes("Libérer la page"));

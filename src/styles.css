@@ -1213,6 +1213,8 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-page-view-tabs button.active { background: var(--page-tab-active); color: var(--page-tab-active-ink); box-shadow: inset 0 -1px var(--page-tab-gold); }
 .player-page-focus-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex: 0 0 auto; border: 1px solid var(--page-tab-line); border-radius: 9px; padding: 9px 13px; color: var(--page-tab-muted); background: var(--page-tab-surface); font: inherit; font-size: .75rem; font-weight: 800; cursor: pointer; }
 .player-page-focus-button:hover, .player-page-focus-button.active { border-color: var(--page-tab-gold); color: var(--page-tab-ink); }
+.player-page-register-view, .player-page-pathbuilder-view { display: grid; gap: 18px; }
+.player-page-register-view[hidden], .player-page-pathbuilder-view[hidden] { display: none; }
 .pathbuilder-embed { display: grid; gap: 13px; }
 .pathbuilder-frame-wrap { height: max(720px, calc(100dvh - var(--player-tabs-height) - 155px)); overflow: hidden; border: 1px solid var(--page-tab-line); border-radius: 10px; background: #fff; box-shadow: 0 12px 35px rgb(0 0 0 / 14%); }
 .pathbuilder-frame-wrap iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
