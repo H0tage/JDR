@@ -1578,6 +1578,8 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-dark .faction-services { border-color: #344038; }
 
 @media (max-width: 1180px) {
+  .player-tabs { flex-wrap: wrap; overflow-x: visible; gap: 5px; padding: 10px 14px; }
+  .player-tabs button { min-height: 40px; gap: 7px; padding: 8px 13px; font-size: .78rem; }
   .faction-grid, .player-faction-grid, .player-loot-grid { grid-template-columns: repeat(2, 1fr); }
   .bestiary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .session-prep-content { grid-template-columns: 1fr 1fr; }
