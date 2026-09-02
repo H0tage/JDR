@@ -6,7 +6,7 @@ const FACTION_2 = "00000000-0000-4000-8100-000000000002";
 
 /** Jeu de données public de démonstration, conçu pour n’exposer aucun scénario réel. */
 export const mockCampaignData: CampaignData = {
-  settings: { campaign_id: CAMPAIGN_ID, current_volume: 1, jf_cap: 20, minor_cost: 1, moderate_cost: 6, major_cost: 10, liked_threshold: 5, admired_threshold: 15, revered_threshold: 30, carters_major_threshold: 25, tension_max: 4, tension_surcharge_level: 2, tension_surcharge: 1, admired_discount: 1, show_numeric_tension: false, player_display_mode: "intuitive" },
+  settings: { campaign_id: CAMPAIGN_ID, current_volume: 1, jf_cap: 20, minor_cost: 1, moderate_cost: 6, major_cost: 10, liked_threshold: 5, admired_threshold: 15, revered_threshold: 30, carters_major_threshold: 25, tension_max: 4, tension_surcharge_level: 2, tension_surcharge: 1, admired_discount: 1, show_numeric_tension: false, player_display_mode: "intuitive", show_all_player_balances: true },
   sessionPrep: { campaign_id: CAMPAIGN_ID, objective: "Objectif de démonstration.", scenes: "• Scène de démonstration", reminders: "Rappel de démonstration.", notes: "Notes de démonstration." },
   bestiary: [{ id: "demo-creature-1", campaign_id: CAMPAIGN_ID, name: "Créature 1", resistances: null, weaknesses: null, notes: "Notes de démonstration.", image_path: null }],
   questEntries: [{ id: "demo-quest-1", campaign_id: CAMPAIGN_ID, title: "Quête 1", notes: "Notes de démonstration.", status: "Actif", category: "Objectifs", sort_order: 1 }],

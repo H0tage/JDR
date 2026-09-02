@@ -1,20 +1,19 @@
-import { BookOpen, CalendarDays, Check, CircleHelp, CircleOff, Cloud, Eye, Gem, Handshake, Heart, ImagePlus, LayoutDashboard, LayoutGrid, List, LockKeyhole, Moon, Network, Pencil, Save, ScrollText, Sun, TriangleAlert, UserRound, Users, X } from "lucide-react";
+import { BookOpen, Check, CircleHelp, CircleOff, Cloud, Eye, Gem, Handshake, Heart, ImagePlus, LayoutDashboard, LockKeyhole, Moon, Network, Pencil, Save, ScrollText, Sun, TriangleAlert, UserRound, Users, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { contactPortraitUrl, loadPlayerData, savePlayerContactNotes, subscribeToCampaign } from "../lib/api";
 import { highestAvailableService, unlockedServices } from "../lib/domain";
-import { loadPlayerLoot, savePlayerLootAssignment, savePlayerLootPublishedOn } from "../lib/playerLootApi";
-import { listCampaignPlayers, type CampaignPlayer } from "../lib/profileApi";
+import { formatCopper, loadPlayerEconomy } from "../lib/playerEconomyApi";
 import { deletePlayerCharacterImage, listCampaignPlayerPages, loadMyPlayerPage, playerCharacterImageUrl, saveMyPlayerPage, uploadPlayerCharacterImage, type CampaignPlayerPage, type PlayerPage, type PlayerPageDraft } from "../lib/playerPageApi";
-import type { CampaignData, Contact, FactionOverview, PlayerLootEntry, PlayerLootLifecycleStatus } from "../lib/types";
+import type { CampaignData, CampaignInventoryItem, Contact, FactionOverview } from "../lib/types";
 import { EmptyState, ErrorPanel, LoadingScreen, SectionHeading } from "./ui";
 import { BestiaryTab } from "./BestiaryTab";
 import { QuestJournalTab } from "./QuestJournalTab";
 import { QuestWritingTab } from "./QuestWritingTab";
+import { PlayerEconomyTab } from "./PlayerEconomyTab";
 
 type PlayerTab = "dashboard" | "relations" | "bestiary" | "loot" | "my-page" | "player-pages" | "notes" | "quest-journal" | "help";
 type PlayerTheme = "light" | "original" | "dark";
-type PlayerLootView = "cards" | "list";
 
 function storedPlayerTheme(): PlayerTheme {
   try {
@@ -35,14 +34,6 @@ function storedPlayerTab(): PlayerTab {
     return ["dashboard", "relations", "bestiary", "loot", "my-page", "player-pages", "notes", "quest-journal", "help"].includes(tab ?? "") ? tab as PlayerTab : "dashboard";
   } catch {
     return "dashboard";
-  }
-}
-
-function storedPlayerLootView(): PlayerLootView {
-  try {
-    return window.localStorage.getItem("blood-lords-player-loot-view") === "list" ? "list" : "cards";
-  } catch {
-    return "cards";
   }
 }
 
@@ -164,7 +155,7 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
         {tab === "dashboard" && <PlayerDashboard data={data} demo={demo} viewerRole={viewerRole} onOpen={setTab} />}
         {tab === "relations" && <PlayerRelations data={data} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
-        {tab === "loot" && <PlayerLootTab campaignId={data.settings.campaign_id} demo={demo} />}
+        {tab === "loot" && <PlayerEconomyTab campaignId={data.settings.campaign_id} demo={demo} viewerRole={viewerRole} />}
         {tab === "my-page" && viewerRole === "player" && <PlayerPageTab campaignId={data.settings.campaign_id} demo={demo} />}
         {tab === "player-pages" && viewerRole === "gm" && <PlayerPagesTab page={selectedPlayerPage} loading={playerPages === null && !playerPagesError} error={playerPagesError} />}
         {tab === "notes" && <QuestJournalTab campaignId={data.settings.campaign_id} entries={data.questEntries} factionHistory={[]} showFactionHistory={false} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
@@ -215,7 +206,7 @@ function PlayerPagesMenu({ pages, error, theme, onSelect }: {
 }
 
 function PlayerDashboard({ data, demo, viewerRole, onOpen }: { data: CampaignData; demo: boolean; viewerRole: "gm" | "player"; onOpen: (tab: PlayerTab) => void }) {
-  const [loot, setLoot] = useState<PlayerLootEntry[] | null>(null);
+  const [loot, setLoot] = useState<CampaignInventoryItem[] | null>(null);
   const activeNotes = data.questEntries.filter((entry) => entry.status === "Actif");
   const visibleContacts = data.contacts.filter((contact) => contact.visibility === "players");
   const datedBestiary = [...data.bestiary]
@@ -224,10 +215,10 @@ function PlayerDashboard({ data, demo, viewerRole, onOpen }: { data: CampaignDat
     .slice(0, 3);
 
   useEffect(() => {
-    void loadPlayerLoot(data.settings.campaign_id, demo).then(setLoot).catch(() => setLoot([]));
+    void loadPlayerEconomy(data.settings.campaign_id, demo).then((economy) => setLoot(economy.items.filter((item) => item.status === "active"))).catch(() => setLoot([]));
   }, [data.settings.campaign_id, demo]);
 
-  const recentLoot = [...(loot ?? [])].sort((left, right) => right.published_on.localeCompare(left.published_on)).slice(0, 3);
+  const recentLoot = [...(loot ?? [])].sort((left, right) => right.acquired_on.localeCompare(left.acquired_on)).slice(0, 3);
   return <div className="page-stack player-dashboard">
     <section className="player-dashboard-hero">
       <div><p className="eyebrow">Tableau de campagne</p><h1>Bienvenue dans les registres</h1><p>Retrouvez ici les informations utiles avant de replonger dans l’aventure.</p></div>
@@ -241,7 +232,7 @@ function PlayerDashboard({ data, demo, viewerRole, onOpen }: { data: CampaignDat
     </section>
     <div className="player-dashboard-columns">
       <section className="player-dashboard-panel"><header><div><p className="eyebrow">À reprendre</p><h2>Notes actives</h2></div><button onClick={() => onOpen("notes")}>Tout voir</button></header>{activeNotes.length ? <ul>{activeNotes.slice(0, 4).map((entry) => <li key={entry.id}><button onClick={() => onOpen("notes")}><span>{entry.category}</span><strong>{entry.title}</strong>{entry.notes && <small>{entry.notes}</small>}</button></li>)}</ul> : <p className="player-dashboard-empty">Aucune piste active pour le moment.</p>}</section>
-      <section className="player-dashboard-panel"><header><div><p className="eyebrow">Dernières publications</p><h2>Butins partagés</h2></div><button onClick={() => onOpen("loot")}>Tout voir</button></header>{loot === null ? <p className="player-dashboard-empty">Consultation du registre…</p> : recentLoot.length ? <ul>{recentLoot.map((item) => <li key={item.loot_id}><button onClick={() => onOpen("loot")}><span>{new Date(`${item.published_on}T12:00:00`).toLocaleDateString("fr-FR")}</span><strong>{item.original_name}</strong><small>{item.owner_display_name ? `Attribué à ${item.owner_display_name}` : "Non attribué"}</small></button></li>)}</ul> : <p className="player-dashboard-empty">Aucun butin partagé pour le moment.</p>}</section>
+      <section className="player-dashboard-panel"><header><div><p className="eyebrow">Dernières publications</p><h2>Butins partagés</h2></div><button onClick={() => onOpen("loot")}>Tout voir</button></header>{loot === null ? <p className="player-dashboard-empty">Consultation du registre…</p> : recentLoot.length ? <ul>{recentLoot.map((item) => <li key={item.id}><button onClick={() => onOpen("loot")}><span>{new Date(`${item.acquired_on}T12:00:00`).toLocaleDateString("fr-FR")}</span><strong>{item.name}</strong><small>{item.owner_display_name ? `Attribué à ${item.owner_display_name}` : "Pot commun"}</small></button></li>)}</ul> : <p className="player-dashboard-empty">Aucun butin partagé pour le moment.</p>}</section>
     </div>
     <section className="player-dashboard-panel player-dashboard-bestiary"><header><div><p className="eyebrow">Registre vivant</p><h2>Créatures récemment consignées</h2></div><button onClick={() => onOpen("bestiary")}>Ouvrir le bestiaire</button></header>{datedBestiary.length ? <div>{datedBestiary.map((entry) => <button key={entry.id} onClick={() => onOpen("bestiary")}><BookOpen size={18} /><span><strong>{entry.name}</strong><small>{entry.updated_at || entry.created_at ? new Date(entry.updated_at ?? entry.created_at ?? "").toLocaleDateString("fr-FR") : ""}</small></span></button>)}</div> : <p className="player-dashboard-empty">Les créatures recensées apparaîtront ici dès qu’une date d’ajout sera disponible.</p>}</section>
     <nav className="player-dashboard-shortcuts" aria-label="Accès rapides"><button onClick={() => onOpen("relations")}><Eye size={17} />Relations</button><button onClick={() => onOpen("loot")}><Gem size={17} />Butins</button>{viewerRole === "player" ? <button onClick={() => onOpen("my-page")}><UserRound size={17} />Ma page</button> : <button onClick={() => onOpen("player-pages")}><Users size={17} />Pages des joueurs</button>}</nav>
@@ -294,7 +285,7 @@ function emptyPlayerPageDraft(page: PlayerPage): PlayerPageDraft {
 function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean }) {
   const [page, setPage] = useState<PlayerPage | null>(null);
   const [draft, setDraft] = useState<PlayerPageDraft | null>(null);
-  const [possessions, setPossessions] = useState<PlayerLootEntry[]>([]);
+  const [possessions, setPossessions] = useState<CampaignInventoryItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -304,10 +295,10 @@ function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean
 
   const refresh = useCallback(async () => {
     try {
-      const [nextPage, loot] = await Promise.all([loadMyPlayerPage(campaignId, demo), loadPlayerLoot(campaignId, demo)]);
+      const [nextPage, economy] = await Promise.all([loadMyPlayerPage(campaignId, demo), loadPlayerEconomy(campaignId, demo)]);
       setPage(nextPage);
       setDraft(emptyPlayerPageDraft(nextPage));
-      setPossessions(loot.filter((item) => item.owner_user_id === nextPage.user_id));
+      setPossessions(economy.items.filter((item) => item.status === "active" && item.owner_user_id === nextPage.user_id));
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Chargement de votre page impossible.");
@@ -368,152 +359,10 @@ function PlayerPageTab({ campaignId, demo }: { campaignId: string; demo: boolean
     </form> : <div className="player-character-sheet">
       <section className="player-character-hero"><div className="player-character-portrait">{portrait ? <img src={portrait} alt={page.character_name ? `Illustration de ${page.character_name}` : "Illustration du personnage"} /> : <div><UserRound size={48} /><span>Ajoutez une illustration</span></div>}</div><div className="player-character-intro"><p className="eyebrow">Personnage de {page.display_name}</p><h1>{page.character_name || "Personnage sans nom"}</h1><p>{page.character_summary || "Ajoutez une présentation pour donner vie à votre personnage dans les registres."}</p>{page.pathbuilder_url && <a className="button secondary" href={page.pathbuilder_url} target="_blank" rel="noreferrer"><BookOpen size={16} />Ouvrir la fiche Pathbuilder</a>}</div></section>
       <div className="player-character-details"><section><p className="eyebrow">Intentions</p><h2>Objectifs</h2><p>{page.objectives || "Aucun objectif renseigné pour le moment."}</p></section><section><p className="eyebrow">Mémoire personnelle</p><h2>Notes</h2><p>{page.notes || "Aucune note personnelle."}</p></section></div>
-      <section className="player-character-possessions player-page-possessions"><div><p className="eyebrow">Inventaire personnel</p><h2>Mes possessions</h2></div>{possessions.length ? <ul>{possessions.map((item) => <li key={item.loot_id}><strong>{item.original_name}</strong><span>{item.quantity}{item.unit_value ? ` · ${item.unit_value}` : ""}</span></li>)}</ul> : <p>Aucun butin ne vous est attribué pour le moment.</p>}</section>
+      <section className="player-character-possessions player-page-possessions"><div><p className="eyebrow">Inventaire personnel</p><h2>Mes possessions</h2></div>{possessions.length ? <ul>{possessions.map((item) => <li key={item.id}><strong>{item.name}</strong><span>{item.quantity}{item.unit_value_cp !== null ? ` · ${formatCopper(item.unit_value_cp)}` : ""}</span></li>)}</ul> : <p>Aucun butin ne vous est attribué pour le moment.</p>}</section>
       <p className="player-character-updated">Dernière modification : {new Date(page.updated_at).toLocaleString("fr-FR")}</p>
     </div>}
   </div>;
-}
-
-function PlayerLootTab({ campaignId, demo }: { campaignId: string; demo: boolean }) {
-  const [items, setItems] = useState<PlayerLootEntry[] | null>(null);
-  const [players, setPlayers] = useState<CampaignPlayer[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [view, setView] = useState<PlayerLootView>(storedPlayerLootView);
-  const [editingDateId, setEditingDateId] = useState<string | null>(null);
-  const [draftDate, setDraftDate] = useState("");
-  const [savingOwnerId, setSavingOwnerId] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      const [nextItems, nextPlayers] = await Promise.all([loadPlayerLoot(campaignId, demo), listCampaignPlayers(campaignId, demo)]);
-      setItems(nextItems);
-      setPlayers(nextPlayers);
-      setError(null);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Chargement des butins impossible.");
-      setItems([]);
-    }
-  }, [campaignId, demo]);
-
-  useEffect(() => { void refresh(); }, [refresh]);
-  useEffect(() => {
-    if (demo) return;
-    const interval = window.setInterval(() => void refresh(), 20_000);
-    return () => window.clearInterval(interval);
-  }, [campaignId, demo, refresh]);
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("blood-lords-player-loot-view", view);
-    } catch {
-      // Le choix actif reste utilisable lorsqu’un navigateur bloque le stockage local.
-    }
-  }, [view]);
-
-  function beginDateEdit(item: PlayerLootEntry) {
-    setSaveError(null);
-    setEditingDateId(item.loot_id);
-    setDraftDate(item.published_on);
-  }
-
-  async function saveDate(item: PlayerLootEntry) {
-    if (!draftDate) return;
-    try {
-      if (!demo) await savePlayerLootPublishedOn(item.loot_id, draftDate);
-      setItems((current) => current?.map((entry) => entry.loot_id === item.loot_id ? { ...entry, published_on: draftDate } : entry) ?? null);
-      setEditingDateId(null);
-      setSaveError(null);
-    } catch (caught) {
-      setSaveError(caught instanceof Error ? caught.message : "Modification de la date impossible.");
-    }
-  }
-
-  async function saveAssignment(item: PlayerLootEntry, ownerUserId: string | null, lifecycleStatus: Exclude<PlayerLootLifecycleStatus, "legacy">) {
-    setSavingOwnerId(item.loot_id);
-    try {
-      if (!demo) await savePlayerLootAssignment(item.loot_id, ownerUserId, lifecycleStatus);
-      const owner = players.find((player) => player.user_id === ownerUserId);
-      setItems((current) => current?.map((entry) => entry.loot_id === item.loot_id ? {
-        ...entry,
-        owner_user_id: ownerUserId,
-        owner_display_name: owner?.display_name ?? null,
-        lifecycle_status: lifecycleStatus,
-        legacy_owner_label: null,
-      } : entry) ?? null);
-      setSaveError(null);
-    } catch (caught) {
-      setSaveError(caught instanceof Error ? caught.message : "Modification de l’état impossible.");
-    } finally {
-      setSavingOwnerId(null);
-    }
-  }
-
-  if (!items) return <LoadingScreen label="Ouverture de l’inventaire partagé…" />;
-  if (error) return <ErrorPanel error={error} onRetry={() => void refresh()} />;
-
-  const sortedItems = [...items].sort((first, second) => first.published_on.localeCompare(second.published_on) || first.sort_order - second.sort_order);
-
-  return <div className="page-stack">
-    <SectionHeading eyebrow="Inventaire partagé" title="Butins" />
-    {saveError && <p className="player-loot-save-error" role="alert">{saveError}</p>}
-    {items.length > 0 && <div className="player-loot-view-picker" role="group" aria-label="Mode d’affichage des butins">
-      <button type="button" className={view === "cards" ? "active" : ""} onClick={() => setView("cards")}><LayoutGrid size={16} />Vignettes</button>
-      <button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")}><List size={16} />Liste</button>
-    </div>}
-    {items.length > 0 && view === "cards" ? <section className="player-loot-grid">{sortedItems.map((item) => <article key={item.loot_id} className="player-loot-card">
-      <header><div><Gem size={20} /><h2>{item.original_name}</h2></div><PlayerLootDateControl item={item} editing={editingDateId === item.loot_id} draftDate={draftDate} onBegin={() => beginDateEdit(item)} onDraftChange={setDraftDate} onSave={() => void saveDate(item)} onCancel={() => setEditingDateId(null)} /></header>
-      <dl>
-        <div><dt>Qté</dt><dd>{item.quantity}</dd></div>
-        <div><dt>Valeur unitaire</dt><dd>{item.unit_value || "—"}</dd></div>
-        <div><dt>Lieu</dt><dd>{item.location_name || "—"}</dd></div>
-        <div className="player-loot-owner"><dt>État / Propriétaire</dt><dd><PlayerLootOwnerControl item={item} players={players} saving={savingOwnerId === item.loot_id} onChange={(ownerUserId, status) => void saveAssignment(item, ownerUserId, status)} /></dd></div>
-      </dl>
-    </article>)}</section> : items.length > 0 ? <section className="player-loot-list-wrap"><table className="player-loot-list"><thead><tr><th>Date d’ajout</th><th>Nom original</th><th>Qté</th><th>Valeur unitaire</th><th>Lieu</th><th>État / Propriétaire</th></tr></thead><tbody>{sortedItems.map((item) => <tr key={item.loot_id}><td><PlayerLootDateControl item={item} editing={editingDateId === item.loot_id} draftDate={draftDate} onBegin={() => beginDateEdit(item)} onDraftChange={setDraftDate} onSave={() => void saveDate(item)} onCancel={() => setEditingDateId(null)} /></td><th scope="row">{item.original_name}</th><td>{item.quantity}</td><td>{item.unit_value || "—"}</td><td>{item.location_name || "—"}</td><td><PlayerLootOwnerControl item={item} players={players} saving={savingOwnerId === item.loot_id} onChange={(ownerUserId, status) => void saveAssignment(item, ownerUserId, status)} /></td></tr>)}</tbody></table></section> : <EmptyState title="Aucun butin partagé">Le MJ ajoutera ici les objets que le groupe a découverts.</EmptyState>}
-  </div>;
-}
-
-function PlayerLootDateControl({ item, editing, draftDate, onBegin, onDraftChange, onSave, onCancel }: {
-  item: PlayerLootEntry;
-  editing: boolean;
-  draftDate: string;
-  onBegin: () => void;
-  onDraftChange: (value: string) => void;
-  onSave: () => void;
-  onCancel: () => void;
-}) {
-  if (editing) return <span className="player-loot-date-editor"><input type="date" aria-label={`Date d’ajout de ${item.original_name}`} value={draftDate} onChange={(event) => onDraftChange(event.target.value)} /><button type="button" className="icon-button confirm" title="Enregistrer la date" aria-label="Enregistrer la date" disabled={!draftDate} onClick={onSave}><Check size={14} /></button><button type="button" className="icon-button" title="Annuler" aria-label="Annuler" onClick={onCancel}><X size={14} /></button></span>;
-  return <span className="player-loot-date"><CalendarDays size={14} /><span>{formatPlayerLootDate(item.published_on)}</span><button type="button" className="icon-button" title="Modifier la date" aria-label={`Modifier la date d’ajout de ${item.original_name}`} onClick={onBegin}><Pencil size={13} /></button></span>;
-}
-
-function PlayerLootOwnerControl({ item, players, saving, onChange }: {
-  item: PlayerLootEntry;
-  players: CampaignPlayer[];
-  saving: boolean;
-  onChange: (ownerUserId: string | null, status: Exclude<PlayerLootLifecycleStatus, "legacy">) => void;
-}) {
-  const value = item.lifecycle_status === "assigned" && item.owner_user_id
-    ? `owner:${item.owner_user_id}`
-    : item.lifecycle_status === "legacy"
-      ? `legacy:${item.legacy_owner_label ?? "Attribution historique"}`
-      : item.lifecycle_status;
-  const ownerStillListed = !item.owner_user_id || players.some((player) => player.user_id === item.owner_user_id);
-  function change(next: string) {
-    if (next.startsWith("owner:")) onChange(next.slice(6), "assigned");
-    else onChange(null, next as Exclude<PlayerLootLifecycleStatus, "legacy">);
-  }
-  return <select className="player-loot-owner-select" aria-label={`État ou propriétaire de ${item.original_name}`} value={value} disabled={saving} onChange={(event) => change(event.target.value)}>
-    {item.lifecycle_status === "legacy" && <option value={value}>{item.legacy_owner_label} (ancienne attribution)</option>}
-    {item.lifecycle_status === "assigned" && item.owner_user_id && !ownerStillListed && <option value={value}>{item.owner_display_name ?? "Ancien joueur"} (hors campagne)</option>}
-    <option value="available">Non attribué</option>
-    {players.map((player) => <option key={player.user_id} value={`owner:${player.user_id}`}>{player.display_name}</option>)}
-    <option value="sold">Vendu</option>
-    <option value="dismantled">Démonté</option>
-    <option value="consumed">Consommé</option>
-  </select>;
-}
-
-function formatPlayerLootDate(date: string) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function PlayerRelations({ data, demo, onChanged, onNotice, onError }: {

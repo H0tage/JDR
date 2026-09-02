@@ -43,7 +43,8 @@ soit choisie implicitement.
 - pseudos publics sans exposition des adresses e-mail ;
 - page personnelle persistante par joueur et campagne, modifiable par son
   propriétaire et consultable en lecture seule par le MJ ;
-- attribution des butins aux comptes réels de la campagne ;
+- inventaire et économie partagés : attribution, demandes, ventes annulables,
+  démontage, achats, transferts, dettes, historique et soldes négatifs ;
 - bestiaire collaboratif ;
 - portail multi-campagnes, invitations, départ volontaire et gestion des membres ;
 - thèmes Clair, Original et Sombre, avec affichage adaptatif côté joueurs.
@@ -107,6 +108,12 @@ Les migrations `20260830150000_neutralize_player_links_on_removal.sql` et
 `20260830160000_allow_players_to_leave_campaigns.sql` neutralisent les
 attributions actives lors d’un retrait par le MJ ou d’un départ volontaire du
 joueur, tout en conservant sa page personnelle pour une éventuelle réadhésion.
+
+La migration `20260902120000_player_inventory_and_economy.sql` remplace la
+simple attribution par un inventaire opérationnel et un registre financier
+immuable. Elle conserve le registre de référence MJ séparé, propose une
+visibilité des soldes réglable par le MJ et reverse au pot commun les objets,
+le solde et les dettes d’un joueur lorsqu’il quitte la campagne.
 
 Après une modification SQL distante, régénérer le snapshot comme indiqué dans
 [`supabase/README.md`](supabase/README.md).

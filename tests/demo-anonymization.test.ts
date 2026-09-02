@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mockCampaignData } from "../src/data/mockData";
 import { lootSeeds } from "../src/data/referenceSeed";
 import { anonymizeDemoCampaignData, anonymizeDemoLoot } from "../src/data/demoAnonymization";
-import { loadPlayerLoot } from "../src/lib/playerLootApi";
+import { loadPlayerEconomy } from "../src/lib/playerEconomyApi";
 
 describe("anonymisation de la démonstration", () => {
   it("remplace les jalons, personnes, factions et références sans modifier la source", () => {
@@ -17,11 +17,11 @@ describe("anonymisation de la démonstration", () => {
 
   it("emploie la même numérotation de butin côté MJ et côté joueur", async () => {
     const gmLoot = anonymizeDemoLoot(lootSeeds);
-    const playerLoot = await loadPlayerLoot("demo", true);
+    const playerLoot = (await loadPlayerEconomy("demo", true)).items.filter((item) => item.origin_loot_id !== null);
 
     expect(gmLoot[0]?.item_name).toBe("Item anonymisé 1");
     for (const item of playerLoot) {
-      expect(item.original_name).toBe(gmLoot.find((candidate) => candidate.sort_order === item.sort_order)?.item_name);
+      expect(gmLoot.some((candidate) => candidate.item_name === item.name)).toBe(true);
     }
     expect(JSON.stringify(gmLoot)).not.toContain("Objet de campagne réel");
   });

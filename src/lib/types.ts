@@ -44,6 +44,8 @@ export interface CampaignSettings {
   admired_discount: number;
   show_numeric_tension: boolean;
   player_display_mode: PlayerDisplayMode;
+  /** Le MJ choisit si les joueurs voient les soldes personnels du groupe. */
+  show_all_player_balances: boolean;
 }
 
 export interface SessionPrep {
@@ -367,29 +369,134 @@ export type LootSourceKind = "treasure" | "reward" | "carried" | "infused_carrie
 export type LootLaneKind = "treasure" | "carried" | "unlocated";
 export type LootDiscoveryStatus = "pending" | "found" | "missed";
 
-/** Projection volontairement limitée des butins exposés aux joueurs. */
-export interface PlayerLootEntry {
+export type InventoryItemStatus = "active" | "sold" | "dismantled" | "consumed" | "lost" | "donated" | "merged";
+export type InventoryItemSource = "loot" | "gm" | "purchase" | "dismantle";
+
+export interface CampaignInventoryItem {
+  id: string;
   campaign_id: string;
-  sort_order: number;
-  original_name: string;
-  quantity: string;
-  unit_value: string | null;
-  location_name: string | null;
-  aon_legacy_name?: string | null;
-  aon_legacy_url?: string | null;
-  /** Identifiant technique de la publication, jamais affiché aux joueurs. */
-  loot_id: string;
-  /** Date de partage, distincte de la fiche de référence MJ. */
-  published_on: string;
-  /** Compte réellement propriétaire, ou null pour un état collectif. */
+  origin_loot_id: string | null;
+  parent_item_id: string | null;
+  created_by: string | null;
   owner_user_id: string | null;
   owner_display_name: string | null;
-  lifecycle_status: PlayerLootLifecycleStatus;
-  /** Ancienne attribution Joueur1–4 conservée jusqu'à sa réattribution. */
-  legacy_owner_label: string | null;
+  created_by_display_name: string | null;
+  name: string;
+  quantity: number;
+  source_quantity_label: string | null;
+  unit_value_cp: number | null;
+  purchase_price_cp: number | null;
+  aon_legacy_name: string | null;
+  aon_legacy_url: string | null;
+  source_kind: InventoryItemSource;
+  player_visible: boolean;
+  status: InventoryItemStatus;
+  acquired_on: string;
+  created_at: string;
+  updated_at: string;
+  pending_request_count: number;
+  requested_by_me: boolean;
 }
 
-export type PlayerLootLifecycleStatus = "available" | "assigned" | "sold" | "dismantled" | "consumed" | "legacy";
+export interface CampaignMoneyBalance {
+  campaign_id: string;
+  account_user_id: string | null;
+  display_name: string;
+  is_common: boolean;
+  balance_cp: number;
+}
+
+export interface CampaignEconomyTotals {
+  campaign_id: string;
+  total_entered_cp: number;
+  total_exited_cp: number;
+}
+
+export type CampaignMoneyTransactionKind = "common_income" | "personal_income" | "personal_expense" | "transfer" | "sale" | "purchase" | "reversal" | "departure_transfer" | "gm_adjustment";
+
+export interface CampaignMoneyTransaction {
+  id: string;
+  operation_id: string;
+  campaign_id: string;
+  actor_user_id: string | null;
+  actor_display_name: string | null;
+  kind: CampaignMoneyTransactionKind;
+  source_account: "external" | "common" | "player";
+  source_user_id: string | null;
+  source_display_name: string | null;
+  destination_account: "external" | "common" | "player";
+  destination_user_id: string | null;
+  destination_display_name: string | null;
+  amount_cp: number;
+  comment: string | null;
+  related_item_id: string | null;
+  related_item_name: string | null;
+  reversed_transaction_id: string | null;
+  created_at: string;
+}
+
+export interface CampaignItemEvent {
+  id: string;
+  campaign_id: string;
+  item_id: string | null;
+  item_name: string | null;
+  actor_user_id: string | null;
+  actor_display_name: string | null;
+  event_type: "created" | "published" | "claimed" | "transferred" | "returned" | "split" | "merged" | "sold" | "sale_cancelled" | "purchased" | "dismantled" | "consumed" | "lost" | "donated";
+  previous_owner_user_id: string | null;
+  previous_owner_display_name: string | null;
+  next_owner_user_id: string | null;
+  next_owner_display_name: string | null;
+  quantity: number | null;
+  value_cp: number | null;
+  comment: string | null;
+  related_item_id: string | null;
+  related_item_name: string | null;
+  money_operation_id: string | null;
+  reversed_event_id: string | null;
+  created_at: string;
+}
+
+export interface CampaignItemRequest {
+  id: string;
+  campaign_id: string;
+  item_id: string;
+  item_name: string;
+  requester_user_id: string;
+  requester_display_name: string | null;
+  owner_user_id: string;
+  owner_display_name: string | null;
+  status: "pending" | "accepted" | "refused" | "cancelled" | "invalidated";
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface CampaignMoneyDebt {
+  id: string;
+  campaign_id: string;
+  debtor_user_id: string;
+  debtor_display_name: string | null;
+  creditor_user_id: string;
+  creditor_display_name: string | null;
+  amount_cp: number;
+  remaining_cp: number;
+  status: "open" | "settled" | "cancelled";
+  comment: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlayerEconomyData {
+  viewer_user_id: string;
+  items: CampaignInventoryItem[];
+  balances: CampaignMoneyBalance[];
+  totals: CampaignEconomyTotals;
+  money_history: CampaignMoneyTransaction[];
+  item_history: CampaignItemEvent[];
+  requests: CampaignItemRequest[];
+  debts: CampaignMoneyDebt[];
+}
 
 export interface ArchivesData {
   characters: ArchiveCharacter[];

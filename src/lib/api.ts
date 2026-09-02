@@ -119,6 +119,7 @@ export async function loadPlayerData(campaignId: string, demo = false): Promise<
     tension_max: number;
     show_numeric_tension: boolean;
     player_display_mode: "numeric" | "intuitive";
+    show_all_player_balances?: boolean;
   };
   const selectedCampaignId = campaign.campaign_id as string;
   const [bestiary, questEntries, questJournalPage, questJournalRevisions, factions, journal, contacts, services, relationships] = await Promise.all([
@@ -151,6 +152,7 @@ export async function loadPlayerData(campaignId: string, demo = false): Promise<
       admired_discount: 2,
       show_numeric_tension: campaign.show_numeric_tension,
       player_display_mode: campaign.player_display_mode,
+      show_all_player_balances: campaign.show_all_player_balances ?? false,
     },
     sessionPrep: { campaign_id: selectedCampaignId, objective: null, scenes: null, reminders: null, notes: null },
     bestiary: unwrap(bestiary, "Bestiaire") as BestiaryEntry[],

@@ -93,6 +93,13 @@ sur la table `campaigns`. Elle autorise aussi tous les membres d’une campagne 
 consulter la liste limitée aux pseudos et rôles de leur groupe ; les adresses
 e-mail restent absentes de cette vue.
 
+La migration `20260902120000_player_inventory_and_economy.sql` ajoute les
+objets opérationnels, le registre financier, les demandes d’objets, les dettes
+et leurs vues filtrées. Les opérations passent par des fonctions contrôlées ;
+les annulations ajoutent une écriture inverse au lieu de réécrire l’historique.
+Le départ d’un joueur rend ses objets au pot commun et y transfère aussi son
+solde positif ou négatif ainsi que ses dettes encore ouvertes.
+
 Tant que cette migration n’a pas été appliquée à la production,
 `schema-remote.sql` doit continuer à représenter la production actuelle. Il ne
 faut mettre l’instantané à jour qu’après l’exécution distante et sa vérification.
