@@ -26,6 +26,7 @@ const demoItems: CampaignInventoryItem[] = [
   { id: "demo-item-1", campaign_id: "demo", origin_loot_id: "demo-loot-1", parent_item_id: null, created_by: null, owner_user_id: null, owner_display_name: null, created_by_display_name: null, name: "Item anonymisé 1", quantity: 3, source_quantity_label: "3", unit_value_cp: 400, purchase_price_cp: null, aon_legacy_name: null, aon_legacy_url: null, source_kind: "loot", player_visible: true, status: "active", acquired_on: "2026-08-10", created_at: "2026-08-10T18:00:00Z", updated_at: "2026-08-10T18:00:00Z", pending_request_count: 0, requested_by_me: false },
   { id: "demo-item-2", campaign_id: "demo", origin_loot_id: "demo-loot-2", parent_item_id: null, created_by: null, owner_user_id: "demo-arsene", owner_display_name: "Prénom1 Nom1", created_by_display_name: null, name: "Item anonymisé 2", quantity: 1, source_quantity_label: "1", unit_value_cp: 3500, purchase_price_cp: null, aon_legacy_name: null, aon_legacy_url: null, source_kind: "loot", player_visible: true, status: "active", acquired_on: "2026-08-10", created_at: "2026-08-10T18:05:00Z", updated_at: "2026-08-10T18:05:00Z", pending_request_count: 1, requested_by_me: false },
   { id: "demo-item-3", campaign_id: "demo", origin_loot_id: null, parent_item_id: null, created_by: "demo-arsene", owner_user_id: "demo-morrigan", owner_display_name: "Prénom2 Nom2", created_by_display_name: "Prénom1 Nom1", name: "Item anonymisé 3", quantity: 2, source_quantity_label: "2", unit_value_cp: 1200, purchase_price_cp: 2400, aon_legacy_name: null, aon_legacy_url: null, source_kind: "purchase", player_visible: true, status: "active", acquired_on: "2026-08-12", created_at: "2026-08-12T18:00:00Z", updated_at: "2026-08-12T18:00:00Z", pending_request_count: 0, requested_by_me: false },
+  { id: "demo-item-4", campaign_id: "demo", origin_loot_id: null, parent_item_id: null, created_by: null, owner_user_id: "demo-nox", owner_display_name: "Prénom4 Nom4", created_by_display_name: "MaîtreDuJeu", name: "Item anonymisé 4", quantity: 1, source_quantity_label: "1", unit_value_cp: 1800, purchase_price_cp: null, aon_legacy_name: null, aon_legacy_url: null, source_kind: "gm", player_visible: true, status: "active", acquired_on: "2026-08-14", created_at: "2026-08-14T18:00:00Z", updated_at: "2026-08-14T18:00:00Z", pending_request_count: 0, requested_by_me: false },
 ];
 
 function demoEconomy(): PlayerEconomyData {
@@ -37,6 +38,7 @@ function demoEconomy(): PlayerEconomyData {
       { campaign_id: "demo", account_user_id: "demo-arsene", display_name: "Prénom1 Nom1", is_common: false, balance_cp: 3_400 },
       { campaign_id: "demo", account_user_id: "demo-morrigan", display_name: "Prénom2 Nom2", is_common: false, balance_cp: -800 },
       { campaign_id: "demo", account_user_id: "demo-silas", display_name: "Prénom3 Nom3", is_common: false, balance_cp: 2_250 },
+      { campaign_id: "demo", account_user_id: "demo-nox", display_name: "Prénom4 Nom4", is_common: false, balance_cp: 1_500 },
     ],
     totals: { campaign_id: "demo", total_entered_cp: 42_750, total_exited_cp: 8_600 },
     money_history: [],

@@ -34,6 +34,7 @@ export async function listCampaignPlayers(campaignId: string, demo = false): Pro
     { user_id: "demo-arsene", display_name: "Prénom1 Nom1" },
     { user_id: "demo-morrigan", display_name: "Prénom2 Nom2" },
     { user_id: "demo-silas", display_name: "Prénom3 Nom3" },
+    { user_id: "demo-nox", display_name: "Prénom4 Nom4" },
   ];
   const result = await client().rpc("list_campaign_players", { p_campaign_id: campaignId });
   if (result.error) throw new Error(`Joueurs : ${result.error.message}`);

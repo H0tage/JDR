@@ -88,6 +88,8 @@ export async function listCampaignPlayerPages(campaignId: string, demo = false):
   if (demo) return [
     { ...demoPage, campaign_id: campaignId, display_name: "Prénom1 Nom1", active: true, character_name: "Personnage 1", character_summary: "Présentation anonymisée.", objectives: "Objectif anonymisé.", notes: "Notes anonymisées." },
     { ...demoPage, campaign_id: campaignId, user_id: "demo-morrigan", display_name: "Prénom2 Nom2", active: true, character_name: "Personnage 2", character_summary: "", objectives: "", notes: "" },
+    { ...demoPage, campaign_id: campaignId, user_id: "demo-silas", display_name: "Prénom3 Nom3", active: true, character_name: "Personnage 3", character_summary: "", objectives: "", notes: "" },
+    { ...demoPage, campaign_id: campaignId, user_id: "demo-nox", display_name: "Prénom4 Nom4", active: true, character_name: "Personnage 4", character_summary: "", objectives: "", notes: "" },
   ];
   const result = await client().rpc("list_campaign_player_pages", { p_campaign_id: campaignId });
   if (result.error) throw new Error(`Pages joueurs : ${result.error.message}`);
