@@ -1024,6 +1024,11 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 /* Inventaire et économie des joueurs */
 .player-economy { --economy-card: color-mix(in srgb, var(--surface) 88%, transparent); --economy-soft: color-mix(in srgb, var(--gold) 9%, var(--surface)); max-width: 1480px; margin-inline: auto; }
 .economy-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.economy-heading-actions { display: flex; align-items: center; gap: 8px; }
+.economy-display-picker { display: inline-flex; gap: 3px; margin: 0; border: 1px solid var(--line-soft); border-radius: 8px; padding: 3px; background: var(--surface); }
+.economy-display-picker legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.economy-display-picker button { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 5px; padding: 7px 9px; color: var(--muted); background: transparent; font-size: .66rem; font-weight: 800; cursor: pointer; }
+.economy-display-picker button.active { color: var(--ivory); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-soft); }
 .economy-notice { display: flex; align-items: center; gap: 8px; border: 1px solid color-mix(in srgb, #65a879 50%, var(--line)); border-radius: 8px; padding: 10px 12px; color: color-mix(in srgb, #65a879 70%, var(--text)); background: color-mix(in srgb, #65a879 10%, var(--surface)); font-size: .75rem; }
 .economy-notice button { margin-left: auto; border: 0; color: inherit; background: transparent; cursor: pointer; }
 .economy-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -1032,6 +1037,18 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .economy-metrics article > span svg { color: var(--gold); }
 .economy-metrics strong { color: var(--ivory); font-family: Georgia, serif; font-size: clamp(1.35rem, 2vw, 1.85rem); font-weight: 500; }
 .economy-metrics small { color: var(--muted); font-size: .64rem; }
+.economy-summary { display: grid; gap: 12px; }
+.economy-summary-compact .economy-metrics { overflow: hidden; gap: 0; border: 1px solid var(--line-soft); border-radius: 9px; background: var(--surface); }
+.economy-summary-compact .economy-metrics article { min-height: 66px; grid-template-columns: minmax(0, 1fr) auto; align-content: center; gap: 3px 14px; border: 0; border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); border-radius: 0; padding: 10px 14px; background: transparent; box-shadow: none; }
+.economy-summary-compact .economy-metrics article > span { align-self: end; }
+.economy-summary-compact .economy-metrics article > strong { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 1rem; white-space: nowrap; }
+.economy-summary-compact .economy-metrics article > small { grid-column: 1; align-self: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.economy-summary-large .economy-player-balances { overflow: visible; border: 0; background: transparent; box-shadow: none; }
+.economy-summary-large .economy-player-balances > header { border: 0; padding: 2px 2px 8px; }
+.economy-summary-large .economy-player-balances > div { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.economy-summary-large .economy-player-balances article { min-height: 92px; display: grid; align-content: space-between; border: 1px solid var(--line-soft); border-radius: 10px; padding: 16px 18px; background: linear-gradient(145deg, var(--economy-card), var(--economy-soft)); box-shadow: 0 12px 30px rgb(0 0 0 / 7%); }
+.economy-summary-large .economy-player-balances article span { font-size: .67rem; letter-spacing: .04em; text-transform: uppercase; }
+.economy-summary-large .economy-player-balances article strong { font-size: 1.25rem; }
 .economy-actions { display: flex; flex-wrap: wrap; gap: 7px; border: 1px solid var(--line-soft); border-radius: 9px; padding: 9px; background: var(--surface); }
 .economy-actions button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 6px; padding: 8px 10px; color: var(--muted); background: transparent; cursor: pointer; font-size: .7rem; font-weight: 750; }
 .economy-actions button:hover { border-color: var(--line); color: var(--ivory); background: var(--surface-2); }
@@ -1144,6 +1161,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .economy-debts article > div { display: grid; gap: 3px; }
 
 .player-theme-light .player-economy { --economy-card: #fffaf0; --economy-soft: #eee6d4; }
+.player-theme-light .economy-display-picker button.active { color: #2f392f; background: #eee6d4; }
 .player-theme-light .economy-metrics strong, .player-theme-light .economy-player-balances h2, .player-theme-light .economy-player-balances article strong:not(.negative), .player-theme-light .economy-batch-bar strong, .player-theme-light .economy-action-panel h2, .player-theme-light .economy-requests h2, .player-theme-light .economy-debts h2, .player-theme-light .economy-requests strong, .player-theme-light .economy-debts strong, .player-theme-light .economy-sections button.active, .player-theme-light .economy-player-inventory h2, .player-theme-light .economy-item-card h2, .player-theme-light .economy-item-value strong, .player-theme-light .economy-activity h2, .player-theme-light .economy-activity strong, .player-theme-light .item-timeline strong { color: #2f392f; }
 
 @media (max-width: 1050px) {

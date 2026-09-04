@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Banknote, Check, ChevronDown,
-  CircleDollarSign, Coins, Gem, GitBranch, HandCoins, History, PackageOpen,
-  ListChecks, Plus, ReceiptText, RefreshCw, Scissors, Send, ShoppingBag, Trash2, WalletCards, X,
+  CircleDollarSign, Coins, Gem, GitBranch, HandCoins, History, LayoutGrid, PackageOpen,
+  List, ListChecks, Plus, ReceiptText, RefreshCw, Scissors, Send, ShoppingBag, Trash2, WalletCards, X,
 } from "lucide-react";
 import {
   assignInventoryItem, batchUpdateInventoryItems, cancelItemEvent, cancelItemRequest, cancelMoneyTransaction,
@@ -19,6 +19,15 @@ import { EmptyState, ErrorPanel, LoadingScreen, SectionHeading } from "./ui";
 type InventorySection = "common" | "mine" | "others" | "activity";
 type ItemAction = "sell" | "split" | "merge" | "dismantle" | "terminal" | "history" | null;
 type MoneyAction = "transfer" | "personal" | "purchase" | "debt" | "common-income" | "manual-item" | null;
+type SummaryDisplay = "compact" | "large";
+
+function storedSummaryDisplay(): SummaryDisplay {
+  try {
+    return window.localStorage.getItem("blood-lords-economy-summary-display") === "compact" ? "compact" : "large";
+  } catch {
+    return "large";
+  }
+}
 
 export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId: string; demo: boolean; viewerRole: "player" | "gm" }) {
   const [data, setData] = useState<PlayerEconomyData | null>(null);
@@ -32,6 +41,7 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [mobileInventoryUserId, setMobileInventoryUserId] = useState("");
+  const [summaryDisplay, setSummaryDisplay] = useState<SummaryDisplay>(storedSummaryDisplay);
 
   const refresh = useCallback(async () => {
     try {
@@ -54,6 +64,10 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
     return () => window.clearInterval(interval);
   }, [demo, refresh]);
   useEffect(() => { setSelectedIds([]); }, [section]);
+  useEffect(() => {
+    try { window.localStorage.setItem("blood-lords-economy-summary-display", summaryDisplay); }
+    catch { /* Le choix reste actif pour la session si le stockage est bloqué. */ }
+  }, [summaryDisplay]);
   useEffect(() => {
     const visiblePlayers = players.filter((player) => viewerRole === "gm" || player.user_id !== data?.viewer_user_id);
     setMobileInventoryUserId((current) => visiblePlayers.some((player) => player.user_id === current) ? current : visiblePlayers[0]?.user_id ?? "");
@@ -137,24 +151,26 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
   return <div className="page-stack player-economy">
     <div className="economy-heading">
       <SectionHeading eyebrow="Inventaire et trésorerie" title="Butins" />
-      <button className="icon-button" type="button" title="Actualiser" onClick={() => void refresh()}><RefreshCw size={17} /></button>
+      <div className="economy-heading-actions"><fieldset className="economy-display-picker"><legend>Affichage du résumé</legend><button type="button" className={summaryDisplay === "compact" ? "active" : ""} aria-pressed={summaryDisplay === "compact"} onClick={() => setSummaryDisplay("compact")}><List size={15} />Compact</button><button type="button" className={summaryDisplay === "large" ? "active" : ""} aria-pressed={summaryDisplay === "large"} onClick={() => setSummaryDisplay("large")}><LayoutGrid size={15} />Large</button></fieldset><button className="icon-button" type="button" title="Actualiser" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
     </div>
     {notice && <p className="economy-notice"><Check size={15} />{notice}<button type="button" onClick={() => setNotice(null)}><X size={13} /></button></p>}
     {error && <p className="player-loot-save-error" role="alert">{error}</p>}
 
-    <section className="economy-metrics" aria-label="Résumé de la trésorerie">
-      <article><span><Coins size={17} />Compte commun</span><strong>{formatCopper(commonBalance)}</strong><small>or disponible</small></article>
-      <article><span><WalletCards size={17} />{viewerRole === "gm" ? "Comptes joueurs" : "Mon compte"}</span><strong>{formatCopper(displayedPersonalBalance)}</strong><small>{viewerRole === "gm" ? "total détaillé ci-dessous" : "les soldes négatifs sont autorisés"}</small></article>
-      <article><span><PackageOpen size={17} />Stock commun</span><strong>{formatCopper(commonStock)}</strong><small>{commonItems.length} objet{commonItems.length > 1 ? "s" : ""} à répartir</small></article>
-      <article><span><CircleDollarSign size={17} />Patrimoine actuel</span><strong>{formatCopper(currentWealth)}</strong><small>ensemble des comptes et objets chiffrés</small></article>
-      <article><span><ArrowDownToLine size={17} />Entré depuis le début</span><strong>{formatCopper(totalEntered)}</strong><small>butins, achats et revenus</small></article>
-      <article><span><ArrowUpFromLine size={17} />Sorti depuis le début</span><strong>{formatCopper(totalExited)}</strong><small>dépenses, pertes et consommation</small></article>
-    </section>
+    <div className={`economy-summary economy-summary-${summaryDisplay}`}>
+      <section className="economy-metrics" aria-label="Résumé de la trésorerie">
+        <article><span><Coins size={17} />Compte commun</span><strong>{formatCopper(commonBalance)}</strong><small>or disponible</small></article>
+        <article><span><WalletCards size={17} />{viewerRole === "gm" ? "Comptes joueurs" : "Mon compte"}</span><strong>{formatCopper(displayedPersonalBalance)}</strong><small>{viewerRole === "gm" ? "total détaillé ci-dessous" : "les soldes négatifs sont autorisés"}</small></article>
+        <article><span><PackageOpen size={17} />Stock commun</span><strong>{formatCopper(commonStock)}</strong><small>{commonItems.length} objet{commonItems.length > 1 ? "s" : ""} à répartir</small></article>
+        <article><span><CircleDollarSign size={17} />Patrimoine actuel</span><strong>{formatCopper(currentWealth)}</strong><small>ensemble des comptes et objets chiffrés</small></article>
+        <article><span><ArrowDownToLine size={17} />Entré depuis le début</span><strong>{formatCopper(totalEntered)}</strong><small>butins, achats et revenus</small></article>
+        <article><span><ArrowUpFromLine size={17} />Sorti depuis le début</span><strong>{formatCopper(totalExited)}</strong><small>dépenses, pertes et consommation</small></article>
+      </section>
 
-    {(viewerRole === "gm" || personalBalances.length > 1) && <section className="economy-player-balances panel" aria-label="Soldes personnels visibles">
-      <header><WalletCards size={18} /><div><h2>Comptes personnels</h2><small>{viewerRole === "gm" ? "Vue complète du MJ" : "Visibilité autorisée par le MJ"}</small></div></header>
-      <div>{personalBalances.map((balance) => <article key={balance.account_user_id}><span>{balance.display_name}</span><strong className={balance.balance_cp < 0 ? "negative" : ""}>{formatCopper(balance.balance_cp)}</strong></article>)}</div>
-    </section>}
+      {(viewerRole === "gm" || personalBalances.length > 1) && <section className="economy-player-balances panel" aria-label="Soldes personnels visibles">
+        <header><WalletCards size={18} /><div><h2>Comptes personnels</h2><small>{viewerRole === "gm" ? "Vue complète du MJ" : "Visibilité autorisée par le MJ"}</small></div></header>
+        <div>{personalBalances.map((balance) => <article key={balance.account_user_id}><span>{balance.display_name}</span><strong className={balance.balance_cp < 0 ? "negative" : ""}>{formatCopper(balance.balance_cp)}</strong></article>)}</div>
+      </section>}
+    </div>
 
     <section className="economy-actions" aria-label="Actions financières">
       <button type="button" onClick={() => setMoneyAction("transfer")}><ArrowRightLeft size={17} /><span>Transférer</span></button>

@@ -8,6 +8,7 @@ let container: HTMLDivElement;
 
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  window.localStorage.clear();
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -40,6 +41,11 @@ it("présente la trésorerie, le compte commun et les demandes sans alourdir l�
   expect(economy.textContent).toContain("Entré depuis le début");
   expect(economy.textContent).toContain("Sorti depuis le début");
   expect(economy.querySelectorAll(".economy-metrics article")).toHaveLength(6);
+  expect(economy.querySelector(".economy-summary-large")).toBeTruthy();
+  const compact = [...economy.querySelectorAll<HTMLButtonElement>(".economy-display-picker button")].find((button) => button.textContent?.includes("Compact"));
+  await act(async () => { compact?.click(); });
+  expect(economy.querySelector(".economy-summary-compact")).toBeTruthy();
+  expect(window.localStorage.getItem("blood-lords-economy-summary-display")).toBe("compact");
 });
 
 it("ouvre l’achat et l’historique d’un objet à la volée", async () => {
