@@ -114,6 +114,11 @@ it("montre au MJ une colonne pour chacun des joueurs", async () => {
   const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));
   expect(economy.textContent).not.toContain("Achat boutique");
   expect(economy.textContent).toContain("Créer un objet");
+  const transfer = [...economy.querySelectorAll<HTMLButtonElement>(".economy-actions button")].find((button) => button.textContent?.includes("Transférer"));
+  await act(async () => { transfer?.click(); });
+  const transferAccounts = economy.querySelectorAll<HTMLSelectElement>(".economy-action-panel select");
+  expect(transferAccounts[0]?.value).toBe("common");
+  expect(transferAccounts[1]?.value).toBe("demo-arsene");
   const groupTab = [...economy.querySelectorAll<HTMLButtonElement>(".economy-sections button")].find((button) => button.textContent?.includes("Inventaires du groupe"));
   await act(async () => { groupTab?.click(); });
   expect(economy.querySelectorAll(".economy-player-inventory")).toHaveLength(4);

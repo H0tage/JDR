@@ -272,8 +272,8 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
   const [unit, setUnit] = useState<MoneyUnit>("gp");
   const [comment, setComment] = useState("");
   const [kind, setKind] = useState<"income" | "expense">("income");
-  const [source, setSource] = useState<string>(viewerRole === "gm" ? defaultPlayerId : data.viewer_user_id);
-  const [destination, setDestination] = useState<string>(action === "purchase" && viewerRole === "gm" ? defaultPlayerId : "common");
+  const [source, setSource] = useState<string>(viewerRole === "gm" && action === "transfer" ? "common" : defaultPlayerId);
+  const [destination, setDestination] = useState<string>(viewerRole === "gm" && action === "transfer" ? defaultPlayerId : "common");
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [commonShare, setCommonShare] = useState("0");
@@ -304,7 +304,7 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
       {(action === "purchase" || action === "manual-item") && <label>Nom Archive of Nethys <small>facultatif</small><input value={aonName} onChange={(event) => setAonName(event.target.value)} placeholder="Nom anglais de la référence" /></label>}
       {(action === "purchase" || action === "manual-item") && <label>Lien Archive of Nethys <small>facultatif</small><input type="url" value={aonUrl} onChange={(event) => setAonUrl(event.target.value)} placeholder="https://2e.aonprd.com/…" /></label>}
       {action === "personal" && <label>Opération<select value={kind} onChange={(event) => setKind(event.target.value as "income" | "expense")}><option value="income">Revenu</option><option value="expense">Dépense</option></select></label>}
-      {action === "transfer" && <label>Depuis<select value={source} onChange={(event) => setSource(event.target.value)}>{allAccounts.filter((account) => account.user_id === "common" || account.user_id === data.viewer_user_id || viewerRole === "gm").map((account) => <option key={account.user_id} value={account.user_id}>{account.display_name}</option>)}</select></label>}
+      {action === "transfer" && <label>Depuis<select value={source} onChange={(event) => { const next = event.target.value; setSource(next); if (destination === next) setDestination(allAccounts.find((account) => account.user_id !== next)?.user_id ?? ""); }}>{allAccounts.filter((account) => account.user_id === "common" || account.user_id === data.viewer_user_id || viewerRole === "gm").map((account) => <option key={account.user_id} value={account.user_id}>{account.display_name}</option>)}</select></label>}
       {action === "transfer" && <label>Vers<select value={destination} onChange={(event) => setDestination(event.target.value)}>{allAccounts.filter((account) => account.user_id !== source).map((account) => <option key={account.user_id} value={account.user_id}>{account.display_name}</option>)}</select></label>}
       {action === "personal" && viewerRole === "gm" && <label>Compte<select value={source} onChange={(event) => setSource(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>}
       {action === "manual-item" && <label>Propriétaire<select value={destination} onChange={(event) => setDestination(event.target.value)}>{allAccounts.map((account) => <option key={account.user_id} value={account.user_id}>{account.display_name}</option>)}</select></label>}
