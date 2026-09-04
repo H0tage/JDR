@@ -90,7 +90,7 @@ async function rpc(name: string, params: Record<string, unknown>, label: string)
   return result.data;
 }
 
-export const assignInventoryItem = (itemId: string, targetUserId: string, comment?: string) => rpc("assign_campaign_item", { p_item_id: itemId, p_target_user_id: targetUserId, p_comment: comment || null }, "Attribution");
+export const assignInventoryItem = (itemId: string, targetUserId: string, comment?: string, quantity?: number) => rpc("assign_campaign_item", { p_item_id: itemId, p_target_user_id: targetUserId, p_comment: comment || null, p_quantity: quantity ?? null }, "Attribution");
 export const returnInventoryItem = (itemId: string, comment?: string) => rpc("return_campaign_item_to_common", { p_item_id: itemId, p_comment: comment || null }, "Retour au compte commun");
 export const splitInventoryItem = (itemId: string, quantity: number) => rpc("split_campaign_item", { p_item_id: itemId, p_quantity: quantity }, "Fractionnement");
 export const mergeInventoryItems = (targetItemId: string, sourceItemId: string) => rpc("merge_campaign_items", { p_target_item_id: targetItemId, p_source_item_id: sourceItemId }, "Fusion");

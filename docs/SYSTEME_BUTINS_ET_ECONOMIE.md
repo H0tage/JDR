@@ -45,7 +45,7 @@ La valeur enregistrée de chaque exemplaire est calculée à partir du prix rée
 
 ### Attribution directe
 
-Un objet du compte commun peut être attribué à n'importe quel joueur actif par n'importe quel membre du groupe. Il n'y a pas de confirmation obligatoire du destinataire : l'objectif est de pouvoir répartir le butin rapidement autour de la table.
+Un objet du compte commun peut être attribué à n'importe quel joueur actif par n'importe quel membre du groupe. L'action ouvre un panneau : destinataire, quantité à envoyer et bouton de confirmation. Une pile de trois potions peut donc être partagée sans déplacer automatiquement les trois exemplaires.
 
 Un joueur peut aussi donner un objet qu'il possède à un autre joueur, ou le remettre dans le compte commun.
 
@@ -172,6 +172,10 @@ Ne comptent pas comme dépenses : les transferts internes, les remboursements de
 ## Annuler une opération
 
 Le système conserve le journal au lieu d'effacer l'histoire.
+
+Le MJ peut annuler les actions d'inventaire récentes : attribution, envoi, retour au compte commun, fractionnement, regroupement, vente, démontage, consommation, perte ou don. Une vente peut aussi être annulée par le joueur qui l'a enregistrée.
+
+L'annulation est volontairement refusée si l'objet concerné — ou ses composants — a été modifié depuis l'action. Par exemple, le MJ ne peut pas annuler l'envoi d'une potion qui a ensuite été consommée. Le journal reste ainsi une représentation fidèle de la partie, sans correction silencieuse d'actions plus récentes.
 
 Lorsqu'une opération annulable est annulée :
 

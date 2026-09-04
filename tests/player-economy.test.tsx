@@ -102,6 +102,21 @@ it("permet de sélectionner plusieurs objets pour une action groupée", async ()
   expect(economy.querySelector(".economy-batch-bar")?.textContent).toContain("Appliquer");
 });
 
+it("demande une quantité et une confirmation avant d’envoyer un objet", async () => {
+  await act(async () => { root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />); });
+  const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));
+  const menu = economy.querySelector<HTMLDetailsElement>(".economy-item-card details");
+  await act(async () => { menu?.setAttribute("open", ""); });
+  const assign = [...(menu?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find((button) => button.textContent === "Attribuer");
+  await act(async () => { assign?.click(); });
+  expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("Quantité à envoyer");
+  expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("Destinataire");
+  expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("Envoyer");
+  expect(menu?.open).toBe(false);
+  await act(async () => { menu?.setAttribute("open", ""); document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
+  expect(menu?.open).toBe(false);
+});
+
 it("retire immédiatement une demande annulée de l’écran", async () => {
   await act(async () => { root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />); });
   const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Banknote, Check, ChevronDown,
   BookOpen, CircleDollarSign, Coins, Gem, GitBranch, HandCoins, History, LayoutGrid, PackageOpen,
@@ -18,7 +18,7 @@ import { EmptyState, ErrorPanel, LoadingScreen, SectionHeading } from "./ui";
 
 type InventorySection = "common" | "mine" | "others" | "activity";
 type EconomyView = "loot" | "guide";
-type ItemAction = "sell" | "split" | "merge" | "dismantle" | "terminal" | "history" | null;
+type ItemAction = "assign" | "return" | "sell" | "split" | "merge" | "dismantle" | "terminal" | "history" | null;
 type MoneyAction = "transfer" | "personal" | "purchase" | "debt" | "common-income" | "manual-item" | null;
 type SummaryDisplay = "compact" | "large";
 
@@ -147,7 +147,7 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
   }
 
   function renderInventoryCard(item: CampaignInventoryItem, showOwner = true) {
-    return <InventoryCard key={item.id} item={item} allItems={activeItems} viewerId={viewerUserId} viewerRole={viewerRole} players={players} saving={saving} selected={selectedIds.includes(item.id)} showOwner={showOwner} onToggleSelected={() => setSelectedIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])} onOpenAction={openItemAction} onExecute={execute} />;
+    return <InventoryCard key={item.id} item={item} allItems={activeItems} viewerId={viewerUserId} viewerRole={viewerRole} saving={saving} selected={selectedIds.includes(item.id)} showOwner={showOwner} onToggleSelected={() => setSelectedIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])} onOpenAction={openItemAction} onExecute={execute} />;
   }
 
   return <div className="page-stack player-economy">
@@ -212,7 +212,7 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
         : visibleItems.length > 0 ? <section className="economy-item-grid">{visibleItems.map((item) => renderInventoryCard(item))}</section>
           : <EmptyState title={section === "common" ? "Le compte commun est vide" : "Aucun objet personnel"}>Les objets apparaîtront ici au fil de leur attribution.</EmptyState>}
 
-    {selectedItem && itemAction && <ItemActionPanel item={selectedItem} action={itemAction} mergeCandidates={activeItems.filter((candidate) => candidate.id !== selectedItem.id && candidate.name === selectedItem.name && candidate.owner_user_id === selectedItem.owner_user_id && candidate.unit_value_cp === selectedItem.unit_value_cp && candidate.aon_legacy_url === selectedItem.aon_legacy_url)} events={data.item_history.filter((event) => event.item_id === selectedItem.id || event.related_item_id === selectedItem.id)} saving={saving} onClose={() => { setSelectedItem(null); setItemAction(null); }} onExecute={execute} />}
+    {selectedItem && itemAction && <ItemActionPanel item={selectedItem} action={itemAction} players={players} mergeCandidates={activeItems.filter((candidate) => candidate.id !== selectedItem.id && candidate.name === selectedItem.name && candidate.owner_user_id === selectedItem.owner_user_id && candidate.unit_value_cp === selectedItem.unit_value_cp && candidate.aon_legacy_url === selectedItem.aon_legacy_url)} events={data.item_history.filter((event) => event.item_id === selectedItem.id || event.related_item_id === selectedItem.id)} saving={saving} onClose={() => { setSelectedItem(null); setItemAction(null); }} onExecute={execute} />}
 
     {data.debts.some((debt) => debt.status === "open") && <section className="economy-debts panel"><header><ReceiptText size={18} /><h2>Dettes en cours</h2></header>{data.debts.filter((debt) => debt.status === "open").map((debt) => <article key={debt.id}><div><strong>{debt.debtor_display_name} doit {formatCopper(debt.remaining_cp)} à {debt.creditor_display_name}</strong>{debt.comment && <small>{debt.comment}</small>}</div><div>{(viewerRole === "gm" || debt.debtor_user_id === data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => payMoneyDebt(debt.id, debt.remaining_cp), "Dette remboursée." )}>Rembourser</button>}{(viewerRole === "gm" || debt.created_by === data.viewer_user_id || debt.debtor_user_id === data.viewer_user_id || debt.creditor_user_id === data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => cancelMoneyDebt(debt.id), "Dette annulée.")}>Annuler la dette</button>}</div></article>)}</section>}
     </>}
@@ -274,22 +274,29 @@ function BatchActionBar({ count, players, saving, onClear, onApply }: { count: n
   </section>;
 }
 
-function InventoryCard({ item, allItems, viewerId, viewerRole, players, saving, selected, showOwner = true, onToggleSelected, onOpenAction, onExecute }: { item: CampaignInventoryItem; allItems: CampaignInventoryItem[]; viewerId: string; viewerRole: "player" | "gm"; players: CampaignPlayer[]; saving: boolean; selected: boolean; showOwner?: boolean; onToggleSelected: () => void; onOpenAction: (item: CampaignInventoryItem, action: ItemAction) => void; onExecute: (operation: () => Promise<unknown>, success: string) => Promise<void> }) {
+function InventoryCard({ item, allItems, viewerId, viewerRole, saving, selected, showOwner = true, onToggleSelected, onOpenAction, onExecute }: { item: CampaignInventoryItem; allItems: CampaignInventoryItem[]; viewerId: string; viewerRole: "player" | "gm"; saving: boolean; selected: boolean; showOwner?: boolean; onToggleSelected: () => void; onOpenAction: (item: CampaignInventoryItem, action: ItemAction) => void; onExecute: (operation: () => Promise<unknown>, success: string) => Promise<void> }) {
   const isCommon = item.owner_user_id === null;
   const isMine = item.owner_user_id === viewerId;
   const controllable = viewerRole === "gm" || isCommon || isMine;
   const canMerge = allItems.some((candidate) => candidate.id !== item.id && candidate.name === item.name && candidate.owner_user_id === item.owner_user_id && candidate.unit_value_cp === item.unit_value_cp && candidate.aon_legacy_url === item.aon_legacy_url);
+  const actionMenuRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (actionMenuRef.current?.open && !actionMenuRef.current.contains(event.target as Node)) actionMenuRef.current.open = false;
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, []);
+  const openAction = (action: ItemAction) => {
+    if (actionMenuRef.current) actionMenuRef.current.open = false;
+    onOpenAction(item, action);
+  };
   return <article className={`economy-item-card${selected ? " selected" : ""}`}>
     <header><div>{controllable && <label className="economy-item-selector" title="Sélectionner pour une action groupée"><input type="checkbox" checked={selected} onChange={onToggleSelected} /><ListChecks size={16} /></label>}<Gem size={19} /><div><h2>{item.name}</h2>{showOwner && <small>{item.owner_display_name ?? "Compte commun"}</small>}</div></div>{item.quantity !== 1 && <span>× {formatQuantity(item.quantity)}</span>}</header>
     <div className="economy-item-value"><span>Valeur unitaire</span><strong>{formatCopper(item.unit_value_cp)}</strong>{item.aon_legacy_url && <a href={item.aon_legacy_url} target="_blank" rel="noreferrer">AoN</a>}</div>
     {item.pending_request_count > 0 && <p className="economy-item-requests">{item.pending_request_count} demande{item.pending_request_count > 1 ? "s" : ""} en attente</p>}
     <footer>
-      {controllable && <select aria-label={`Attribuer ${item.name}`} value="" disabled={saving} onChange={(event) => {
-        const target = event.target.value;
-        if (target === "common") void onExecute(() => returnInventoryItem(item.id), "Objet remis au compte commun.");
-        else if (target) void onExecute(() => assignInventoryItem(item.id, target), "Objet attribué.");
-      }}><option value="">Attribuer…</option>{isMine && <option value="common">Compte commun</option>}{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.user_id === viewerId ? "Moi" : player.display_name}</option>)}</select>}
-      {controllable ? <details><summary><ChevronDown size={15} />Actions</summary><div>{item.quantity > 1 && <button type="button" onClick={() => onOpenAction(item, "split")}>Fractionner</button>}{canMerge && <button type="button" onClick={() => onOpenAction(item, "merge")}>Regrouper</button>}<button type="button" onClick={() => onOpenAction(item, "sell")}>Vendre</button><button type="button" onClick={() => onOpenAction(item, "dismantle")}>Démonter</button><button type="button" onClick={() => onOpenAction(item, "terminal")}>Consommer / sortir</button><button type="button" onClick={() => onOpenAction(item, "history")}>Historique</button></div></details> : <>{item.requested_by_me ? <span className="request-sent">Demande envoyée</span> : <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => requestInventoryItem(item.id), "Demande envoyée.")}>Demander</button>}<button className="icon-button" type="button" title="Historique" onClick={() => onOpenAction(item, "history")}><History size={15} /></button></>}
+      {controllable ? <details ref={actionMenuRef}><summary><ChevronDown size={15} />Actions</summary><div><button type="button" onClick={() => openAction("assign")}>{isCommon ? "Attribuer" : "Envoyer à…"}</button>{!isCommon && <button type="button" onClick={() => openAction("return")}>Remettre au compte commun</button>}{item.quantity > 1 && <button type="button" onClick={() => openAction("split")}>Fractionner</button>}{canMerge && <button type="button" onClick={() => openAction("merge")}>Regrouper</button>}<button type="button" onClick={() => openAction("sell")}>Vendre</button><button type="button" onClick={() => openAction("dismantle")}>Démonter</button><button type="button" onClick={() => openAction("terminal")}>Consommer / sortir</button><button type="button" onClick={() => openAction("history")}>Historique</button></div></details> : <>{item.requested_by_me ? <span className="request-sent">Demande envoyée</span> : <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => requestInventoryItem(item.id), "Demande envoyée.")}>Demander</button>}<button className="icon-button" type="button" title="Historique" onClick={() => onOpenAction(item, "history")}><History size={15} /></button></>}
     </footer>
   </article>;
 }
@@ -352,7 +359,7 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
   </form>;
 }
 
-function ItemActionPanel({ item, action, mergeCandidates, events, saving, onClose, onExecute }: { item: CampaignInventoryItem; action: ItemAction; mergeCandidates: CampaignInventoryItem[]; events: CampaignItemEvent[]; saving: boolean; onClose: () => void; onExecute: (operation: () => Promise<unknown>, success: string) => Promise<void> }) {
+function ItemActionPanel({ item, action, players, mergeCandidates, events, saving, onClose, onExecute }: { item: CampaignInventoryItem; action: ItemAction; players: CampaignPlayer[]; mergeCandidates: CampaignInventoryItem[]; events: CampaignItemEvent[]; saving: boolean; onClose: () => void; onExecute: (operation: () => Promise<unknown>, success: string) => Promise<void> }) {
   const [quantity, setQuantity] = useState(String(item.quantity));
   const [amount, setAmount] = useState(item.unit_value_cp === null ? "0" : String(item.unit_value_cp * item.quantity / 100));
   const [unit, setUnit] = useState<MoneyUnit>("gp");
@@ -360,10 +367,13 @@ function ItemActionPanel({ item, action, mergeCandidates, events, saving, onClos
   const [terminal, setTerminal] = useState<"consumed" | "lost" | "donated">("consumed");
   const [outputs, setOutputs] = useState([{ name: "", quantity: "1", value: "0", unit: "gp" as MoneyUnit, aonUrl: "" }]);
   const [mergeSource, setMergeSource] = useState(mergeCandidates[0]?.id ?? "");
+  const [recipient, setRecipient] = useState(players.find((player) => player.user_id !== item.owner_user_id)?.user_id ?? "");
   const quantityNumber = Number(quantity) || 0;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (action === "assign") await onExecute(() => assignInventoryItem(item.id, recipient, comment, quantityNumber), `Objet envoyé à ${players.find((player) => player.user_id === recipient)?.display_name ?? "son destinataire"}.`);
+    if (action === "return") await onExecute(() => returnInventoryItem(item.id, comment), "Objet remis au compte commun.");
     if (action === "sell") await onExecute(() => sellInventoryItem(item.id, quantityNumber, moneyToCp(Number(amount) || 0, unit), comment), "Vente enregistrée dans le compte commun.");
     if (action === "split") await onExecute(() => splitInventoryItem(item.id, quantityNumber), "Pile fractionnée.");
     if (action === "merge") await onExecute(() => mergeInventoryItems(item.id, mergeSource), "Piles regroupées.");
@@ -374,16 +384,17 @@ function ItemActionPanel({ item, action, mergeCandidates, events, saving, onClos
   if (action === "history") return <section className="economy-action-panel economy-item-history panel"><header><div><History size={19} /><h2>Histoire de {item.name}</h2></div><button className="icon-button" type="button" onClick={onClose}><X size={16} /></button></header><EventTimeline events={events} /><footer><button className="button secondary" type="button" onClick={onClose}>Fermer</button></footer></section>;
 
   return <form className="economy-action-panel panel" onSubmit={(event) => void submit(event)}>
-    <header><div>{action === "dismantle" ? <Scissors size={19} /> : action === "sell" ? <Coins size={19} /> : <GitBranch size={19} />}<h2>{action === "sell" ? `Vendre ${item.name}` : action === "split" ? `Fractionner ${item.name}` : action === "merge" ? `Regrouper ${item.name}` : action === "dismantle" ? `Démonter ${item.name}` : `Sortir ${item.name}`}</h2></div><button type="button" className="icon-button" onClick={onClose}><X size={16} /></button></header>
+    <header><div>{action === "dismantle" ? <Scissors size={19} /> : action === "sell" ? <Coins size={19} /> : <GitBranch size={19} />}<h2>{action === "assign" ? `Envoyer ${item.name}` : action === "return" ? `Remettre ${item.name} au compte commun` : action === "sell" ? `Vendre ${item.name}` : action === "split" ? `Fractionner ${item.name}` : action === "merge" ? `Regrouper ${item.name}` : action === "dismantle" ? `Démonter ${item.name}` : `Sortir ${item.name}`}</h2></div><button type="button" className="icon-button" onClick={onClose}><X size={16} /></button></header>
     <div className="economy-action-fields">
-      {action !== "dismantle" && action !== "merge" && <label>Quantité<input type="number" min="0.0001" max={item.quantity} step="0.0001" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>}
+      {action === "assign" && <label>Destinataire<select required value={recipient} onChange={(event) => setRecipient(event.target.value)}>{players.filter((player) => player.user_id !== item.owner_user_id).map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>}
+      {action !== "dismantle" && action !== "merge" && action !== "return" && <label>{action === "assign" ? "Quantité à envoyer" : "Quantité"}<input type="number" min="0.0001" max={item.quantity} step="0.0001" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>}
       {action === "merge" && <label className="span-2">Pile à regrouper<select required value={mergeSource} onChange={(event) => setMergeSource(event.target.value)}>{mergeCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{formatQuantity(candidate.quantity)} × {candidate.name}</option>)}</select></label>}
       {action === "sell" && <MoneyField label="Prix total de vente" amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />}
       {action === "terminal" && <label>État<select value={terminal} onChange={(event) => setTerminal(event.target.value as typeof terminal)}><option value="consumed">Consommé</option><option value="lost">Perdu</option><option value="donated">Donné hors du groupe</option></select></label>}
       {action === "dismantle" && <div className="dismantle-outputs span-2"><span>Objets obtenus</span>{outputs.map((output, index) => <div key={index}><input required value={output.name} onChange={(event) => setOutputs((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, name: event.target.value } : entry))} placeholder="Nom de l’objet" /><input type="number" min="0.0001" step="0.0001" value={output.quantity} onChange={(event) => setOutputs((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, quantity: event.target.value } : entry))} aria-label="Quantité obtenue" /><input type="number" min="0" step="0.01" value={output.value} onChange={(event) => setOutputs((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, value: event.target.value } : entry))} aria-label="Valeur unitaire" /><select value={output.unit} onChange={(event) => setOutputs((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, unit: event.target.value as MoneyUnit } : entry))}><option value="gp">po</option><option value="sp">pa</option><option value="cp">pc</option></select>{outputs.length > 1 && <button type="button" className="icon-button" onClick={() => setOutputs((current) => current.filter((_entry, entryIndex) => entryIndex !== index))}><Trash2 size={14} /></button>}<input className="dismantle-aon" type="url" value={output.aonUrl} onChange={(event) => setOutputs((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, aonUrl: event.target.value } : entry))} placeholder="Lien Archive of Nethys (facultatif)" /></div>)}<button type="button" className="button tiny secondary" onClick={() => setOutputs((current) => [...current, { name: "", quantity: "1", value: "0", unit: "gp", aonUrl: "" }])}><Plus size={14} />Ajouter un résultat</button></div>}
       {action !== "split" && action !== "merge" && <label className="span-2">Commentaire <small>facultatif</small><input maxLength={500} value={comment} onChange={(event) => setComment(event.target.value)} /></label>}
     </div>
-    <footer><button className="button secondary" type="button" onClick={onClose}>Annuler</button><button className="button primary" disabled={saving || (action === "merge" ? !mergeSource : quantityNumber <= 0 || quantityNumber > item.quantity)}>{saving ? "Enregistrement…" : "Confirmer"}</button></footer>
+    <footer><button className="button secondary" type="button" onClick={onClose}>Annuler</button><button className="button primary" disabled={saving || (action === "assign" && !recipient) || (action === "merge" ? !mergeSource : action !== "return" && (quantityNumber <= 0 || quantityNumber > item.quantity))}>{saving ? "Enregistrement…" : action === "assign" ? "Envoyer" : action === "return" ? "Remettre" : "Confirmer"}</button></footer>
   </form>;
 }
 
@@ -398,7 +409,7 @@ function EconomyActivity({ data, viewerRole, saving, onExecute }: { data: Player
   ].sort((first, second) => second.date.localeCompare(first.date)).filter((row) => describeActivity(row.entry).toLowerCase().includes(filter.toLowerCase())), [data, filter, itemOperationIds]);
   return <section className="economy-activity panel"><header><div><History size={18} /><h2>Journal des opérations</h2></div><input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Joueur, objet, commentaire…" /></header><div>{entries.length ? entries.map((row) => {
     const cancelled = row.kind === "money" ? cancelledMoneyIds.has(row.entry.id) : cancelledItemEventIds.has(row.entry.id);
-    return <article key={`${row.kind}-${row.entry.id}`} className={cancelled ? "cancelled" : undefined}><time>{formatDateTime(row.date)}</time><div><strong>{describeActivity(row.entry)}</strong>{row.entry.comment && <small>{row.entry.comment}</small>}</div>{cancelled ? <span className="economy-cancelled-label">Action annulée</span> : <>{row.kind === "money" && canCancelMoney(row.entry, data.viewer_user_id, viewerRole) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelMoneyTransaction(row.entry.id), "Opération annulée.")}>Annuler</button>}{row.kind === "item" && row.entry.event_type === "sold" && (viewerRole === "gm" || row.entry.actor_user_id === data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelItemEvent(row.entry.id), "Vente annulée.")}>Annuler la vente</button>}</>}</article>;
+    return <article key={`${row.kind}-${row.entry.id}`} className={cancelled ? "cancelled" : undefined}><time>{formatDateTime(row.date)}</time><div><strong>{describeActivity(row.entry)}</strong>{row.entry.comment && <small>{row.entry.comment}</small>}</div>{cancelled ? <span className="economy-cancelled-label">Action annulée</span> : <>{row.kind === "money" && canCancelMoney(row.entry, data.viewer_user_id, viewerRole) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelMoneyTransaction(row.entry.id), "Opération annulée.")}>Annuler</button>}{row.kind === "item" && canCancelItem(row.entry, data.viewer_user_id, viewerRole) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelItemEvent(row.entry.id), "Action annulée.")}>Annuler{row.entry.event_type === "sold" ? " la vente" : ""}</button>}</>}</article>;
   }) : <p className="empty-state">Aucune opération correspondante.</p>}</div></section>;
 }
 
@@ -435,6 +446,7 @@ function describeItemEvent(event: CampaignItemEvent) {
     merged: `${actor} a regroupé ${event.item_name ?? "l’objet"}`,
     sold: `${actor} a vendu ${event.item_name ?? "l’objet"} pour ${formatCopper(event.value_cp)}`,
     sale_cancelled: `${actor} a annulé la vente de ${event.item_name ?? "l’objet"}`,
+    action_cancelled: `${actor} a annulé une action sur ${event.item_name ?? "l’objet"}`,
     purchased: `${actor} a acheté ${event.item_name ?? "l’objet"} pour ${formatCopper(event.value_cp)}`,
     dismantled: `${actor} a démonté ${event.item_name ?? "l’objet"}`,
     consumed: `${actor} a consommé ${event.item_name ?? "l’objet"}`,
@@ -445,6 +457,11 @@ function describeItemEvent(event: CampaignItemEvent) {
 
 function canCancelMoney(entry: CampaignMoneyTransaction, viewerId: string, viewerRole: "player" | "gm") {
   return (viewerRole === "gm" || entry.actor_user_id === viewerId) && !["sale", "purchase", "reversal", "departure_transfer"].includes(entry.kind) && !entry.reversed_transaction_id;
+}
+
+function canCancelItem(entry: CampaignItemEvent, viewerId: string, viewerRole: "player" | "gm") {
+  const reversible = ["claimed", "transferred", "returned", "split", "merged", "sold", "dismantled", "consumed", "lost", "donated"];
+  return !entry.reversed_event_id && reversible.includes(entry.event_type) && (viewerRole === "gm" || (entry.event_type === "sold" && entry.actor_user_id === viewerId));
 }
 
 function formatQuantity(value: number) { return Number.isInteger(value) ? String(value) : String(value).replace(".", ","); }

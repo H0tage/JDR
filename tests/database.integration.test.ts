@@ -74,6 +74,20 @@ it("sécurise les objets, transfère l’argent et restitue les biens au départ
   await db.exec('reset role;');
   expect((await db.query<{ pending: number; cancelled: number }>(`select count(*) filter (where status = 'pending')::int pending, count(*) filter (where status = 'cancelled')::int cancelled from public.campaign_item_requests where item_id = '${item}' and requester_user_id = '${first}'`)).rows[0]).toEqual({ pending: 1, cancelled: 1 });
 
+  await db.exec(`select set_config('request.jwt.claim.sub', '${gm}', false); set role authenticated;`);
+  const potions = (await db.query<{ create_manual_campaign_item: string }>(`select public.create_manual_campaign_item('${campaign.campaign_id}', 'Potion test', 3, 400, '${first}', null, null, null, false)`)).rows[0].create_manual_campaign_item;
+  await db.exec(`select set_config('request.jwt.claim.sub', '${first}', false); set role authenticated; select public.assign_campaign_item('${potions}', '${second}', null, 2); reset role;`);
+  const potionTransfer = (await db.query<{ id: string; item_id: string }>(`select id, item_id from public.campaign_item_events where campaign_id = '${campaign.campaign_id}' and event_type = 'transferred' and related_item_id = '${potions}' order by created_at desc limit 1`)).rows[0];
+  expect((await db.query<{ quantity: number; owner_user_id: string }>(`select quantity::int quantity, owner_user_id from public.campaign_inventory_items where id = '${potionTransfer.item_id}'`)).rows[0]).toEqual({ quantity: 2, owner_user_id: second });
+  await db.exec(`select set_config('request.jwt.claim.sub', '${gm}', false); set role authenticated; select public.cancel_campaign_item_event('${potionTransfer.id}', 'Mauvaise quantité'); reset role;`);
+  expect((await db.query<{ quantity: number; owner_user_id: string }>(`select quantity::int quantity, owner_user_id from public.campaign_inventory_items where id = '${potions}'`)).rows[0]).toEqual({ quantity: 3, owner_user_id: first });
+  expect((await db.query<{ status: string }>(`select status from public.campaign_inventory_items where id = '${potionTransfer.item_id}'`)).rows[0].status).toBe('merged');
+
+  await db.exec(`select set_config('request.jwt.claim.sub', '${first}', false); set role authenticated; select public.assign_campaign_item('${potions}', '${second}', null, 1); reset role;`);
+  const changedTransfer = (await db.query<{ id: string; item_id: string }>(`select id, item_id from public.campaign_item_events where campaign_id = '${campaign.campaign_id}' and event_type = 'transferred' and related_item_id = '${potions}' and reversed_event_id is null order by created_at desc limit 1`)).rows[0];
+  await db.exec(`select set_config('request.jwt.claim.sub', '${second}', false); set role authenticated; select public.set_campaign_item_terminal('${changedTransfer.item_id}', 'consumed', null, null);`);
+  await expect(db.exec(`select set_config('request.jwt.claim.sub', '${gm}', false); select public.cancel_campaign_item_event('${changedTransfer.id}', 'Trop tard');`)).rejects.toThrow(/objet a été modifié depuis cette action/);
+
   await db.exec(`select set_config('request.jwt.claim.sub', '${second}', false); set role authenticated; select public.record_personal_money('${campaign.campaign_id}', 'income', 700, null, null); select public.create_campaign_money_debt('${campaign.campaign_id}', '${second}', '${first}', 300, 'Dette de test'); select public.leave_campaign('${campaign.campaign_id}'); reset role;`);
   expect((await db.query<{ owner_user_id: string | null }>(`select owner_user_id from public.campaign_inventory_items where id = '${item}'`)).rows[0].owner_user_id).toBeNull();
   const balances = (await db.query<{ common_balance: number; former_balance: number }>(`
@@ -104,6 +118,7 @@ it("sécurise les objets, transfère l’argent et restitue les biens au départ
   await db.exec(`select public.create_manual_campaign_item('${campaign.campaign_id}', 'Même nom', 1, 10, null, null, null, null); select public.create_manual_campaign_item('${campaign.campaign_id}', 'Même nom', 1, 20, null, null, null, null);`);
   await db.exec('reset role;');
   expect((await db.query<{ count: number }>(`select count(*)::int count from public.campaign_inventory_items where campaign_id = '${campaign.campaign_id}' and name = 'Même nom'`)).rows[0].count).toBe(2);
+
   await db.close();
 }, 30_000);
 

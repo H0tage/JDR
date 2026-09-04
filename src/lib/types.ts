@@ -450,7 +450,7 @@ export interface CampaignItemEvent {
   item_name: string | null;
   actor_user_id: string | null;
   actor_display_name: string | null;
-  event_type: "created" | "published" | "claimed" | "transferred" | "returned" | "split" | "merged" | "sold" | "sale_cancelled" | "purchased" | "dismantled" | "consumed" | "lost" | "donated";
+  event_type: "created" | "published" | "claimed" | "transferred" | "returned" | "split" | "merged" | "sold" | "sale_cancelled" | "action_cancelled" | "purchased" | "dismantled" | "consumed" | "lost" | "donated";
   previous_owner_user_id: string | null;
   previous_owner_display_name: string | null;
   next_owner_user_id: string | null;
