@@ -76,6 +76,33 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
     }
   }
 
+  async function cancelOutgoingRequest(requestId: string) {
+    setSaving(true);
+    try {
+      if (!demo) await cancelItemRequest(requestId);
+      setData((current) => {
+        if (!current) return current;
+        const cancelledItemId = current.requests.find((request) => request.id === requestId)?.item_id;
+        return {
+          ...current,
+          requests: current.requests.map((request) => request.id === requestId
+            ? { ...request, status: "cancelled", resolved_at: new Date().toISOString() }
+            : request),
+          items: current.items.map((item) => item.id === cancelledItemId
+            ? { ...item, requested_by_me: false, pending_request_count: Math.max(0, item.pending_request_count - 1) }
+            : item),
+        };
+      });
+      setNotice(demo ? "Demande annulée. — simulation" : "Demande annulée.");
+      setError(null);
+      if (!demo) await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Annulation impossible.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (!data) return error ? <ErrorPanel error={error} onRetry={() => void refresh()} /> : <LoadingScreen label="Ouverture de la trésorerie…" />;
 
   const viewerUserId = data.viewer_user_id;
@@ -88,8 +115,7 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
   const myBalance = data.balances.find((balance) => balance.account_user_id === data.viewer_user_id)?.balance_cp ?? 0;
   const displayedPersonalBalance = viewerRole === "gm" ? personalBalances.reduce((total, balance) => total + balance.balance_cp, 0) : myBalance;
   const commonStock = commonItems.reduce((total, item) => total + (item.unit_value_cp ?? 0) * item.quantity, 0);
-  const currentWealth = data.balances.reduce((total, balance) => total + balance.balance_cp, 0)
-    + activeItems.reduce((total, item) => total + (item.unit_value_cp ?? 0) * item.quantity, 0);
+  const currentWealth = data.totals.current_wealth_cp;
   const totalEntered = data.totals.total_entered_cp;
   const totalExited = data.totals.total_exited_cp;
   const incomingRequests = data.requests.filter((request) => request.status === "pending" && request.owner_user_id === data.viewer_user_id);
@@ -117,10 +143,10 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
     {error && <p className="player-loot-save-error" role="alert">{error}</p>}
 
     <section className="economy-metrics" aria-label="Résumé de la trésorerie">
-      <article><span><Coins size={17} />Pot commun</span><strong>{formatCopper(commonBalance)}</strong><small>or disponible</small></article>
+      <article><span><Coins size={17} />Compte commun</span><strong>{formatCopper(commonBalance)}</strong><small>or disponible</small></article>
       <article><span><WalletCards size={17} />{viewerRole === "gm" ? "Comptes joueurs" : "Mon compte"}</span><strong>{formatCopper(displayedPersonalBalance)}</strong><small>{viewerRole === "gm" ? "total détaillé ci-dessous" : "les soldes négatifs sont autorisés"}</small></article>
       <article><span><PackageOpen size={17} />Stock commun</span><strong>{formatCopper(commonStock)}</strong><small>{commonItems.length} objet{commonItems.length > 1 ? "s" : ""} à répartir</small></article>
-      <article><span><CircleDollarSign size={17} />Patrimoine actuel</span><strong>{formatCopper(currentWealth)}</strong><small>objets chiffrés et comptes visibles</small></article>
+      <article><span><CircleDollarSign size={17} />Patrimoine actuel</span><strong>{formatCopper(currentWealth)}</strong><small>ensemble des comptes et objets chiffrés</small></article>
       <article><span><ArrowDownToLine size={17} />Entré depuis le début</span><strong>{formatCopper(totalEntered)}</strong><small>butins, achats et revenus</small></article>
       <article><span><ArrowUpFromLine size={17} />Sorti depuis le début</span><strong>{formatCopper(totalExited)}</strong><small>dépenses, pertes et consommation</small></article>
     </section>
@@ -145,12 +171,12 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
       <header><div><Send size={18} /><h2>Demandes d’objets</h2></div><span>{incomingRequests.length + outgoingRequests.length}</span></header>
       <div>
         {incomingRequests.map((request) => <article key={request.id}><div><strong>{request.requester_display_name}</strong><span>demande {request.item_name}</span></div><div><button className="button tiny primary" disabled={saving} onClick={() => void execute(() => resolveItemRequest(request.id, true), "Objet envoyé.")}>Accepter</button><button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => resolveItemRequest(request.id, false), "Demande refusée.")}>Refuser</button></div></article>)}
-        {outgoingRequests.map((request) => <article key={request.id}><div><strong>{request.item_name}</strong><span>demande envoyée à {request.owner_display_name}</span></div><button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => cancelItemRequest(request.id), "Demande annulée.")}>Annuler</button></article>)}
+        {outgoingRequests.map((request) => <article key={request.id}><div><strong>{request.item_name}</strong><span>demande envoyée à {request.owner_display_name}</span></div><button className="button tiny secondary" disabled={saving} onClick={() => void cancelOutgoingRequest(request.id)}>Annuler</button></article>)}
       </div>
     </section>}
 
     <nav className="economy-sections" aria-label="Sections de l’inventaire">
-      <button className={section === "common" ? "active" : ""} onClick={() => setSection("common")}>Pot commun <span>{commonItems.length}</span></button>
+      <button className={section === "common" ? "active" : ""} onClick={() => setSection("common")}>Compte commun <span>{commonItems.length}</span></button>
       <button className={section === "mine" ? "active" : ""} onClick={() => setSection("mine")}>Mes objets <span>{myItems.length}</span></button>
       <button className={section === "others" ? "active" : ""} onClick={() => setSection("others")}>Inventaires du groupe <span>{otherItems.length}</span></button>
       <button className={section === "activity" ? "active" : ""} onClick={() => setSection("activity")}><History size={15} />Activité</button>
@@ -161,7 +187,7 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
     {section === "activity" ? <EconomyActivity data={data} saving={saving} onExecute={execute} />
       : section === "others" ? <GroupInventories players={groupInventoryPlayers} items={otherItems} mobilePlayerId={mobileInventoryUserId} onMobilePlayer={setMobileInventoryUserId} renderItem={(item) => renderInventoryCard(item, false)} />
         : visibleItems.length > 0 ? <section className="economy-item-grid">{visibleItems.map((item) => renderInventoryCard(item))}</section>
-          : <EmptyState title={section === "common" ? "Le pot commun est vide" : "Aucun objet personnel"}>Les objets apparaîtront ici au fil de leur attribution.</EmptyState>}
+          : <EmptyState title={section === "common" ? "Le compte commun est vide" : "Aucun objet personnel"}>Les objets apparaîtront ici au fil de leur attribution.</EmptyState>}
 
     {selectedItem && itemAction && <ItemActionPanel item={selectedItem} action={itemAction} mergeCandidates={activeItems.filter((candidate) => candidate.id !== selectedItem.id && candidate.name === selectedItem.name && candidate.owner_user_id === selectedItem.owner_user_id && candidate.unit_value_cp === selectedItem.unit_value_cp && candidate.aon_legacy_url === selectedItem.aon_legacy_url)} events={data.item_history.filter((event) => event.item_id === selectedItem.id || event.related_item_id === selectedItem.id)} saving={saving} onClose={() => { setSelectedItem(null); setItemAction(null); }} onExecute={execute} />}
 
@@ -196,7 +222,7 @@ function BatchActionBar({ count, players, saving, onClear, onApply }: { count: n
   const [comment, setComment] = useState("");
   return <section className="economy-batch-bar" aria-label="Action groupée">
     <div><ListChecks size={18} /><strong>{count} objet{count > 1 ? "s" : ""} sélectionné{count > 1 ? "s" : ""}</strong></div>
-    <select aria-label="Action groupée" value={action} onChange={(event) => setAction(event.target.value as typeof action)}><option value="assign">Attribuer à…</option><option value="return">Remettre au pot commun</option><option value="consumed">Marquer consommé</option><option value="lost">Marquer perdu</option><option value="donated">Donné hors du groupe</option></select>
+    <select aria-label="Action groupée" value={action} onChange={(event) => setAction(event.target.value as typeof action)}><option value="assign">Attribuer à…</option><option value="return">Remettre au compte commun</option><option value="consumed">Marquer consommé</option><option value="lost">Marquer perdu</option><option value="donated">Donné hors du groupe</option></select>
     {action === "assign" && <select aria-label="Destinataire groupé" value={target} onChange={(event) => setTarget(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select>}
     <input aria-label="Commentaire groupé facultatif" value={comment} maxLength={500} onChange={(event) => setComment(event.target.value)} placeholder="Commentaire facultatif" />
     <button className="button tiny primary" type="button" disabled={saving || (action === "assign" && !target)} onClick={() => onApply(action, action === "assign" ? target : null, comment)}>Appliquer</button>
@@ -210,15 +236,15 @@ function InventoryCard({ item, allItems, viewerId, viewerRole, players, saving, 
   const controllable = viewerRole === "gm" || isCommon || isMine;
   const canMerge = allItems.some((candidate) => candidate.id !== item.id && candidate.name === item.name && candidate.owner_user_id === item.owner_user_id && candidate.unit_value_cp === item.unit_value_cp && candidate.aon_legacy_url === item.aon_legacy_url);
   return <article className={`economy-item-card${selected ? " selected" : ""}`}>
-    <header><div>{controllable && <label className="economy-item-selector" title="Sélectionner pour une action groupée"><input type="checkbox" checked={selected} onChange={onToggleSelected} /><ListChecks size={16} /></label>}<Gem size={19} /><div><h2>{item.name}</h2>{showOwner && <small>{item.owner_display_name ?? "Pot commun"}</small>}</div></div>{item.quantity !== 1 && <span>× {formatQuantity(item.quantity)}</span>}</header>
+    <header><div>{controllable && <label className="economy-item-selector" title="Sélectionner pour une action groupée"><input type="checkbox" checked={selected} onChange={onToggleSelected} /><ListChecks size={16} /></label>}<Gem size={19} /><div><h2>{item.name}</h2>{showOwner && <small>{item.owner_display_name ?? "Compte commun"}</small>}</div></div>{item.quantity !== 1 && <span>× {formatQuantity(item.quantity)}</span>}</header>
     <div className="economy-item-value"><span>Valeur unitaire</span><strong>{formatCopper(item.unit_value_cp)}</strong>{item.aon_legacy_url && <a href={item.aon_legacy_url} target="_blank" rel="noreferrer">AoN</a>}</div>
     {item.pending_request_count > 0 && <p className="economy-item-requests">{item.pending_request_count} demande{item.pending_request_count > 1 ? "s" : ""} en attente</p>}
     <footer>
       {controllable && <select aria-label={`Attribuer ${item.name}`} value="" disabled={saving} onChange={(event) => {
         const target = event.target.value;
-        if (target === "common") void onExecute(() => returnInventoryItem(item.id), "Objet remis au pot commun.");
+        if (target === "common") void onExecute(() => returnInventoryItem(item.id), "Objet remis au compte commun.");
         else if (target) void onExecute(() => assignInventoryItem(item.id, target), "Objet attribué.");
-      }}><option value="">Attribuer…</option>{isMine && <option value="common">Pot commun</option>}{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.user_id === viewerId ? "Moi" : player.display_name}</option>)}</select>}
+      }}><option value="">Attribuer…</option>{isMine && <option value="common">Compte commun</option>}{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.user_id === viewerId ? "Moi" : player.display_name}</option>)}</select>}
       {controllable ? <details><summary><ChevronDown size={15} />Actions</summary><div>{item.quantity > 1 && <button type="button" onClick={() => onOpenAction(item, "split")}>Fractionner</button>}{canMerge && <button type="button" onClick={() => onOpenAction(item, "merge")}>Regrouper</button>}<button type="button" onClick={() => onOpenAction(item, "sell")}>Vendre</button><button type="button" onClick={() => onOpenAction(item, "dismantle")}>Démonter</button><button type="button" onClick={() => onOpenAction(item, "terminal")}>Consommer / sortir</button><button type="button" onClick={() => onOpenAction(item, "history")}>Historique</button></div></details> : <>{item.requested_by_me ? <span className="request-sent">Demande envoyée</span> : <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => requestInventoryItem(item.id), "Demande envoyée.")}>Demander</button>}<button className="icon-button" type="button" title="Historique" onClick={() => onOpenAction(item, "history")}><History size={15} /></button></>}
     </footer>
   </article>;
@@ -235,23 +261,20 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [commonShare, setCommonShare] = useState("0");
-  const [referenceAmount, setReferenceAmount] = useState("0");
-  const [referenceUnit, setReferenceUnit] = useState<MoneyUnit>("gp");
   const [aonName, setAonName] = useState("");
   const [aonUrl, setAonUrl] = useState("");
   const [debtor, setDebtor] = useState(defaultPlayerId);
   const [creditor, setCreditor] = useState(players.find((player) => player.user_id !== defaultPlayerId)?.user_id ?? "");
   const amountCp = moneyToCp(Number(amount) || 0, unit);
   const commonCp = moneyToCp(Number(commonShare) || 0, unit);
-  const referenceCp = moneyToCp(Number(referenceAmount) || 0, referenceUnit);
-  const allAccounts = [{ user_id: "common", display_name: "Pot commun" }, ...players];
+  const allAccounts = [{ user_id: "common", display_name: "Compte commun" }, ...players];
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (action === "transfer") await onExecute(() => transferMoney(campaignId, source === "common" ? null : source, destination === "common" ? null : destination, amountCp, comment), "Transfert enregistré.");
     if (action === "personal") await onExecute(() => recordPersonalMoney(campaignId, kind, amountCp, comment, viewerRole === "gm" ? source : undefined), kind === "income" ? "Revenu ajouté." : "Dépense ajoutée.");
-    if (action === "common-income") await onExecute(() => recordCommonIncome(campaignId, amountCp, comment), "Entrée ajoutée au pot commun.");
-    if (action === "purchase") await onExecute(() => purchaseInventoryItem({ campaignId, name, quantity: Number(quantity) || 1, priceCp: amountCp, personalAmountCp: amountCp - commonCp, commonAmountCp: commonCp, ownerUserId: viewerRole === "gm" ? destination : undefined, unitValueCp: referenceCp || null, aonName, aonUrl, comment }), "Achat enregistré.");
+    if (action === "common-income") await onExecute(() => recordCommonIncome(campaignId, amountCp, comment), "Entrée ajoutée au compte commun.");
+    if (action === "purchase") await onExecute(() => purchaseInventoryItem({ campaignId, name, quantity: Number(quantity) || 1, priceCp: amountCp, personalAmountCp: amountCp - commonCp, commonAmountCp: commonCp, ownerUserId: viewerRole === "gm" ? destination : undefined, aonName, aonUrl, comment }), "Achat enregistré.");
     if (action === "manual-item") await onExecute(() => createManualInventoryItem({ campaignId, name, quantity: Number(quantity) || 1, unitValueCp: amountCp || null, ownerUserId: destination === "common" ? null : destination, aonName, aonUrl, comment }), "Objet créé.");
     if (action === "debt") await onExecute(() => createMoneyDebt(campaignId, debtor, creditor, amountCp, comment), "Dette enregistrée.");
   }
@@ -272,8 +295,7 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
       {action === "purchase" && viewerRole === "gm" && <label>Acheteur<select value={destination} onChange={(event) => setDestination(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>}
       {action === "debt" && <><label>Débiteur<select value={debtor} onChange={(event) => { const next = event.target.value; setDebtor(next); if (creditor === next) setCreditor(players.find((player) => player.user_id !== next)?.user_id ?? ""); }}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label><label>Créancier<select value={creditor} onChange={(event) => setCreditor(event.target.value)}>{players.filter((player) => player.user_id !== debtor).map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label></>}
       <MoneyField label={action === "manual-item" ? "Valeur unitaire" : "Montant"} amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />
-      {action === "purchase" && <MoneyField label="Valeur de référence unitaire (facultatif)" amount={referenceAmount} unit={referenceUnit} onAmount={setReferenceAmount} onUnit={setReferenceUnit} />}
-      {action === "purchase" && <label>Part payée par le pot commun<input type="number" min="0" max={Number(amount) || 0} step="0.01" value={commonShare} onChange={(event) => setCommonShare(event.target.value)} /><small>Le reste sera pris sur le compte de l’acheteur.</small></label>}
+      {action === "purchase" && <label>Part payée par le compte commun<input type="number" min="0" max={Number(amount) || 0} step="0.01" value={commonShare} onChange={(event) => setCommonShare(event.target.value)} /><small>Le reste sera pris sur le compte de l’acheteur. La valeur de l’objet sera égale au prix payé.</small></label>}
       <label className="span-2">Commentaire <small>facultatif</small><input value={comment} maxLength={500} onChange={(event) => setComment(event.target.value)} placeholder="Ex. remboursement de la chambre" /></label>
     </div>
     <footer><button type="button" className="button secondary" onClick={onClose}>Annuler</button><button className="button primary" disabled={saving || (action !== "manual-item" && amountCp <= 0) || (action === "purchase" && commonCp > amountCp)}>{saving ? "Enregistrement…" : "Confirmer"}</button></footer>
@@ -292,7 +314,7 @@ function ItemActionPanel({ item, action, mergeCandidates, events, saving, onClos
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (action === "sell") await onExecute(() => sellInventoryItem(item.id, quantityNumber, moneyToCp(Number(amount) || 0, unit), comment), "Vente enregistrée dans le pot commun.");
+    if (action === "sell") await onExecute(() => sellInventoryItem(item.id, quantityNumber, moneyToCp(Number(amount) || 0, unit), comment), "Vente enregistrée dans le compte commun.");
     if (action === "split") await onExecute(() => splitInventoryItem(item.id, quantityNumber), "Pile fractionnée.");
     if (action === "merge") await onExecute(() => mergeInventoryItems(item.id, mergeSource), "Piles regroupées.");
     if (action === "terminal") await onExecute(() => setInventoryItemTerminal(item.id, terminal, quantityNumber, comment), "Objet mis à jour.");
@@ -335,8 +357,8 @@ function MoneyField({ label, amount, unit, onAmount, onUnit }: { label: string; 
 
 function describeActivity(entry: CampaignMoneyTransaction | CampaignItemEvent) {
   if ("source_account" in entry) {
-    const source = entry.source_account === "common" ? "le pot commun" : entry.source_account === "player" ? entry.source_display_name ?? "un joueur" : "l’extérieur";
-    const destination = entry.destination_account === "common" ? "le pot commun" : entry.destination_account === "player" ? entry.destination_display_name ?? "un joueur" : "l’extérieur";
+    const source = entry.source_account === "common" ? "le compte commun" : entry.source_account === "player" ? entry.source_display_name ?? "un joueur" : "l’extérieur";
+    const destination = entry.destination_account === "common" ? "le compte commun" : entry.destination_account === "player" ? entry.destination_display_name ?? "un joueur" : "l’extérieur";
     if (entry.kind === "sale") return `${entry.actor_display_name ?? "Un joueur"} a vendu ${entry.related_item_name ?? "un objet"} pour ${formatCopper(entry.amount_cp)}`;
     if (entry.kind === "purchase") return `${entry.actor_display_name ?? "Un joueur"} a acheté ${entry.related_item_name ?? "un objet"} pour ${formatCopper(entry.amount_cp)}`;
     return `${formatCopper(entry.amount_cp)} : ${source} → ${destination}`;
@@ -346,13 +368,13 @@ function describeActivity(entry: CampaignMoneyTransaction | CampaignItemEvent) {
 
 function describeItemEvent(event: CampaignItemEvent) {
   const actor = event.actor_display_name ?? "Le système";
-  const target = event.next_owner_display_name ?? "le pot commun";
+  const target = event.next_owner_display_name ?? "le compte commun";
   return {
     created: `${actor} a créé ${event.item_name ?? "l’objet"}`,
     published: `${event.item_name ?? "L’objet"} est entré dans l’inventaire`,
     claimed: `${actor} a pris ${event.item_name ?? "l’objet"}`,
     transferred: `${actor} a envoyé ${event.item_name ?? "l’objet"} à ${target}`,
-    returned: `${actor} a remis ${event.item_name ?? "l’objet"} dans le pot commun`,
+    returned: `${actor} a remis ${event.item_name ?? "l’objet"} dans le compte commun`,
     split: `${actor} a fractionné ${event.item_name ?? "l’objet"}`,
     merged: `${actor} a regroupé ${event.item_name ?? "l’objet"}`,
     sold: `${actor} a vendu ${event.item_name ?? "l’objet"} pour ${formatCopper(event.value_cp)}`,

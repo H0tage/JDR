@@ -41,8 +41,9 @@ soit choisie implicitement.
 - archives de personnages et de lieux ;
 - butins de référence côté MJ et sélection limitée côté joueurs ;
 - pseudos publics sans exposition des adresses e-mail ;
-- page personnelle persistante par joueur et campagne, modifiable par son
-  propriétaire et consultable en lecture seule par le MJ ;
+- fiche persistante par joueur et campagne, modifiable par son propriétaire et
+  consultable en lecture seule par le groupe, avec notes privées réservées au
+  propriétaire et au MJ ;
 - inventaire et économie partagés : attribution, demandes, ventes annulables,
   démontage, achats, transferts, dettes, historique et soldes négatifs ;
 - bestiaire collaboratif ;
@@ -112,8 +113,13 @@ joueur, tout en conservant sa page personnelle pour une éventuelle réadhésion
 La migration `20260902120000_player_inventory_and_economy.sql` remplace la
 simple attribution par un inventaire opérationnel et un registre financier
 immuable. Elle conserve le registre de référence MJ séparé, propose une
-visibilité des soldes réglable par le MJ et reverse au pot commun les objets,
+visibilité des soldes réglable par le MJ et reverse au compte commun les objets,
 le solde et les dettes d’un joueur lorsqu’il quitte la campagne.
+
+Les migrations du `20260904` corrigent la cohérence des demandes et du
+patrimoine, puis rendent les fiches publiques consultables par le groupe sans
+exposer Pathbuilder ni les notes privées. Les relations personnelles qu’un
+joueur consigne sur ses compagnons restent strictement privées à leur auteur.
 
 Après une modification SQL distante, régénérer le snapshot comme indiqué dans
 [`supabase/README.md`](supabase/README.md).

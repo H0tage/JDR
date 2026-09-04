@@ -26,7 +26,7 @@ const demoItems: CampaignInventoryItem[] = [
   { id: "demo-item-1", campaign_id: "demo", origin_loot_id: "demo-loot-1", parent_item_id: null, created_by: null, owner_user_id: null, owner_display_name: null, created_by_display_name: null, name: "Item anonymisé 1", quantity: 3, source_quantity_label: "3", unit_value_cp: 400, purchase_price_cp: null, aon_legacy_name: null, aon_legacy_url: null, source_kind: "loot", player_visible: true, status: "active", acquired_on: "2026-08-10", created_at: "2026-08-10T18:00:00Z", updated_at: "2026-08-10T18:00:00Z", pending_request_count: 0, requested_by_me: false },
   { id: "demo-item-2", campaign_id: "demo", origin_loot_id: "demo-loot-2", parent_item_id: null, created_by: null, owner_user_id: "demo-arsene", owner_display_name: "Prénom1 Nom1", created_by_display_name: null, name: "Item anonymisé 2", quantity: 1, source_quantity_label: "1", unit_value_cp: 3500, purchase_price_cp: null, aon_legacy_name: null, aon_legacy_url: null, source_kind: "loot", player_visible: true, status: "active", acquired_on: "2026-08-10", created_at: "2026-08-10T18:05:00Z", updated_at: "2026-08-10T18:05:00Z", pending_request_count: 1, requested_by_me: false },
   { id: "demo-item-3", campaign_id: "demo", origin_loot_id: null, parent_item_id: null, created_by: "demo-arsene", owner_user_id: "demo-morrigan", owner_display_name: "Prénom2 Nom2", created_by_display_name: "Prénom1 Nom1", name: "Item anonymisé 3", quantity: 2, source_quantity_label: "2", unit_value_cp: 1200, purchase_price_cp: 2400, aon_legacy_name: null, aon_legacy_url: null, source_kind: "purchase", player_visible: true, status: "active", acquired_on: "2026-08-12", created_at: "2026-08-12T18:00:00Z", updated_at: "2026-08-12T18:00:00Z", pending_request_count: 0, requested_by_me: false },
-  { id: "demo-item-4", campaign_id: "demo", origin_loot_id: null, parent_item_id: null, created_by: null, owner_user_id: "demo-nox", owner_display_name: "Prénom4 Nom4", created_by_display_name: "MaîtreDuJeu", name: "Item anonymisé 4", quantity: 1, source_quantity_label: "1", unit_value_cp: 1800, purchase_price_cp: null, aon_legacy_name: null, aon_legacy_url: null, source_kind: "gm", player_visible: true, status: "active", acquired_on: "2026-08-14", created_at: "2026-08-14T18:00:00Z", updated_at: "2026-08-14T18:00:00Z", pending_request_count: 0, requested_by_me: false },
+  { id: "demo-item-4", campaign_id: "demo", origin_loot_id: null, parent_item_id: null, created_by: null, owner_user_id: "demo-nox", owner_display_name: "Prénom4 Nom4", created_by_display_name: "Le Maître du Jeu", name: "Item anonymisé 4", quantity: 1, source_quantity_label: "1", unit_value_cp: 1800, purchase_price_cp: null, aon_legacy_name: null, aon_legacy_url: null, source_kind: "gm", player_visible: true, status: "active", acquired_on: "2026-08-14", created_at: "2026-08-14T18:00:00Z", updated_at: "2026-08-14T18:00:00Z", pending_request_count: 1, requested_by_me: true },
 ];
 
 function demoEconomy(): PlayerEconomyData {
@@ -34,16 +34,19 @@ function demoEconomy(): PlayerEconomyData {
     viewer_user_id: "demo-arsene",
     items: demoItems,
     balances: [
-      { campaign_id: "demo", account_user_id: null, display_name: "Pot commun", is_common: true, balance_cp: 12_850 },
+      { campaign_id: "demo", account_user_id: null, display_name: "Compte commun", is_common: true, balance_cp: 12_850 },
       { campaign_id: "demo", account_user_id: "demo-arsene", display_name: "Prénom1 Nom1", is_common: false, balance_cp: 3_400 },
       { campaign_id: "demo", account_user_id: "demo-morrigan", display_name: "Prénom2 Nom2", is_common: false, balance_cp: -800 },
       { campaign_id: "demo", account_user_id: "demo-silas", display_name: "Prénom3 Nom3", is_common: false, balance_cp: 2_250 },
       { campaign_id: "demo", account_user_id: "demo-nox", display_name: "Prénom4 Nom4", is_common: false, balance_cp: 1_500 },
     ],
-    totals: { campaign_id: "demo", total_entered_cp: 42_750, total_exited_cp: 8_600 },
+    totals: { campaign_id: "demo", total_entered_cp: 42_750, total_exited_cp: 8_600, current_wealth_cp: 26_400 },
     money_history: [],
     item_history: [],
-    requests: [{ id: "demo-request-1", campaign_id: "demo", item_id: "demo-item-2", item_name: "Item anonymisé 2", requester_user_id: "demo-morrigan", requester_display_name: "Prénom2 Nom2", owner_user_id: "demo-arsene", owner_display_name: "Prénom1 Nom1", status: "pending", created_at: "2026-08-13T18:00:00Z", resolved_at: null }],
+    requests: [
+      { id: "demo-request-1", campaign_id: "demo", item_id: "demo-item-2", item_name: "Item anonymisé 2", requester_user_id: "demo-morrigan", requester_display_name: "Prénom2 Nom2", owner_user_id: "demo-arsene", owner_display_name: "Prénom1 Nom1", status: "pending", created_at: "2026-08-13T18:00:00Z", resolved_at: null },
+      { id: "demo-request-2", campaign_id: "demo", item_id: "demo-item-4", item_name: "Item anonymisé 4", requester_user_id: "demo-arsene", requester_display_name: "Prénom1 Nom1", owner_user_id: "demo-nox", owner_display_name: "Prénom4 Nom4", status: "pending", created_at: "2026-08-14T19:00:00Z", resolved_at: null },
+    ],
     debts: [],
   };
 }
@@ -73,7 +76,7 @@ export async function loadPlayerEconomy(campaignId: string, demo = false): Promi
     viewer_user_id: session.user.id,
     items: (items.data ?? []) as CampaignInventoryItem[],
     balances: (balances.data ?? []) as CampaignMoneyBalance[],
-    totals: (totals.data ?? { campaign_id: campaignId, total_entered_cp: 0, total_exited_cp: 0 }) as CampaignEconomyTotals,
+    totals: (totals.data ?? { campaign_id: campaignId, total_entered_cp: 0, total_exited_cp: 0, current_wealth_cp: 0 }) as CampaignEconomyTotals,
     money_history: (moneyHistory.data ?? []) as CampaignMoneyTransaction[],
     item_history: (itemHistory.data ?? []) as CampaignItemEvent[],
     requests: (requests.data ?? []) as CampaignItemRequest[],
@@ -88,7 +91,7 @@ async function rpc(name: string, params: Record<string, unknown>, label: string)
 }
 
 export const assignInventoryItem = (itemId: string, targetUserId: string, comment?: string) => rpc("assign_campaign_item", { p_item_id: itemId, p_target_user_id: targetUserId, p_comment: comment || null }, "Attribution");
-export const returnInventoryItem = (itemId: string, comment?: string) => rpc("return_campaign_item_to_common", { p_item_id: itemId, p_comment: comment || null }, "Retour au pot commun");
+export const returnInventoryItem = (itemId: string, comment?: string) => rpc("return_campaign_item_to_common", { p_item_id: itemId, p_comment: comment || null }, "Retour au compte commun");
 export const splitInventoryItem = (itemId: string, quantity: number) => rpc("split_campaign_item", { p_item_id: itemId, p_quantity: quantity }, "Fractionnement");
 export const mergeInventoryItems = (targetItemId: string, sourceItemId: string) => rpc("merge_campaign_items", { p_target_item_id: targetItemId, p_source_item_id: sourceItemId }, "Fusion");
 export const batchUpdateInventoryItems = (itemIds: string[], action: "assign" | "return" | "consumed" | "lost" | "donated", targetUserId?: string | null, comment?: string) => rpc("batch_update_campaign_items", { p_item_ids: itemIds, p_action: action, p_target_user_id: targetUserId ?? null, p_comment: comment || null }, "Action groupée");

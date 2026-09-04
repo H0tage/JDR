@@ -27,7 +27,7 @@ async function waitFor<T>(read: () => T | null | undefined): Promise<T> {
   throw new Error("Élément attendu introuvable.");
 }
 
-it("présente la trésorerie, le pot commun et les demandes sans alourdir l’écran", async () => {
+it("présente la trésorerie, le compte commun et les demandes sans alourdir l’écran", async () => {
   await act(async () => {
     root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />);
   });
@@ -49,8 +49,9 @@ it("ouvre l’achat et l’historique d’un objet à la volée", async () => {
   const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));
   const purchase = [...economy.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Achat boutique"));
   await act(async () => { purchase?.click(); });
-  expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("Part payée par le pot commun");
-  expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("Valeur de référence unitaire");
+  expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("Part payée par le compte commun");
+  expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("La valeur de l’objet sera égale au prix payé");
+  expect(economy.querySelector(".economy-action-panel")?.textContent).not.toContain("Valeur de référence unitaire");
   expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("Archive of Nethys");
 
   const close = economy.querySelector<HTMLButtonElement>(".economy-action-panel .icon-button");
@@ -71,6 +72,16 @@ it("permet de sélectionner plusieurs objets pour une action groupée", async ()
   await act(async () => { selector?.click(); });
   expect(economy.querySelector(".economy-batch-bar")?.textContent).toContain("1 objet sélectionné");
   expect(economy.querySelector(".economy-batch-bar")?.textContent).toContain("Appliquer");
+});
+
+it("retire immédiatement une demande annulée de l’écran", async () => {
+  await act(async () => { root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />); });
+  const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));
+  const outgoing = [...economy.querySelectorAll<HTMLElement>(".economy-requests article")].find((entry) => entry.textContent?.includes("demande envoyée à Prénom4 Nom4"));
+  const cancel = outgoing?.querySelector<HTMLButtonElement>("button");
+  expect(cancel?.textContent).toBe("Annuler");
+  await act(async () => { cancel?.click(); });
+  expect(economy.textContent).not.toContain("demande envoyée à Prénom4 Nom4");
 });
 
 it("range les inventaires des autres joueurs dans des colonnes distinctes", async () => {

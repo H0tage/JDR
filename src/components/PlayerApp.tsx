@@ -1,10 +1,10 @@
-import { BookOpen, Check, CircleHelp, CircleOff, Cloud, Eye, Focus, Gem, Handshake, Heart, ImagePlus, LayoutDashboard, LockKeyhole, Minimize2, Moon, Network, Pencil, Save, ScrollText, Sun, TriangleAlert, UserRound, Users, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, CircleHelp, CircleOff, Cloud, Eye, Focus, Gem, Handshake, Heart, ImagePlus, LayoutDashboard, List, LockKeyhole, Maximize2, Minimize2, Moon, Network, Pencil, Save, ScrollText, Sun, TriangleAlert, UserRound, Users, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { contactPortraitUrl, loadPlayerData, savePlayerContactNotes, subscribeToCampaign } from "../lib/api";
 import { highestAvailableService, unlockedServices } from "../lib/domain";
 import { formatCopper, loadPlayerEconomy } from "../lib/playerEconomyApi";
-import { deletePlayerCharacterImage, listCampaignPlayerPages, loadMyPlayerPage, playerCharacterImageUrl, saveMyPlayerPage, uploadPlayerCharacterImage, type CampaignPlayerPage, type PlayerPage, type PlayerPageDraft } from "../lib/playerPageApi";
+import { deletePlayerCharacterImage, listCampaignPlayerPages, listMyPlayerRelationshipNotes, loadMyPlayerPage, playerCharacterImageUrl, saveMyPlayerPage, saveMyPlayerRelationshipNote, uploadPlayerCharacterImage, type CampaignPlayerPage, type PlayerPage, type PlayerPageDraft, type PlayerRelationshipNote } from "../lib/playerPageApi";
 import type { CampaignData, CampaignInventoryItem, Contact, FactionOverview } from "../lib/types";
 import { EmptyState, ErrorPanel, LoadingScreen, SectionHeading } from "./ui";
 import { BestiaryTab } from "./BestiaryTab";
@@ -65,14 +65,12 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
-    if (viewerRole !== "gm") return;
     void listCampaignPlayerPages(campaignId, demo)
       .then((pages) => { setPlayerPages(pages); setPlayerPagesError(null); })
       .catch((caught) => setPlayerPagesError(caught instanceof Error ? caught.message : "Chargement des pages joueurs impossible."));
   }, [campaignId, demo, viewerRole]);
   useEffect(() => {
     if (viewerRole === "gm" && tab === "my-page") setTab("help");
-    if (viewerRole === "player" && tab === "player-pages") setTab("help");
   }, [tab, viewerRole]);
   useEffect(() => {
     if (demo || !data) return;
@@ -147,7 +145,7 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
         <button className={tab === "relations" ? "active" : ""} onClick={() => setTab("relations")}><Eye size={17} />Relations</button>
         <button className={tab === "bestiary" ? "active" : ""} onClick={() => setTab("bestiary")}><BookOpen size={17} />Bestiaire</button>
         <button className={tab === "loot" ? "active" : ""} onClick={() => setTab("loot")}><Gem size={17} />Butins</button>
-        {viewerRole === "player" ? <button className={tab === "my-page" ? "active" : ""} onClick={() => setTab("my-page")}><UserRound size={17} />Ma page</button> : <PlayerPagesMenu pages={playerPages} error={playerPagesError} theme={theme} onSelect={(page) => { setSelectedPlayerPage(page); setTab("player-pages"); }} />}
+        <PlayerPagesMenu pages={playerPages} error={playerPagesError} theme={theme} viewerRole={viewerRole} active={tab === "my-page" || tab === "player-pages"} onOpenOwn={() => setTab("my-page")} onSelect={(page) => { if (page.is_own && viewerRole === "player") setTab("my-page"); else { setSelectedPlayerPage(page); setTab("player-pages"); } }} />
         <button className={tab === "help" ? "active" : ""} onClick={() => setTab("help")}><CircleHelp size={17} />Comment fonctionne ce site ?</button>
       </nav>
       <main className="player-content">
@@ -157,8 +155,8 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
         {tab === "relations" && <PlayerRelations data={data} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "loot" && <PlayerEconomyTab campaignId={data.settings.campaign_id} demo={demo} viewerRole={viewerRole} />}
-        {viewerRole === "player" && <div className="persistent-player-page" hidden={tab !== "my-page"}><PlayerPageTab campaignId={data.settings.campaign_id} demo={demo} active={tab === "my-page"} /></div>}
-        {tab === "player-pages" && viewerRole === "gm" && <PlayerPagesTab page={selectedPlayerPage} loading={playerPages === null && !playerPagesError} error={playerPagesError} />}
+        {viewerRole === "player" && <div className="persistent-player-page" hidden={tab !== "my-page"}><PlayerPageTab campaignId={data.settings.campaign_id} demo={demo} active={tab === "my-page"} playerPages={playerPages ?? []} /></div>}
+        {tab === "player-pages" && <PlayerPagesTab page={selectedPlayerPage} loading={playerPages === null && !playerPagesError} error={playerPagesError} viewerRole={viewerRole} />}
         {tab === "notes" && <QuestJournalTab campaignId={data.settings.campaign_id} entries={data.questEntries} factionHistory={[]} showFactionHistory={false} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "quest-journal" && <QuestWritingTab page={data.questJournalPage} revisions={data.questJournalRevisions} canRestoreHistory demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "help" && <PlayerGuide />}
@@ -168,10 +166,13 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
   );
 }
 
-function PlayerPagesMenu({ pages, error, theme, onSelect }: {
+function PlayerPagesMenu({ pages, error, theme, viewerRole, active, onOpenOwn, onSelect }: {
   pages: CampaignPlayerPage[] | null;
   error: string | null;
   theme: PlayerTheme;
+  viewerRole: "gm" | "player";
+  active: boolean;
+  onOpenOwn: () => void;
   onSelect: (page: CampaignPlayerPage) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -197,11 +198,13 @@ function PlayerPagesMenu({ pages, error, theme, onSelect }: {
   const submenu = open && createPortal(<div className={`player-pages-submenu${submenuThemeClass}`} role="menu" style={submenuPosition ?? undefined} onMouseEnter={cancelClose} onMouseLeave={scheduleClose} onFocus={cancelClose} onBlur={scheduleClose}>
       {error && <span className="player-pages-submenu-message">Pages indisponibles</span>}
       {!error && pages === null && <span className="player-pages-submenu-message">Chargement…</span>}
-      {!error && pages?.length === 0 && <span className="player-pages-submenu-message">Pas encore de joueurs</span>}
-      {!error && pages?.map((page) => <button type="button" role="menuitem" key={page.user_id} onClick={() => { onSelect(page); setOpen(false); }}><span>{page.display_name}</span><small>{page.active ? (page.character_name || "Personnage non renseigné") : "Hors campagne"}</small></button>)}
+      {!error && viewerRole === "player" && <button type="button" role="menuitem" className="player-pages-own-link" onClick={() => { onOpenOwn(); setOpen(false); }}><span>Ma page</span><small>Ma fiche et Pathbuilder</small></button>}
+      {!error && pages?.filter((page) => viewerRole === "gm" || !page.is_own).length === 0 && viewerRole === "gm" && <span className="player-pages-submenu-message">Pas encore de joueurs</span>}
+      {!error && pages?.filter((page) => viewerRole === "gm" || !page.is_own).map((page) => <button type="button" role="menuitem" key={page.user_id} onClick={() => { onSelect(page); setOpen(false); }}><span>{page.display_name}</span><small>{page.active ? (page.character_name || "Personnage non renseigné") : "Hors campagne"}</small></button>)}
     </div>, document.body);
   return <div ref={menuRef} className="player-pages-menu" onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose} onFocus={() => { cancelClose(); setOpen(true); }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) scheduleClose(); }}>
-    <button type="button" className={open ? "active" : ""} aria-haspopup="menu" aria-expanded={open} onClick={() => { cancelClose(); setOpen(true); }}><Users size={17} />Pages des joueurs</button>
+    <button type="button" className={active || open ? "active" : ""} aria-haspopup="menu" aria-expanded={open} onClick={() => { if (viewerRole === "player") { onOpenOwn(); setOpen(false); } else { cancelClose(); setOpen(true); } }}><Users size={17} />Pages des joueurs</button>
+    <button type="button" className={`player-pages-menu-toggle${active || open ? " active" : ""}`} aria-label="Choisir une page joueur" aria-haspopup="menu" aria-expanded={open} onClick={() => { cancelClose(); setOpen((current) => !current); }}><ChevronDown size={14} /></button>
     {submenu}
   </div>;
 }
@@ -233,25 +236,28 @@ function PlayerDashboard({ data, demo, viewerRole, onOpen }: { data: CampaignDat
     </section>
     <div className="player-dashboard-columns">
       <section className="player-dashboard-panel"><header><div><p className="eyebrow">À reprendre</p><h2>Notes actives</h2></div><button onClick={() => onOpen("notes")}>Tout voir</button></header>{activeNotes.length ? <ul>{activeNotes.slice(0, 4).map((entry) => <li key={entry.id}><button onClick={() => onOpen("notes")}><span>{entry.category}</span><strong>{entry.title}</strong>{entry.notes && <small>{entry.notes}</small>}</button></li>)}</ul> : <p className="player-dashboard-empty">Aucune piste active pour le moment.</p>}</section>
-      <section className="player-dashboard-panel"><header><div><p className="eyebrow">Dernières publications</p><h2>Butins partagés</h2></div><button onClick={() => onOpen("loot")}>Tout voir</button></header>{loot === null ? <p className="player-dashboard-empty">Consultation du registre…</p> : recentLoot.length ? <ul>{recentLoot.map((item) => <li key={item.id}><button onClick={() => onOpen("loot")}><span>{new Date(`${item.acquired_on}T12:00:00`).toLocaleDateString("fr-FR")}</span><strong>{item.name}</strong><small>{item.owner_display_name ? `Attribué à ${item.owner_display_name}` : "Pot commun"}</small></button></li>)}</ul> : <p className="player-dashboard-empty">Aucun butin partagé pour le moment.</p>}</section>
+      <section className="player-dashboard-panel"><header><div><p className="eyebrow">Dernières publications</p><h2>Butins partagés</h2></div><button onClick={() => onOpen("loot")}>Tout voir</button></header>{loot === null ? <p className="player-dashboard-empty">Consultation du registre…</p> : recentLoot.length ? <ul>{recentLoot.map((item) => <li key={item.id}><button onClick={() => onOpen("loot")}><span>{new Date(`${item.acquired_on}T12:00:00`).toLocaleDateString("fr-FR")}</span><strong>{item.name}</strong><small>{item.owner_display_name ? `Attribué à ${item.owner_display_name}` : "Compte commun"}</small></button></li>)}</ul> : <p className="player-dashboard-empty">Aucun butin partagé pour le moment.</p>}</section>
     </div>
     <section className="player-dashboard-panel player-dashboard-bestiary"><header><div><p className="eyebrow">Registre vivant</p><h2>Créatures récemment consignées</h2></div><button onClick={() => onOpen("bestiary")}>Ouvrir le bestiaire</button></header>{datedBestiary.length ? <div>{datedBestiary.map((entry) => <button key={entry.id} onClick={() => onOpen("bestiary")}><BookOpen size={18} /><span><strong>{entry.name}</strong><small>{entry.updated_at || entry.created_at ? new Date(entry.updated_at ?? entry.created_at ?? "").toLocaleDateString("fr-FR") : ""}</small></span></button>)}</div> : <p className="player-dashboard-empty">Les créatures recensées apparaîtront ici dès qu’une date d’ajout sera disponible.</p>}</section>
-    <nav className="player-dashboard-shortcuts" aria-label="Accès rapides"><button onClick={() => onOpen("relations")}><Eye size={17} />Relations</button><button onClick={() => onOpen("loot")}><Gem size={17} />Butins</button>{viewerRole === "player" ? <button onClick={() => onOpen("my-page")}><UserRound size={17} />Ma page</button> : <button onClick={() => onOpen("player-pages")}><Users size={17} />Pages des joueurs</button>}</nav>
+    <nav className="player-dashboard-shortcuts" aria-label="Accès rapides"><button onClick={() => onOpen("relations")}><Eye size={17} />Relations</button><button onClick={() => onOpen("loot")}><Gem size={17} />Butins</button><button onClick={() => onOpen(viewerRole === "player" ? "my-page" : "player-pages")}><Users size={17} />Pages des joueurs</button></nav>
   </div>;
 }
 
-function PlayerPagesTab({ page, loading, error }: { page: CampaignPlayerPage | null; loading: boolean; error: string | null }) {
+function PlayerPagesTab({ page, loading, error, viewerRole }: { page: CampaignPlayerPage | null; loading: boolean; error: string | null; viewerRole: "gm" | "player" }) {
+  const [portraitOpen, setPortraitOpen] = useState(false);
   if (loading) return <LoadingScreen label="Chargement des pages joueurs…" />;
   if (error) return <ErrorPanel error={error} />;
-  if (!page) return <div className="page-stack"><SectionHeading eyebrow="Consultation MJ" title="Pages des joueurs" /><EmptyState title="Sélectionnez une page joueur">Choisissez un joueur dans le menu « Pages des joueurs » pour consulter son espace personnel.</EmptyState></div>;
+  if (!page) return <div className="page-stack"><SectionHeading eyebrow="Fiches de la campagne" title="Pages des joueurs" /><EmptyState title="Sélectionnez une page joueur">Choisissez un joueur dans le menu « Pages des joueurs » pour consulter sa fiche.</EmptyState></div>;
+  const portrait = playerCharacterImageUrl(page.image_path);
   return <div className="page-stack player-page-tab player-pages-readonly">
     <SectionHeading eyebrow={`${page.display_name}${page.active ? "" : " · hors campagne"}`} title={`Page de ${page.display_name}`} />
-    <p className="player-page-privacy"><LockKeyhole size={17} /><span><strong>Lecture seule pour le MJ.</strong> Cette page est personnelle au joueur. Vous pouvez la consulter, mais seul son propriétaire peut la modifier.</span></p>
-    {page.image_path && <div className="player-page-readonly-portrait"><img src={playerCharacterImageUrl(page.image_path) ?? undefined} alt={page.character_name ? `Illustration de ${page.character_name}` : `Illustration de ${page.display_name}`} /></div>}
-    <section className="player-page-card"><h2>Personnage</h2><dl className="player-page-readonly-fields"><div><dt>Nom du personnage</dt><dd>{page.character_name || "Non renseigné"}</dd></div><div><dt>Présentation</dt><dd>{page.character_summary || "Non renseignée"}</dd></div>{page.pathbuilder_url && <div><dt>Pathbuilder</dt><dd><a href={page.pathbuilder_url} target="_blank" rel="noreferrer">Ouvrir la fiche</a></dd></div>}</dl></section>
-    <section className="player-page-card"><h2>Objectifs</h2><p className="player-page-readonly-text">{page.objectives || "Aucun objectif renseigné."}</p></section>
-    <section className="player-page-card"><h2>Notes personnelles</h2><p className="player-page-readonly-text">{page.notes || "Aucune note."}</p></section>
-    <p className="player-page-readonly-updated">Dernière modification : {new Date(page.updated_at).toLocaleString("fr-FR")}</p>
+    <p className="player-page-privacy"><LockKeyhole size={17} /><span><strong>Lecture seule.</strong> Tous les membres de la campagne peuvent consulter cette fiche, mais seul son propriétaire peut la modifier.{viewerRole === "gm" ? " En tant que MJ, vous voyez aussi ses notes privées." : " Ses notes privées et Pathbuilder restent masqués."}</span></p>
+    <div className="player-character-sheet">
+      <section className="player-character-hero player-character-hero-readonly">{portrait ? <button type="button" className="player-character-portrait player-character-portrait-button" onClick={() => setPortraitOpen(true)} title="Agrandir l’illustration"><img src={portrait} alt={page.character_name ? `Illustration de ${page.character_name}` : `Illustration de ${page.display_name}`} /><span><Maximize2 size={16} />Agrandir</span></button> : <div className="player-character-portrait"><div><UserRound size={48} /><span>Aucune illustration</span></div></div>}<div className="player-character-intro"><p className="eyebrow">Personnage de {page.display_name}</p><h1>{page.character_name || "Personnage sans nom"}</h1><p>{page.character_summary || "Aucune présentation renseignée."}</p></div></section>
+      <div className="player-character-details"><section><p className="eyebrow">Intentions</p><h2>Objectifs</h2><p>{page.objectives || "Aucun objectif renseigné."}</p></section>{viewerRole === "gm" && <section><p className="eyebrow">Confidentiel</p><h2>Notes privées</h2><p>{page.notes || "Aucune note privée."}</p></section>}</div>
+      <p className="player-character-updated">Dernière modification : {new Date(page.updated_at).toLocaleString("fr-FR")}</p>
+    </div>
+    {portraitOpen && portrait && <CharacterImageLightbox src={portrait} name={page.character_name || page.display_name} onClose={() => setPortraitOpen(false)} />}
   </div>;
 }
 
@@ -265,7 +271,7 @@ function PlayerGuide() {
       <article><Eye size={20} /><div><h3>Relations</h3><p>Consultez ce que les factions connaissent du groupe, leur disposition, les contacts révélés et les services éventuellement accessibles.</p></div></article>
       <article><BookOpen size={20} /><div><h3>Bestiaire</h3><p>Ajoutez ou consultez les créatures rencontrées, leurs résistances, faiblesses et notes utiles au groupe.</p></div></article>
       <article><Gem size={20} /><div><h3>Butins</h3><p>Consultez les objets que le MJ a ajoutés à l’inventaire partagé du groupe.</p></div></article>
-      <article><UserRound size={20} /><div><h3>Ma page</h3><p>Gardez vos informations de personnage, vos objectifs et vos notes personnelles. Seuls vous et le MJ pouvez les consulter.</p></div></article>
+      <article><UserRound size={20} /><div><h3>Pages des joueurs</h3><p>Consultez les fiches des personnages de la campagne. Votre page est la seule que vous pouvez modifier et la seule à donner accès à votre Pathbuilder et à vos notes privées.</p></div></article>
       <article><Network size={20} /><div><h3>Politique connue</h3><p>La carte des rapports entre factions apparaît en bas de la page Relations lorsque le groupe en connaît suffisamment.</p></div></article>
       <article><Sun size={20} /><div><h3>Préférences d’affichage</h3><p>Les thèmes Clair, Original et Sombre sont propres à votre navigateur. Le dernier onglet ouvert est également conservé sur cet appareil.</p></div></article>
     </section>
@@ -293,7 +299,7 @@ function storedPathbuilderFocus(): boolean {
   }
 }
 
-function PlayerPageTab({ campaignId, demo, active }: { campaignId: string; demo: boolean; active: boolean }) {
+function PlayerPageTab({ campaignId, demo, active, playerPages }: { campaignId: string; demo: boolean; active: boolean; playerPages: CampaignPlayerPage[] }) {
   const [pageView, setPageView] = useState<"register" | "pathbuilder">("register");
   const [pathbuilderOpened, setPathbuilderOpened] = useState(false);
   const [pathbuilderFocusPreference, setPathbuilderFocusPreference] = useState(storedPathbuilderFocus);
@@ -309,6 +315,8 @@ function PlayerPageTab({ campaignId, demo, active }: { campaignId: string; demo:
   const [editing, setEditing] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [portraitOpen, setPortraitOpen] = useState(false);
+  const [relationshipNotes, setRelationshipNotes] = useState<PlayerRelationshipNote[]>([]);
 
   const releasePathbuilderFocus = useCallback((updateState = true) => {
     const previous = scrollLockRef.current;
@@ -359,10 +367,11 @@ function PlayerPageTab({ campaignId, demo, active }: { campaignId: string; demo:
 
   const refresh = useCallback(async () => {
     try {
-      const [nextPage, economy] = await Promise.all([loadMyPlayerPage(campaignId, demo), loadPlayerEconomy(campaignId, demo)]);
+      const [nextPage, economy, nextRelationshipNotes] = await Promise.all([loadMyPlayerPage(campaignId, demo), loadPlayerEconomy(campaignId, demo), listMyPlayerRelationshipNotes(campaignId, demo)]);
       setPage(nextPage);
       setDraft(emptyPlayerPageDraft(nextPage));
       setPossessions(economy.items.filter((item) => item.status === "active" && item.owner_user_id === nextPage.user_id));
+      setRelationshipNotes(nextRelationshipNotes);
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Chargement de votre page impossible.");
@@ -418,19 +427,65 @@ function PlayerPageTab({ campaignId, demo, active }: { campaignId: string; demo:
     </nav>{pageView === "pathbuilder" && <button type="button" className={`player-page-focus-button${pathbuilderFocused ? " active" : ""}`} aria-pressed={pathbuilderFocused} onClick={togglePathbuilderFocus}>{pathbuilderFocused ? <Minimize2 size={17} /> : <Focus size={17} />}<span>{pathbuilderFocused ? "Libérer la page" : "Cadrer Pathbuilder"}</span></button>}</div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {saved && <p className="form-success" role="status">Votre page est enregistrée.</p>}
-    <div className="player-page-register-view" hidden={pageView !== "register"}><p className="player-page-privacy"><LockKeyhole size={17} /><span><strong>Espace personnel.</strong> Vous seul pouvez modifier cette page. Le MJ peut la consulter, mais aucun autre joueur ne peut la voir.</span></p>{editing ? <form className="player-page-edit" onSubmit={save}>
+    <div className="player-page-register-view" hidden={pageView !== "register"}><p className="player-page-privacy"><LockKeyhole size={17} /><span><strong>Votre fiche de campagne.</strong> Les autres joueurs peuvent la consulter en lecture seule. Vos notes privées restent visibles uniquement par vous et le MJ.</span></p>{editing ? <form className="player-page-edit" onSubmit={save}>
       <section className="player-page-edit-portrait"><div>{portrait ? <img src={portrait} alt="Aperçu du personnage" /> : <ImagePlus size={40} />}</div><label className="button secondary"><ImagePlus size={16} />Choisir une illustration<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseImage(event.target.files?.[0] ?? null)} /></label>{(draft.image_path || imageFile) && <button type="button" className="text-button danger-text" onClick={() => { chooseImage(null); setDraft({ ...draft, image_path: null }); }}>Retirer l’image</button>}<small>JPEG, PNG ou WebP · 8 Mo maximum.</small></section>
       <section className="player-page-edit-fields"><label>Nom du personnage<input maxLength={120} value={draft.character_name ?? ""} onChange={(event) => setDraft({ ...draft, character_name: event.target.value })} placeholder="Nom utilisé en jeu" /></label><label>Présentation<textarea maxLength={4000} value={draft.character_summary ?? ""} onChange={(event) => setDraft({ ...draft, character_summary: event.target.value })} placeholder="Concept, parcours et éléments importants…" /></label><label>Lien Pathbuilder<input type="url" maxLength={500} value={draft.pathbuilder_url ?? ""} onChange={(event) => setDraft({ ...draft, pathbuilder_url: event.target.value })} placeholder="https://pathbuilder2e.com/…" /></label></section>
-      <section className="player-page-edit-wide"><label>Objectifs<textarea maxLength={10000} value={draft.objectives ?? ""} onChange={(event) => setDraft({ ...draft, objectives: event.target.value })} placeholder="Objectifs personnels, pistes à suivre, promesses…" /></label><label>Notes personnelles<textarea className="player-page-notes" maxLength={20000} value={draft.notes ?? ""} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="Ces notes ne sont visibles que par vous et le MJ." /></label></section>
+      <section className="player-page-edit-wide"><label>Objectifs partagés<textarea maxLength={10000} value={draft.objectives ?? ""} onChange={(event) => setDraft({ ...draft, objectives: event.target.value })} placeholder="Objectifs, pistes à suivre, promesses…" /></label><label>Notes privées <small>visibles uniquement par vous et le MJ</small><textarea className="player-page-notes" maxLength={20000} value={draft.notes ?? ""} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="Repères personnels, secrets, réflexions…" /></label></section>
       <div className="player-page-submit"><small>Cette page reste conservée si vous quittez temporairement la campagne.</small><div><button type="button" className="button secondary" onClick={cancelEdit}>Annuler</button><button className="button primary" disabled={saving}><Save size={17} />{saving ? "Enregistrement…" : "Enregistrer"}</button></div></div>
     </form> : <div className="player-character-sheet">
-      <section className="player-character-hero"><div className="player-character-portrait">{portrait ? <img src={portrait} alt={page.character_name ? `Illustration de ${page.character_name}` : "Illustration du personnage"} /> : <div><UserRound size={48} /><span>Ajoutez une illustration</span></div>}</div><div className="player-character-intro"><p className="eyebrow">Personnage de {page.display_name}</p><h1>{page.character_name || "Personnage sans nom"}</h1><p>{page.character_summary || "Ajoutez une présentation pour donner vie à votre personnage dans les registres."}</p>{page.pathbuilder_url && <a className="button secondary" href={page.pathbuilder_url} target="_blank" rel="noreferrer"><BookOpen size={16} />Ouvrir la fiche Pathbuilder</a>}</div></section>
-      <div className="player-character-details"><section><p className="eyebrow">Intentions</p><h2>Objectifs</h2><p>{page.objectives || "Aucun objectif renseigné pour le moment."}</p></section><section><p className="eyebrow">Mémoire personnelle</p><h2>Notes</h2><p>{page.notes || "Aucune note personnelle."}</p></section></div>
+      <section className="player-character-hero">{portrait ? <button type="button" className="player-character-portrait player-character-portrait-button" onClick={() => setPortraitOpen(true)} title="Agrandir l’illustration"><img src={portrait} alt={page.character_name ? `Illustration de ${page.character_name}` : "Illustration du personnage"} /><span><Maximize2 size={16} />Agrandir</span></button> : <div className="player-character-portrait"><div><UserRound size={48} /><span>Ajoutez une illustration</span></div></div>}<div className="player-character-intro"><p className="eyebrow">Personnage de {page.display_name}</p><h1>{page.character_name || "Personnage sans nom"}</h1><p>{page.character_summary || "Ajoutez une présentation pour donner vie à votre personnage dans les registres."}</p>{page.pathbuilder_url && <a className="button secondary" href={page.pathbuilder_url} target="_blank" rel="noreferrer"><BookOpen size={16} />Ouvrir la fiche Pathbuilder</a>}</div></section>
+      <div className="player-character-details"><section><p className="eyebrow">Intentions</p><h2>Objectifs</h2><p>{page.objectives || "Aucun objectif renseigné pour le moment."}</p></section><section><p className="eyebrow">Confidentiel</p><h2>Notes privées</h2><p>{page.notes || "Aucune note privée."}</p></section></div>
       <section className="player-character-possessions player-page-possessions"><div><p className="eyebrow">Inventaire personnel</p><h2>Mes possessions</h2></div>{possessions.length ? <ul>{possessions.map((item) => <li key={item.id}><strong>{item.name}</strong><span>{item.quantity}{item.unit_value_cp !== null ? ` · ${formatCopper(item.unit_value_cp)}` : ""}</span></li>)}</ul> : <p>Aucun butin ne vous est attribué pour le moment.</p>}</section>
+      <PlayerRelationshipCards campaignId={campaignId} demo={demo} pages={playerPages.filter((candidate) => candidate.active && candidate.user_id !== page.user_id)} notes={relationshipNotes} onSaved={(targetUserId, notes) => setRelationshipNotes((current) => [...current.filter((entry) => entry.target_user_id !== targetUserId), { target_user_id: targetUserId, notes: notes || null, updated_at: new Date().toISOString() }])} />
       <p className="player-character-updated">Dernière modification : {new Date(page.updated_at).toLocaleString("fr-FR")}</p>
     </div>}</div>
-    {pathbuilderOpened && <div className="player-page-pathbuilder-view" hidden={pageView !== "pathbuilder"}><PathbuilderEmbed /></div>}
+    {pathbuilderOpened && <div className="player-page-pathbuilder-view" hidden={pageView !== "pathbuilder"}><PathbuilderEmbed /><PlayerPossessionsSummary possessions={possessions} /></div>}
+    {portraitOpen && portrait && <CharacterImageLightbox src={portrait} name={page.character_name || "votre personnage"} onClose={() => setPortraitOpen(false)} />}
   </div>;
+}
+
+function PlayerPossessionsSummary({ possessions }: { possessions: CampaignInventoryItem[] }) {
+  return <section className="pathbuilder-possessions player-character-possessions player-page-possessions">
+    <div><p className="eyebrow">Rappel du registre</p><h2>Mes possessions</h2><small>Inventaire issu du gestionnaire de butins</small></div>
+    {possessions.length ? <ul>{possessions.map((item) => <li key={item.id}><strong>{item.name}</strong><span>{item.quantity}{item.unit_value_cp !== null ? ` · ${formatCopper(item.unit_value_cp)}` : ""}</span></li>)}</ul> : <p>Aucun butin ne vous est attribué pour le moment.</p>}
+  </section>;
+}
+
+function PlayerRelationshipCards({ campaignId, demo, pages, notes, onSaved }: { campaignId: string; demo: boolean; pages: CampaignPlayerPage[]; notes: PlayerRelationshipNote[]; onSaved: (targetUserId: string, notes: string) => void }) {
+  if (!pages.length) return null;
+  return <section className="player-party-relations">
+    <header><div><p className="eyebrow">Compagnons de route</p><h2>Les autres personnages</h2></div><small>Vos notes sur eux sont privées et ne sont jamais partagées.</small></header>
+    <div>{pages.map((page) => <PlayerRelationshipCard key={page.user_id} campaignId={campaignId} demo={demo} page={page} initialNotes={notes.find((entry) => entry.target_user_id === page.user_id)?.notes ?? ""} onSaved={onSaved} />)}</div>
+  </section>;
+}
+
+function PlayerRelationshipCard({ campaignId, demo, page, initialNotes, onSaved }: { campaignId: string; demo: boolean; page: CampaignPlayerPage; initialNotes: string; onSaved: (targetUserId: string, notes: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(initialNotes);
+  const [saved, setSaved] = useState(initialNotes);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { setDraft(initialNotes); setSaved(initialNotes); }, [initialNotes]);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true); setError(null);
+    try {
+      const next = draft.trim();
+      await saveMyPlayerRelationshipNote(campaignId, page.user_id, next, demo);
+      setSaved(next); setDraft(next); setEditing(false); onSaved(page.user_id, next);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Enregistrement impossible.");
+    } finally { setSaving(false); }
+  }
+  const portrait = playerCharacterImageUrl(page.image_path);
+  return <article className="player-party-relation-card">
+    <header><span className="contact-portrait">{portrait ? <img src={portrait} alt="" /> : <UserRound size={19} aria-hidden="true" />}</span><div><small>{page.display_name}</small><h3>{page.character_name || "Personnage non renseigné"}</h3></div></header>
+    {!editing ? <><p>{saved || "Aucune note privée sur ce personnage."}</p><button type="button" className="contact-notes-toggle" onClick={() => setEditing(true)}><Pencil size={14} />{saved ? "Modifier mes notes" : "Ajouter une note"}</button></> : <form onSubmit={(event) => void submit(event)}><label>Notes privées<textarea maxLength={10000} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Souvenirs, promesses, dynamique entre vos personnages…" /></label>{error && <small className="form-error">{error}</small>}<div><button type="button" className="button tiny secondary" disabled={saving} onClick={() => { setDraft(saved); setEditing(false); setError(null); }}>Annuler</button><button className="button tiny primary" disabled={saving}><Save size={14} />{saving ? "Enregistrement…" : "Enregistrer"}</button></div></form>}
+  </article>;
+}
+
+function CharacterImageLightbox({ src, name, onClose }: { src: string; name: string; onClose: () => void }) {
+  return <div className="modal-backdrop bestiary-lightbox" role="presentation" onClick={onClose}><section className="bestiary-lightbox-card character-lightbox-card" role="dialog" aria-modal="true" aria-label={`Illustration de ${name}`} onClick={(event) => event.stopPropagation()}><header><strong>{name}</strong><button type="button" className="icon-button" onClick={onClose} aria-label="Fermer l’image"><X /></button></header><img src={src} alt={`Illustration de ${name}`} /></section></div>;
 }
 
 export function PlayerRelations({ data, demo, onChanged, onNotice, onError }: {
@@ -443,10 +498,12 @@ export function PlayerRelations({ data, demo, onChanged, onNotice, onError }: {
   const visibleFactions = data.factions.filter((faction) => faction.is_player_visible);
   const intuitive = data.settings.player_display_mode === "intuitive";
   const [openedContact, setOpenedContact] = useState<Contact | null>(null);
+  const [view, setView] = useState<"cards" | "list">("cards");
+  const visibleContacts = [...data.contacts].filter((contact) => contact.visibility === "players").sort((left, right) => left.name.localeCompare(right.name, "fr", { sensitivity: "base" }));
   return (
     <div className="page-stack">
-      <SectionHeading eyebrow={intuitive ? "Alliances et appréciation" : "Réputation et faveurs"} title="Vos relations" />
-      {visibleFactions.length > 0 ? <section className="player-faction-grid">{visibleFactions.map((faction) => <PlayerFactionCard key={faction.faction_id} faction={faction} data={data} contacts={data.contacts.filter((contact) => contact.faction_id === faction.faction_id)} onOpenContact={setOpenedContact} />)}</section> : <EmptyState title="Aucune faction révélée">Le MJ fera apparaître les factions rencontrées ici.</EmptyState>}
+      <div className="relations-heading"><SectionHeading eyebrow={intuitive ? "Alliances et appréciation" : "Réputation et faveurs"} title="Vos relations" /><nav aria-label="Mode d’affichage des relations"><button type="button" className={view === "cards" ? "active" : ""} onClick={() => setView("cards")}><Users size={15} />Cartes</button><button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")}><List size={15} />Liste</button></nav></div>
+      {view === "cards" ? (visibleFactions.length > 0 ? <section className="player-faction-grid">{visibleFactions.map((faction) => <PlayerFactionCard key={faction.faction_id} faction={faction} data={data} contacts={data.contacts.filter((contact) => contact.faction_id === faction.faction_id)} onOpenContact={setOpenedContact} />)}</section> : <EmptyState title="Aucune faction révélée">Le MJ fera apparaître les factions rencontrées ici.</EmptyState>) : visibleContacts.length ? <section className="player-contact-list" aria-label="Contacts connus par ordre alphabétique">{visibleContacts.map((contact) => <button type="button" key={contact.id} onClick={() => setOpenedContact(contact)}><ContactPortrait contact={contact} /><span><strong>{contact.name}</strong><small>{contact.role || "Contact connu"}</small></span><em>{contact.faction_name}</em></button>)}</section> : <EmptyState title="Aucun contact révélé">Les contacts connus apparaîtront ici.</EmptyState>}
       {data.relationships.length > 0 && <details className="player-politics-details"><summary><span><Network size={17} />Carte politique connue</span><small>Vue d’ensemble</small></summary><PlayerPolitics data={data} compact /></details>}
       {openedContact && <PlayerContactDialog contact={openedContact} demo={demo} onChanged={onChanged} onNotice={onNotice} onError={onError} onClose={() => setOpenedContact(null)} />}
     </div>

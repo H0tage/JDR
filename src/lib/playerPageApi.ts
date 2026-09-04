@@ -16,6 +16,13 @@ export interface PlayerPage {
 export interface CampaignPlayerPage extends PlayerPage {
   display_name: string;
   active: boolean;
+  is_own: boolean;
+}
+
+export interface PlayerRelationshipNote {
+  target_user_id: string;
+  notes: string | null;
+  updated_at: string;
 }
 
 export type PlayerPageDraft = Pick<PlayerPage, "character_name" | "character_summary" | "pathbuilder_url" | "notes" | "objectives" | "image_path">;
@@ -86,12 +93,29 @@ export function playerCharacterImageUrl(path: string | null): string | null {
 
 export async function listCampaignPlayerPages(campaignId: string, demo = false): Promise<CampaignPlayerPage[]> {
   if (demo) return [
-    { ...demoPage, campaign_id: campaignId, display_name: "Prénom1 Nom1", active: true, character_name: "Personnage 1", character_summary: "Présentation anonymisée.", objectives: "Objectif anonymisé.", notes: "Notes anonymisées." },
-    { ...demoPage, campaign_id: campaignId, user_id: "demo-morrigan", display_name: "Prénom2 Nom2", active: true, character_name: "Personnage 2", character_summary: "", objectives: "", notes: "" },
-    { ...demoPage, campaign_id: campaignId, user_id: "demo-silas", display_name: "Prénom3 Nom3", active: true, character_name: "Personnage 3", character_summary: "", objectives: "", notes: "" },
-    { ...demoPage, campaign_id: campaignId, user_id: "demo-nox", display_name: "Prénom4 Nom4", active: true, character_name: "Personnage 4", character_summary: "", objectives: "", notes: "" },
+    { ...demoPage, campaign_id: campaignId, display_name: "Prénom1 Nom1", active: true, is_own: true, character_name: "Personnage 1", character_summary: "Présentation anonymisée.", objectives: "Objectif anonymisé.", notes: "Notes anonymisées." },
+    { ...demoPage, campaign_id: campaignId, user_id: "demo-morrigan", display_name: "Prénom2 Nom2", active: true, is_own: false, character_name: "Personnage 2", character_summary: "Présentation anonymisée du personnage 2.", objectives: "Objectif anonymisé.", notes: null },
+    { ...demoPage, campaign_id: campaignId, user_id: "demo-silas", display_name: "Prénom3 Nom3", active: true, is_own: false, character_name: "Personnage 3", character_summary: "Présentation anonymisée du personnage 3.", objectives: "", notes: null },
+    { ...demoPage, campaign_id: campaignId, user_id: "demo-nox", display_name: "Prénom4 Nom4", active: true, is_own: false, character_name: "Personnage 4", character_summary: "Présentation anonymisée du personnage 4.", objectives: "", notes: null },
   ];
   const result = await client().rpc("list_campaign_player_pages", { p_campaign_id: campaignId });
   if (result.error) throw new Error(`Pages joueurs : ${result.error.message}`);
   return (result.data ?? []) as CampaignPlayerPage[];
+}
+
+export async function listMyPlayerRelationshipNotes(campaignId: string, demo = false): Promise<PlayerRelationshipNote[]> {
+  if (demo) return [{ target_user_id: "demo-morrigan", notes: "Penser à lui reparler de notre promesse commune.", updated_at: new Date(0).toISOString() }];
+  const result = await client().rpc("list_my_player_relationship_notes", { p_campaign_id: campaignId });
+  if (result.error) throw new Error(`Relations entre joueurs : ${result.error.message}`);
+  return (result.data ?? []) as PlayerRelationshipNote[];
+}
+
+export async function saveMyPlayerRelationshipNote(campaignId: string, targetUserId: string, notes: string, demo = false): Promise<void> {
+  if (demo) return;
+  const result = await client().rpc("update_my_player_relationship_note", {
+    p_campaign_id: campaignId,
+    p_target_user_id: targetUserId,
+    p_notes: notes,
+  });
+  if (result.error) throw new Error(`Relations entre joueurs : ${result.error.message}`);
 }

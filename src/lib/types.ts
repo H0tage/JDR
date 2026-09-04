@@ -410,6 +410,7 @@ export interface CampaignEconomyTotals {
   campaign_id: string;
   total_entered_cp: number;
   total_exited_cp: number;
+  current_wealth_cp: number;
 }
 
 export type CampaignMoneyTransactionKind = "common_income" | "personal_income" | "personal_expense" | "transfer" | "sale" | "purchase" | "reversal" | "departure_transfer" | "gm_adjustment";

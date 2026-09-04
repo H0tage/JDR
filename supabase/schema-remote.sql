@@ -993,21 +993,41 @@ $$;
 ALTER FUNCTION "public"."list_campaign_members"("p_campaign_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."list_campaign_player_pages"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "active" boolean, "character_name" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text")
+CREATE OR REPLACE FUNCTION "public"."list_campaign_player_pages"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "active" boolean, "is_own" boolean, "character_name" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text")
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
+declare
+  viewer_is_gm boolean := public.is_campaign_gm(p_campaign_id);
 begin
-  if not public.is_campaign_gm(p_campaign_id) then raise exception 'Accès refusé'; end if;
-  return query select page.campaign_id, page.user_id, coalesce(profile.display_name, 'Sans pseudo'),
-    (member.user_id is not null), page.character_name, page.character_summary,
-    page.pathbuilder_url, page.notes, page.objectives, page.updated_at, page.image_path
+  if not public.is_campaign_member(p_campaign_id) then
+    raise exception 'Accès refusé';
+  end if;
+
+  return query
+  select page.campaign_id,
+    page.user_id,
+    coalesce(profile.display_name, 'Sans pseudo'),
+    (member.user_id is not null),
+    (page.user_id = auth.uid()),
+    page.character_name,
+    page.character_summary,
+    case when page.user_id = auth.uid() then page.pathbuilder_url else null end,
+    case when viewer_is_gm or page.user_id = auth.uid() then page.notes else null end,
+    page.objectives,
+    page.updated_at,
+    page.image_path
   from public.player_pages page
   left join public.user_profiles profile on profile.user_id = page.user_id
-  left join public.campaign_members member on member.campaign_id = page.campaign_id
-    and member.user_id = page.user_id and member.role = 'player'
+  left join public.campaign_members member
+    on member.campaign_id = page.campaign_id
+    and member.user_id = page.user_id
+    and member.role = 'player'
   where page.campaign_id = p_campaign_id
-  order by member.user_id is null, lower(coalesce(profile.display_name, 'Sans pseudo'));
+    and (viewer_is_gm or member.user_id is not null)
+  order by member.user_id is null,
+    page.user_id <> auth.uid(),
+    lower(coalesce(profile.display_name, 'Sans pseudo'));
 end;
 $$;
 
@@ -1052,6 +1072,34 @@ $$;
 
 
 ALTER FUNCTION "public"."list_my_campaigns"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."list_my_player_relationship_notes"("p_campaign_id" "uuid") RETURNS TABLE("target_user_id" "uuid", "notes" "text", "updated_at" timestamp with time zone)
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  if not exists (
+    select 1 from public.campaign_members member
+    where member.campaign_id = p_campaign_id
+      and member.user_id = auth.uid()
+      and member.role = 'player'
+  ) then raise exception 'Accès refusé'; end if;
+
+  return query
+  select note.target_user_id, note.notes, note.updated_at
+  from public.player_relationship_notes note
+  join public.campaign_members target
+    on target.campaign_id = note.campaign_id
+    and target.user_id = note.target_user_id
+    and target.role = 'player'
+  where note.campaign_id = p_campaign_id
+    and note.author_user_id = auth.uid();
+end;
+$$;
+
+
+ALTER FUNCTION "public"."list_my_player_relationship_notes"("p_campaign_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."merge_campaign_items"("p_target_item_id" "uuid", "p_source_item_id" "uuid") RETURNS "void"
@@ -1139,59 +1187,33 @@ declare
   v_owner_user_id uuid := coalesce(p_owner_user_id, auth.uid());
   v_item_id uuid;
   v_operation_id uuid := gen_random_uuid();
+  v_unit_value_cp bigint;
 begin
-  if not public.is_campaign_member(p_campaign_id) then raise exception 'AccÃ¨s refusÃ©'; end if;
-  if v_owner_user_id <> auth.uid() and not public.is_campaign_gm(p_campaign_id) then
-    raise exception 'Vous ne pouvez acheter que pour votre personnage';
-  end if;
-  if not public.is_active_campaign_player(p_campaign_id, v_owner_user_id) then
-    raise exception 'PropriÃ©taire invalide';
-  end if;
-  if btrim(p_name) = '' or p_quantity <= 0 or p_price_cp < 0
-    or p_personal_amount_cp < 0 or p_common_amount_cp < 0
-    or p_personal_amount_cp + p_common_amount_cp <> p_price_cp then
-    raise exception 'Achat invalide';
-  end if;
+  if not public.is_campaign_member(p_campaign_id) then raise exception 'Accès refusé'; end if;
+  if v_owner_user_id <> auth.uid() and not public.is_campaign_gm(p_campaign_id) then raise exception 'Vous ne pouvez acheter que pour votre personnage'; end if;
+  if not public.is_active_campaign_player(p_campaign_id, v_owner_user_id) then raise exception 'Propriétaire invalide'; end if;
+  if btrim(p_name) = '' or p_quantity <= 0 or p_price_cp < 0 or p_personal_amount_cp < 0 or p_common_amount_cp < 0
+    or p_personal_amount_cp + p_common_amount_cp <> p_price_cp then raise exception 'Achat invalide'; end if;
+  v_unit_value_cp := round(p_price_cp::numeric / p_quantity)::bigint;
 
   insert into public.campaign_inventory_items (
     campaign_id, created_by, owner_user_id, name, quantity, source_quantity_label,
-    unit_value_cp, purchase_price_cp, aon_legacy_name, aon_legacy_url,
-    source_kind, status
+    unit_value_cp, purchase_price_cp, aon_legacy_name, aon_legacy_url, source_kind, status
   ) values (
-    p_campaign_id, auth.uid(), v_owner_user_id, btrim(p_name), p_quantity,
-    p_quantity::text, p_unit_value_cp, p_price_cp,
-    nullif(btrim(p_aon_legacy_name), ''), nullif(btrim(p_aon_legacy_url), ''),
-    'purchase', 'active'
+    p_campaign_id, auth.uid(), v_owner_user_id, btrim(p_name), p_quantity, p_quantity::text,
+    v_unit_value_cp, p_price_cp, nullif(btrim(p_aon_legacy_name), ''), nullif(btrim(p_aon_legacy_url), ''), 'purchase', 'active'
   ) returning id into v_item_id;
 
   if p_personal_amount_cp > 0 then
-    insert into public.campaign_money_transactions (
-      operation_id, campaign_id, actor_user_id, kind,
-      source_account, source_user_id, destination_account,
-      amount_cp, comment, related_item_id
-    ) values (
-      v_operation_id, p_campaign_id, auth.uid(), 'purchase',
-      'player', v_owner_user_id, 'external', p_personal_amount_cp,
-      nullif(btrim(p_comment), ''), v_item_id
-    );
+    insert into public.campaign_money_transactions (operation_id, campaign_id, actor_user_id, kind, source_account, source_user_id, destination_account, amount_cp, comment, related_item_id)
+    values (v_operation_id, p_campaign_id, auth.uid(), 'purchase', 'player', v_owner_user_id, 'external', p_personal_amount_cp, nullif(btrim(p_comment), ''), v_item_id);
   end if;
   if p_common_amount_cp > 0 then
-    insert into public.campaign_money_transactions (
-      operation_id, campaign_id, actor_user_id, kind,
-      source_account, destination_account, amount_cp, comment, related_item_id
-    ) values (
-      v_operation_id, p_campaign_id, auth.uid(), 'purchase',
-      'common', 'external', p_common_amount_cp,
-      nullif(btrim(p_comment), ''), v_item_id
-    );
+    insert into public.campaign_money_transactions (operation_id, campaign_id, actor_user_id, kind, source_account, destination_account, amount_cp, comment, related_item_id)
+    values (v_operation_id, p_campaign_id, auth.uid(), 'purchase', 'common', 'external', p_common_amount_cp, nullif(btrim(p_comment), ''), v_item_id);
   end if;
-  insert into public.campaign_item_events (
-    campaign_id, item_id, actor_user_id, event_type, next_owner_user_id,
-    quantity, value_cp, comment, money_operation_id
-  ) values (
-    p_campaign_id, v_item_id, auth.uid(), 'purchased', v_owner_user_id,
-    p_quantity, p_price_cp, nullif(btrim(p_comment), ''), v_operation_id
-  );
+  insert into public.campaign_item_events (campaign_id, item_id, actor_user_id, event_type, next_owner_user_id, quantity, value_cp, comment, money_operation_id)
+  values (p_campaign_id, v_item_id, auth.uid(), 'purchased', v_owner_user_id, p_quantity, p_price_cp, nullif(btrim(p_comment), ''), v_operation_id);
   return v_item_id;
 end;
 $$;
@@ -2178,6 +2200,46 @@ $_$;
 
 
 ALTER FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  normalized_notes text := nullif(btrim(coalesce(p_notes, '')), '');
+begin
+  if p_target_user_id = auth.uid() then
+    raise exception 'Vous ne pouvez pas créer une relation avec vous-même';
+  end if;
+  if not exists (
+    select 1 from public.campaign_members member
+    where member.campaign_id = p_campaign_id
+      and member.user_id = auth.uid()
+      and member.role = 'player'
+  ) or not exists (
+    select 1 from public.campaign_members member
+    where member.campaign_id = p_campaign_id
+      and member.user_id = p_target_user_id
+      and member.role = 'player'
+  ) then raise exception 'Joueur introuvable dans cette campagne'; end if;
+
+  if normalized_notes is null then
+    delete from public.player_relationship_notes
+    where campaign_id = p_campaign_id
+      and author_user_id = auth.uid()
+      and target_user_id = p_target_user_id;
+  else
+    insert into public.player_relationship_notes (campaign_id, author_user_id, target_user_id, notes)
+    values (p_campaign_id, auth.uid(), p_target_user_id, normalized_notes)
+    on conflict (campaign_id, author_user_id, target_user_id)
+    do update set notes = excluded.notes;
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_my_profile"("p_display_name" "text") RETURNS TABLE("user_id" "uuid", "display_name" "text")
@@ -3191,7 +3253,17 @@ CREATE OR REPLACE VIEW "public"."player_economy_totals" WITH ("security_barrier"
            FROM "public"."campaign_money_transactions" "transaction"
           WHERE (("transaction"."campaign_id" = "campaign"."id") AND ("transaction"."destination_account" = 'external'::"text") AND (("transaction"."related_item_id" IS NULL) OR (EXISTS ( SELECT 1
                    FROM "public"."campaign_inventory_items" "visible_item"
-                  WHERE (("visible_item"."id" = "transaction"."related_item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))))))), (0)::numeric)))::bigint AS "total_exited_cp"
+                  WHERE (("visible_item"."id" = "transaction"."related_item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))))))), (0)::numeric)))::bigint AS "total_exited_cp",
+    ((COALESCE(( SELECT "sum"(
+                CASE
+                    WHEN ("transaction"."source_account" = 'external'::"text") THEN "transaction"."amount_cp"
+                    WHEN ("transaction"."destination_account" = 'external'::"text") THEN (- "transaction"."amount_cp")
+                    ELSE (0)::bigint
+                END) AS "sum"
+           FROM "public"."campaign_money_transactions" "transaction"
+          WHERE ("transaction"."campaign_id" = "campaign"."id")), (0)::numeric) + COALESCE(( SELECT "sum"(((COALESCE("item"."unit_value_cp", (0)::bigint))::numeric * "item"."quantity")) AS "sum"
+           FROM "public"."campaign_inventory_items" "item"
+          WHERE (("item"."campaign_id" = "campaign"."id") AND ("item"."status" = 'active'::"text") AND ("item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))), (0)::numeric)))::bigint AS "current_wealth_cp"
    FROM "public"."campaigns" "campaign"
   WHERE "public"."is_campaign_member"("id");
 
@@ -3317,13 +3389,17 @@ CREATE OR REPLACE VIEW "public"."player_item_history" WITH ("security_barrier"='
     "event"."created_at",
     "item"."name" AS "item_name",
     "related"."name" AS "related_item_name",
-    "actor_profile"."display_name" AS "actor_display_name",
+        CASE
+            WHEN ("actor_member"."role" = 'gm'::"text") THEN 'Le Maître du Jeu'::"text"
+            ELSE "actor_profile"."display_name"
+        END AS "actor_display_name",
     "previous_profile"."display_name" AS "previous_owner_display_name",
     "next_profile"."display_name" AS "next_owner_display_name"
-   FROM ((((("public"."campaign_item_events" "event"
+   FROM (((((("public"."campaign_item_events" "event"
      LEFT JOIN "public"."campaign_inventory_items" "item" ON (("item"."id" = "event"."item_id")))
      LEFT JOIN "public"."campaign_inventory_items" "related" ON (("related"."id" = "event"."related_item_id")))
      LEFT JOIN "public"."user_profiles" "actor_profile" ON (("actor_profile"."user_id" = "event"."actor_user_id")))
+     LEFT JOIN "public"."campaign_members" "actor_member" ON ((("actor_member"."campaign_id" = "event"."campaign_id") AND ("actor_member"."user_id" = "event"."actor_user_id"))))
      LEFT JOIN "public"."user_profiles" "previous_profile" ON (("previous_profile"."user_id" = "event"."previous_owner_user_id")))
      LEFT JOIN "public"."user_profiles" "next_profile" ON (("next_profile"."user_id" = "event"."next_owner_user_id")))
   WHERE ("public"."is_campaign_member"("event"."campaign_id") AND ("public"."is_campaign_gm"("event"."campaign_id") OR COALESCE("item"."player_visible", "related"."player_visible", false)));
@@ -3412,7 +3488,7 @@ CREATE OR REPLACE VIEW "public"."player_money_balances" WITH ("security_barrier"
  WITH "accounts" AS (
          SELECT "campaign"."id" AS "campaign_id",
             NULL::"uuid" AS "account_user_id",
-            'Pot commun'::"text" AS "display_name",
+            'Compte commun'::"text" AS "display_name",
             true AS "is_common"
            FROM "public"."campaigns" "campaign"
           WHERE "public"."is_campaign_member"("campaign"."id")
@@ -3492,13 +3568,17 @@ CREATE OR REPLACE VIEW "public"."player_money_history" WITH ("security_barrier"=
     "transaction"."related_item_id",
     "transaction"."reversed_transaction_id",
     "transaction"."created_at",
-    "actor_profile"."display_name" AS "actor_display_name",
+        CASE
+            WHEN ("actor_member"."role" = 'gm'::"text") THEN 'Le Maître du Jeu'::"text"
+            ELSE "actor_profile"."display_name"
+        END AS "actor_display_name",
     "source_profile"."display_name" AS "source_display_name",
     "destination_profile"."display_name" AS "destination_display_name",
     "item"."name" AS "related_item_name"
-   FROM ((((("public"."campaign_money_transactions" "transaction"
+   FROM (((((("public"."campaign_money_transactions" "transaction"
      JOIN "public"."campaign_settings" "settings" ON (("settings"."campaign_id" = "transaction"."campaign_id")))
      LEFT JOIN "public"."user_profiles" "actor_profile" ON (("actor_profile"."user_id" = "transaction"."actor_user_id")))
+     LEFT JOIN "public"."campaign_members" "actor_member" ON ((("actor_member"."campaign_id" = "transaction"."campaign_id") AND ("actor_member"."user_id" = "transaction"."actor_user_id"))))
      LEFT JOIN "public"."user_profiles" "source_profile" ON (("source_profile"."user_id" = "transaction"."source_user_id")))
      LEFT JOIN "public"."user_profiles" "destination_profile" ON (("destination_profile"."user_id" = "transaction"."destination_user_id")))
      LEFT JOIN "public"."campaign_inventory_items" "item" ON (("item"."id" = "transaction"."related_item_id")))
@@ -3528,6 +3608,21 @@ CREATE TABLE IF NOT EXISTS "public"."player_pages" (
 
 
 ALTER TABLE "public"."player_pages" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."player_relationship_notes" (
+    "campaign_id" "uuid" NOT NULL,
+    "author_user_id" "uuid" NOT NULL,
+    "target_user_id" "uuid" NOT NULL,
+    "notes" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "player_relationship_notes_distinct_players" CHECK (("author_user_id" <> "target_user_id")),
+    CONSTRAINT "player_relationship_notes_length" CHECK (("char_length"(COALESCE("notes", ''::"text")) <= 10000))
+);
+
+
+ALTER TABLE "public"."player_relationship_notes" OWNER TO "postgres";
 
 
 CREATE OR REPLACE VIEW "public"."player_relationships" WITH ("security_barrier"='true') AS
@@ -3752,11 +3847,6 @@ ALTER TABLE ONLY "public"."campaign_item_events"
 
 
 ALTER TABLE ONLY "public"."campaign_item_requests"
-    ADD CONSTRAINT "campaign_item_requests_item_id_requester_user_id_status_key" UNIQUE ("item_id", "requester_user_id", "status");
-
-
-
-ALTER TABLE ONLY "public"."campaign_item_requests"
     ADD CONSTRAINT "campaign_item_requests_pkey" PRIMARY KEY ("id");
 
 
@@ -3861,6 +3951,11 @@ ALTER TABLE ONLY "public"."player_pages"
 
 
 
+ALTER TABLE ONLY "public"."player_relationship_notes"
+    ADD CONSTRAINT "player_relationship_notes_pkey" PRIMARY KEY ("campaign_id", "author_user_id", "target_user_id");
+
+
+
 ALTER TABLE ONLY "public"."quest_entries"
     ADD CONSTRAINT "quest_entries_pkey" PRIMARY KEY ("id");
 
@@ -3960,6 +4055,10 @@ CREATE INDEX "campaign_item_events_item_date_idx" ON "public"."campaign_item_eve
 
 
 CREATE UNIQUE INDEX "campaign_item_events_reversal_idx" ON "public"."campaign_item_events" USING "btree" ("reversed_event_id") WHERE ("reversed_event_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "campaign_item_requests_one_pending_per_player_idx" ON "public"."campaign_item_requests" USING "btree" ("item_id", "requester_user_id") WHERE ("status" = 'pending'::"text");
 
 
 
@@ -4096,6 +4195,10 @@ CREATE OR REPLACE TRIGGER "journal_touch" BEFORE UPDATE ON "public"."journal_ent
 
 
 CREATE OR REPLACE TRIGGER "player_pages_touch" BEFORE UPDATE ON "public"."player_pages" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "player_relationship_notes_touch" BEFORE UPDATE ON "public"."player_relationship_notes" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
 
 
 
@@ -4426,6 +4529,16 @@ ALTER TABLE ONLY "public"."player_pages"
 
 
 
+ALTER TABLE ONLY "public"."player_relationship_notes"
+    ADD CONSTRAINT "player_relationship_notes_campaign_id_author_user_id_fkey" FOREIGN KEY ("campaign_id", "author_user_id") REFERENCES "public"."player_pages"("campaign_id", "user_id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."player_relationship_notes"
+    ADD CONSTRAINT "player_relationship_notes_campaign_id_target_user_id_fkey" FOREIGN KEY ("campaign_id", "target_user_id") REFERENCES "public"."player_pages"("campaign_id", "user_id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."quest_entries"
     ADD CONSTRAINT "quest_entries_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "public"."campaigns"("id") ON DELETE CASCADE;
 
@@ -4657,6 +4770,13 @@ CREATE POLICY "player_pages_owner_update" ON "public"."player_pages" FOR UPDATE 
   WHERE (("member"."campaign_id" = "player_pages"."campaign_id") AND ("member"."user_id" = "auth"."uid"()) AND ("member"."role" = 'player'::"text")))))) WITH CHECK ((("user_id" = "auth"."uid"()) AND (EXISTS ( SELECT 1
    FROM "public"."campaign_members" "member"
   WHERE (("member"."campaign_id" = "player_pages"."campaign_id") AND ("member"."user_id" = "auth"."uid"()) AND ("member"."role" = 'player'::"text"))))));
+
+
+
+ALTER TABLE "public"."player_relationship_notes" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "player_relationship_notes_owner_all" ON "public"."player_relationship_notes" TO "authenticated" USING (("author_user_id" = "auth"."uid"())) WITH CHECK (("author_user_id" = "auth"."uid"()));
 
 
 
@@ -4958,6 +5078,12 @@ GRANT ALL ON FUNCTION "public"."list_my_campaigns"() TO "authenticated";
 
 
 
+REVOKE ALL ON FUNCTION "public"."list_my_player_relationship_notes"("p_campaign_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."list_my_player_relationship_notes"("p_campaign_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."list_my_player_relationship_notes"("p_campaign_id" "uuid") TO "authenticated";
+
+
+
 REVOKE ALL ON FUNCTION "public"."merge_campaign_items"("p_target_item_id" "uuid", "p_source_item_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."merge_campaign_items"("p_target_item_id" "uuid", "p_source_item_id" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."merge_campaign_items"("p_target_item_id" "uuid", "p_source_item_id" "uuid") TO "authenticated";
@@ -5109,6 +5235,12 @@ GRANT ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "
 REVOKE ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text") TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") TO "authenticated";
 
 
 
@@ -5353,6 +5485,10 @@ GRANT ALL ON TABLE "public"."player_money_history" TO "service_role";
 
 
 GRANT ALL ON TABLE "public"."player_pages" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."player_relationship_notes" TO "service_role";
 
 
 

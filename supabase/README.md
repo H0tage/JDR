@@ -39,6 +39,11 @@ aussi les libellés `Joueur1` à `Joueur4` par de vraies références de compte,
 sans perdre les anciennes valeurs qui sont conservées comme attributions
 historiques jusqu’à leur réaffectation.
 
+Cette frontière initiale est ensuite élargie de manière contrôlée par la
+migration `20260904130000_shared_player_pages_and_private_notes.sql` : les
+champs publics deviennent consultables par les joueurs actifs, sans ouvrir
+Pathbuilder ni les notes personnelles.
+
 La migration `20260830150000_neutralize_player_links_on_removal.sql` conserve
 ces pages personnelles mais neutralise les associations actives lorsqu’un
 joueur est retiré : ses butins attribués redeviennent `available` et ne sont
@@ -97,8 +102,22 @@ La migration `20260902120000_player_inventory_and_economy.sql` ajoute les
 objets opérationnels, le registre financier, les demandes d’objets, les dettes
 et leurs vues filtrées. Les opérations passent par des fonctions contrôlées ;
 les annulations ajoutent une écriture inverse au lieu de réécrire l’historique.
-Le départ d’un joueur rend ses objets au pot commun et y transfère aussi son
+Le départ d’un joueur rend ses objets au compte commun et y transfère aussi son
 solde positif ou négatif ainsi que ses dettes encore ouvertes.
+
+La migration `20260904120000_economy_consistency_fixes.sql` permet de redemander
+un objet après une annulation, calcule le patrimoine global sans le faire varier
+lors d’un transfert interne, force la valeur d’un achat à correspondre au prix
+payé et anonymise les actions du MJ dans le journal. L’audit en lecture seule
+`diagnostics/20260904_economy_integrity_audit.sql` permet de contrôler les
+données existantes avant toute correction ciblée.
+
+La migration `20260904130000_shared_player_pages_and_private_notes.sql` ouvre
+les informations publiques des fiches aux joueurs actifs de la campagne tout
+en réservant l’écriture au propriétaire. Pathbuilder reste propre à la page de
+son propriétaire ; les notes personnelles sont visibles par lui et le MJ. Les
+notes qu’un joueur prend sur un autre personnage sont stockées séparément et
+restent accessibles uniquement à leur auteur.
 
 Tant que cette migration n’a pas été appliquée à la production,
 `schema-remote.sql` doit continuer à représenter la production actuelle. Il ne
