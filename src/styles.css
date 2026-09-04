@@ -1001,7 +1001,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-tabs .player-pages-menu-toggle { min-width: 28px; border-radius: 0 7px 7px 0; padding: 8px 7px; }
 .player-pages-menu > button svg { flex: 0 0 auto; }
 .player-pages-submenu { position: fixed; top: 0; left: 0; z-index: 50; display: grid; min-width: 245px; gap: 3px; border: 1px solid #d0c8b8; border-radius: 9px; padding: 7px; background: #faf7ef; box-shadow: 0 12px 30px rgb(55 48 35 / 18%); }
-.player-pages-submenu button { display: grid; min-height: 0; justify-items: start; gap: 2px; width: 100%; border-radius: 6px; padding: 9px 10px; color: #343932; text-align: left; font-size: .78rem; }
+.player-pages-submenu button { display: grid; min-height: 0; justify-items: start; gap: 2px; width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 9px 10px; background: transparent; color: #343932; text-align: left; font-size: .78rem; }
 .player-pages-submenu button:hover, .player-pages-submenu button:focus-visible { background: #e8e1d3; }
 .player-pages-submenu button small { color: #777d75; font-size: .67rem; font-weight: 500; }
 .player-pages-submenu-message { display: block; padding: 9px 10px; color: #777d75; font-size: .76rem; white-space: nowrap; }
@@ -2305,8 +2305,11 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-light .public-timeline h3 { color: #2d3a30; }
 .player-theme-light .public-timeline > article > strong { color: #47705a; }
 .player-theme-light .player-footer { border-color: #c9c0ad; background: #dcd5c6; color: #687267; }
-.player-theme-light .bestiary-image { border-color: #c9c0ad; background: #2b302d; }
+.player-theme-light .bestiary-image, .gm-theme-light .bestiary-image { border-color: #c9c0ad; background: linear-gradient(145deg, #eee9de, #d9d4c8); }
 .player-theme-light .bestiary-image.placeholder { background: linear-gradient(145deg, #e0e5dc, #d4ccbc); color: #687267; }
+.player-theme-light .bestiary-visibility-toggle, .gm-theme-light .bestiary-visibility-toggle { border-color: #c7a96f; background: rgb(250 247 239 / 94%); color: #8d6827; box-shadow: 0 3px 10px rgb(76 62 38 / 15%); }
+.player-theme-light .bestiary-visibility-toggle:hover, .player-theme-light .bestiary-visibility-toggle:focus-visible,
+.gm-theme-light .bestiary-visibility-toggle:hover, .gm-theme-light .bestiary-visibility-toggle:focus-visible { border-color: #a9813d; background: #fffaf0; color: #6f4d16; }
 
 /* Journal readability: keep the navigator quiet, but give the editor toolbar a solid anchor. */
 .player-theme-light .journal-toolbar {
