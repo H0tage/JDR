@@ -37,7 +37,7 @@ Il est mis à jour à chaque ajout, suppression ou modification importante d'un 
 21. Les quatre monnaies Pathfinder sont correctement converties en pièces d'or pour le monitoring.
 22. La valeur indiquée dans le livre et la valeur trouvée sur Archive of Nethys restent distinctes.
 23. Les butins sont classés uniquement selon la nouvelle catégorisation propre.
-24. Le gestionnaire de butin se charge sans provoquer d'erreur React et passer un objet à « Acquis » le révèle automatiquement aux joueurs.
+24. « Acquis » révèle automatiquement un butin, « À découvrir » et « Manqué » le masquent, puis l’œil peut modifier librement sa visibilité sans changer son statut.
 25. Le filtre par volume affiche les lieux associés et masque les autres blocs.
 
 ## Économie : cohérence des données et calculs

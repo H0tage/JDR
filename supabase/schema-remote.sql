@@ -2208,12 +2208,9 @@ declare
 begin
   select * into v_loot from public.campaign_loot where id = p_loot_id for update;
   if v_loot.id is null then raise exception 'Butin introuvable'; end if;
-  if not public.is_campaign_gm(v_loot.campaign_id) then raise exception 'AccÃ¨s refusÃ©'; end if;
+  if not public.is_campaign_gm(v_loot.campaign_id) then raise exception 'Accès refusé'; end if;
 
-  update public.campaign_loot
-  set player_visible = p_visible,
-      discovery_status = case when p_visible then 'found' else discovery_status end
-  where id = p_loot_id;
+  update public.campaign_loot set player_visible = p_visible where id = p_loot_id;
 
   if not p_visible then
     update public.campaign_inventory_items set player_visible = false where origin_loot_id = p_loot_id;

@@ -208,11 +208,13 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
     setBusyId(draft.id);
     onError(null);
     try {
-      const publishOnSave = draft.discovery_status === "found" && !draft.player_visible;
-      const savedDraft = publishOnSave ? { ...draft, player_visible: true } : draft;
+      const statusChanged = !original || draft.discovery_status !== original.discovery_status;
+      const expectedVisibility = draft.discovery_status === "found";
+      const syncVisibility = statusChanged && draft.player_visible !== expectedVisibility;
+      const savedDraft = syncVisibility ? { ...draft, player_visible: expectedVisibility } : draft;
       if (!demo) {
-        await saveLootEntry(publishOnSave ? { ...draft, discovery_status: original?.discovery_status ?? "pending", player_visible: false } : draft);
-        if (publishOnSave) await setLootPlayerVisibility(draft.id, true);
+        await saveLootEntry(draft);
+        if (syncVisibility) await setLootPlayerVisibility(draft.id, expectedVisibility);
       }
       setItems((current) => original
         ? current!.map((item) => item.id === draft.id ? savedDraft : item)
@@ -229,16 +231,16 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
 
   async function setDiscovery(item: LootEntry, nextStatus: LootDiscoveryStatus) {
     const revealsItem = nextStatus === "found";
-    const updated = { ...item, discovery_status: nextStatus, player_visible: revealsItem ? true : item.player_visible };
+    const updated = { ...item, discovery_status: nextStatus, player_visible: revealsItem };
     setBusyId(item.id);
     onError(null);
     try {
       if (!demo) {
-        if (revealsItem) await setLootPlayerVisibility(item.id, true);
-        else await saveLootEntry(updated);
+        await saveLootEntry(updated);
+        await setLootPlayerVisibility(item.id, revealsItem);
       }
       setItems((current) => current!.map((entry) => entry.id === item.id ? updated : entry));
-      onNotice(revealsItem ? `« ${item.item_name} » : acquis et transmis aux joueurs.` : `« ${item.item_name} » : ${statusLabel(nextStatus).toLocaleLowerCase("fr")}.`);
+      onNotice(revealsItem ? `« ${item.item_name} » : acquis et transmis aux joueurs.` : `« ${item.item_name} » : ${statusLabel(nextStatus).toLocaleLowerCase("fr")} et masqué aux joueurs.`);
     } catch (caught) {
       onError(caught instanceof Error ? caught.message : "Mise à jour impossible.");
     } finally {
@@ -255,7 +257,6 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
       setItems((current) => current!.map((entry) => entry.id === item.id ? {
         ...entry,
         player_visible: playerVisible,
-        discovery_status: playerVisible ? "found" : entry.discovery_status,
       } : entry));
       onNotice(playerVisible ? "Butin transmis aux joueurs." : "Butin masqué aux joueurs.");
     } catch (caught) {

@@ -27,7 +27,7 @@ async function waitFor<T>(read: () => T | null | undefined): Promise<T> {
   throw new Error("Élément attendu introuvable.");
 }
 
-it("charge le registre, conserve un ordre de hooks stable et révèle automatiquement un butin acquis", async () => {
+it("synchronise le statut avec la visibilité par défaut tout en laissant l’œil la modifier ensuite", async () => {
   await act(async () => {
     root.render(<LootManager campaignId="00000000-0000-4000-8000-000000000001" demo onNotice={() => undefined} onError={() => undefined} />);
   });
@@ -42,6 +42,14 @@ it("charge le registre, conserve un ordre de hooks stable et révèle automatiqu
   expect(pendingCard?.classList.contains("status-found")).toBe(true);
   expect(pendingCard?.textContent).toContain("Partage joueursVisible");
   expect(pendingCard?.querySelector<HTMLButtonElement>('[aria-label="Masquer aux joueurs"]')).toBeTruthy();
+  const undiscovered = Array.from(pendingCard?.querySelectorAll<HTMLButtonElement>(".loot-quick-status button") ?? []).find((button) => button.textContent === "À découvrir");
+  await act(async () => { undiscovered?.click(); });
+  expect(pendingCard?.classList.contains("status-pending")).toBe(true);
+  expect(pendingCard?.textContent).toContain("Partage joueursMasqué");
+  const reveal = pendingCard?.querySelector<HTMLButtonElement>('[aria-label="Transmettre aux joueurs"]');
+  await act(async () => { reveal?.click(); });
+  expect(pendingCard?.classList.contains("status-pending")).toBe(true);
+  expect(pendingCard?.textContent).toContain("Partage joueursVisible");
 });
 
 it("affiche les lieux du volume et filtre les blocs correspondants", async () => {
