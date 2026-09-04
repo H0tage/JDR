@@ -26,7 +26,7 @@ Il est mis à jour à chaque ajout, suppression ou modification importante d'un 
 
 11. L'écran de butin affiche clairement trésorerie, compte commun, demandes et totaux sans devenir lourd ; l'auteur d'un ordre est identifié et tout compte MJ est présenté comme « Maître du Jeu ».
 12. Le gestionnaire de butins et les explications détaillées sont séparés dans deux onglets de premier niveau.
-13. Envoyer un objet demande un destinataire, une quantité et une confirmation ; le menu se ferme aussi par clic extérieur.
+13. Envoyer un objet demande un destinataire, une quantité et une confirmation directement dans la carte concernée ; le menu se ferme aussi par clic extérieur.
 14. On peut ouvrir rapidement l'achat et l'historique d'un objet.
 15. On peut sélectionner plusieurs objets pour une action groupée.
 16. Une demande d'objet annulée disparaît immédiatement.
