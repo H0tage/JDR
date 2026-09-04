@@ -208,10 +208,15 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
     setBusyId(draft.id);
     onError(null);
     try {
-      if (!demo) await saveLootEntry(draft);
+      const publishOnSave = draft.discovery_status === "found" && !draft.player_visible;
+      const savedDraft = publishOnSave ? { ...draft, player_visible: true } : draft;
+      if (!demo) {
+        await saveLootEntry(publishOnSave ? { ...draft, discovery_status: original?.discovery_status ?? "pending", player_visible: false } : draft);
+        if (publishOnSave) await setLootPlayerVisibility(draft.id, true);
+      }
       setItems((current) => original
-        ? current!.map((item) => item.id === draft.id ? draft : item)
-        : [...current!, draft]);
+        ? current!.map((item) => item.id === draft.id ? savedDraft : item)
+        : [...current!, savedDraft]);
       setEditing(null);
       setExpandedId(draft.id);
       onNotice(original ? "Butin mis à jour." : "Butin ajouté.");
@@ -223,13 +228,17 @@ export function LootManager({ campaignId, demo, onNotice, onError }: LootManager
   }
 
   async function setDiscovery(item: LootEntry, nextStatus: LootDiscoveryStatus) {
-    const updated = { ...item, discovery_status: nextStatus };
+    const revealsItem = nextStatus === "found";
+    const updated = { ...item, discovery_status: nextStatus, player_visible: revealsItem ? true : item.player_visible };
     setBusyId(item.id);
     onError(null);
     try {
-      if (!demo) await saveLootEntry(updated);
+      if (!demo) {
+        if (revealsItem) await setLootPlayerVisibility(item.id, true);
+        else await saveLootEntry(updated);
+      }
       setItems((current) => current!.map((entry) => entry.id === item.id ? updated : entry));
-      onNotice(`« ${item.item_name} » : ${statusLabel(nextStatus).toLocaleLowerCase("fr")}.`);
+      onNotice(revealsItem ? `« ${item.item_name} » : acquis et transmis aux joueurs.` : `« ${item.item_name} » : ${statusLabel(nextStatus).toLocaleLowerCase("fr")}.`);
     } catch (caught) {
       onError(caught instanceof Error ? caught.message : "Mise à jour impossible.");
     } finally {

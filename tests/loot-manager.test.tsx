@@ -27,7 +27,7 @@ async function waitFor<T>(read: () => T | null | undefined): Promise<T> {
   throw new Error("Élément attendu introuvable.");
 }
 
-it("charge le registre puis conserve un ordre de hooks stable", async () => {
+it("charge le registre, conserve un ordre de hooks stable et révèle automatiquement un butin acquis", async () => {
   await act(async () => {
     root.render(<LootManager campaignId="00000000-0000-4000-8000-000000000001" demo onNotice={() => undefined} onError={() => undefined} />);
   });
@@ -35,6 +35,13 @@ it("charge le registre puis conserve un ordre de hooks stable", async () => {
   const title = await waitFor(() => Array.from(container.querySelectorAll("h2")).find((heading) => heading.textContent === "Butins"));
   expect(title).toBeTruthy();
   expect(container.textContent).toContain("Trésors du récit");
+  const pendingCard = Array.from(container.querySelectorAll<HTMLElement>(".loot-monitor-card")).find((card) => card.classList.contains("status-pending"));
+  await act(async () => { pendingCard?.querySelector<HTMLButtonElement>(".loot-card-summary")?.click(); });
+  const acquired = Array.from(pendingCard?.querySelectorAll<HTMLButtonElement>(".loot-quick-status button") ?? []).find((button) => button.textContent === "Acquis");
+  await act(async () => { acquired?.click(); });
+  expect(pendingCard?.classList.contains("status-found")).toBe(true);
+  expect(pendingCard?.textContent).toContain("Partage joueursVisible");
+  expect(pendingCard?.querySelector<HTMLButtonElement>('[aria-label="Masquer aux joueurs"]')).toBeTruthy();
 });
 
 it("affiche les lieux du volume et filtre les blocs correspondants", async () => {
