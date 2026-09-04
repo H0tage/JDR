@@ -406,16 +406,22 @@ function EconomyActivity({ data, viewerRole, saving, onExecute }: { data: Player
   const entries = useMemo(() => [
     ...data.money_history.filter((entry) => !itemOperationIds.has(entry.operation_id)).map((entry) => ({ date: entry.created_at, kind: "money" as const, entry })),
     ...data.item_history.map((entry) => ({ date: entry.created_at, kind: "item" as const, entry })),
-  ].sort((first, second) => second.date.localeCompare(first.date)).filter((row) => describeActivity(row.entry).toLowerCase().includes(filter.toLowerCase())), [data, filter, itemOperationIds]);
+  ].sort((first, second) => second.date.localeCompare(first.date)).filter((row) => [describeActivity(row.entry), row.entry.comment, activityActorLabel(row.entry)].filter(Boolean).join(" ").toLowerCase().includes(filter.toLowerCase())), [data, filter, itemOperationIds]);
   return <section className="economy-activity panel"><header><div><History size={18} /><h2>Journal des opérations</h2></div><input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Joueur, objet, commentaire…" /></header><div>{entries.length ? entries.map((row) => {
     const cancelled = row.kind === "money" ? cancelledMoneyIds.has(row.entry.id) : cancelledItemEventIds.has(row.entry.id);
-    return <article key={`${row.kind}-${row.entry.id}`} className={cancelled ? "cancelled" : undefined}><time>{formatDateTime(row.date)}</time><div><strong>{describeActivity(row.entry)}</strong>{row.entry.comment && <small>{row.entry.comment}</small>}</div>{cancelled ? <span className="economy-cancelled-label">Action annulée</span> : <>{row.kind === "money" && canCancelMoney(row.entry, data.viewer_user_id, viewerRole) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelMoneyTransaction(row.entry.id), "Opération annulée.")}>Annuler</button>}{row.kind === "item" && canCancelItem(row.entry, data.viewer_user_id, viewerRole) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelItemEvent(row.entry.id), "Action annulée.")}>Annuler{row.entry.event_type === "sold" ? " la vente" : ""}</button>}</>}</article>;
+    return <article key={`${row.kind}-${row.entry.id}`} className={cancelled ? "cancelled" : undefined}><time>{formatDateTime(row.date)}</time><div><strong>{describeActivity(row.entry)}</strong>{row.entry.comment && <small>{row.entry.comment}</small>}<small className="economy-activity-actor">Ordre effectué par : {activityActorLabel(row.entry)}</small></div>{cancelled ? <span className="economy-cancelled-label">Action annulée</span> : <>{row.kind === "money" && canCancelMoney(row.entry, data.viewer_user_id, viewerRole) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelMoneyTransaction(row.entry.id), "Opération annulée.")}>Annuler</button>}{row.kind === "item" && canCancelItem(row.entry, data.viewer_user_id, viewerRole) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelItemEvent(row.entry.id), "Action annulée.")}>Annuler{row.entry.event_type === "sold" ? " la vente" : ""}</button>}</>}</article>;
   }) : <p className="empty-state">Aucune opération correspondante.</p>}</div></section>;
 }
 
 function EventTimeline({ events }: { events: CampaignItemEvent[] }) {
   const sorted = [...events].sort((first, second) => first.created_at.localeCompare(second.created_at));
-  return <div className="item-timeline">{sorted.length ? sorted.map((event) => <article key={event.id}><time>{formatDateTime(event.created_at)}</time><div><strong>{describeItemEvent(event)}</strong>{event.comment && <small>{event.comment}</small>}</div></article>) : <p className="empty-state">Aucun événement enregistré.</p>}</div>;
+  return <div className="item-timeline">{sorted.length ? sorted.map((event) => <article key={event.id}><time>{formatDateTime(event.created_at)}</time><div><strong>{describeItemEvent(event)}</strong>{event.comment && <small>{event.comment}</small>}<small className="economy-activity-actor">Ordre effectué par : {activityActorLabel(event)}</small></div></article>) : <p className="empty-state">Aucun événement enregistré.</p>}</div>;
+}
+
+export function activityActorLabel(entry: Pick<CampaignMoneyTransaction | CampaignItemEvent, "actor_display_name">) {
+  const actor = entry.actor_display_name?.trim();
+  if (!actor) return "Le système";
+  return /^(le )?maître du jeu$/i.test(actor) ? "Maître du Jeu" : actor;
 }
 
 function MoneyField({ label, amount, unit, onAmount, onUnit }: { label: string; amount: string; unit: MoneyUnit; onAmount: (value: string) => void; onUnit: (value: MoneyUnit) => void }) {

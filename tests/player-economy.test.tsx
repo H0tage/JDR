@@ -1,7 +1,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { PlayerEconomyTab } from "../src/components/PlayerEconomyTab";
+import { activityActorLabel, PlayerEconomyTab } from "../src/components/PlayerEconomyTab";
 
 let root: Root;
 let container: HTMLDivElement;
@@ -29,6 +29,8 @@ async function waitFor<T>(read: () => T | null | undefined): Promise<T> {
 }
 
 it("présente la trésorerie, le compte commun et les demandes sans alourdir l’écran", async () => {
+  expect(activityActorLabel({ actor_display_name: "Le Maître du Jeu" })).toBe("Maître du Jeu");
+  expect(activityActorLabel({ actor_display_name: "Dr Silas" })).toBe("Dr Silas");
   await act(async () => {
     root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />);
   });
