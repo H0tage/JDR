@@ -552,40 +552,88 @@ $$;
 ALTER FUNCTION "public"."create_campaign_money_debt"("p_campaign_id" "uuid", "p_debtor_user_id" "uuid", "p_creditor_user_id" "uuid", "p_amount_cp" bigint, "p_comment" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric DEFAULT 1, "p_unit_value_cp" bigint DEFAULT NULL::bigint, "p_owner_user_id" "uuid" DEFAULT NULL::"uuid", "p_aon_legacy_name" "text" DEFAULT NULL::"text", "p_aon_legacy_url" "text" DEFAULT NULL::"text", "p_comment" "text" DEFAULT NULL::"text") RETURNS "uuid"
+CREATE OR REPLACE FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric DEFAULT 1, "p_unit_value_cp" bigint DEFAULT NULL::bigint, "p_owner_user_id" "uuid" DEFAULT NULL::"uuid", "p_aon_legacy_name" "text" DEFAULT NULL::"text", "p_aon_legacy_url" "text" DEFAULT NULL::"text", "p_comment" "text" DEFAULT NULL::"text", "p_counts_as_gain" boolean DEFAULT true) RETURNS "uuid"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-declare v_item_id uuid;
+declare
+  v_item_id uuid;
 begin
-  if not public.is_campaign_gm(p_campaign_id) then raise exception 'AccÃ¨s refusÃ©'; end if;
-  if btrim(p_name) = '' or p_quantity <= 0 or coalesce(p_unit_value_cp, 0) < 0 then
+  if not public.is_campaign_gm(p_campaign_id) then
+    raise exception 'Accès refusé';
+  end if;
+
+  if btrim(p_name) = ''
+    or p_quantity <= 0
+    or coalesce(p_unit_value_cp, 0) < 0
+  then
     raise exception 'Objet invalide';
   end if;
-  if p_owner_user_id is not null and not public.is_active_campaign_player(p_campaign_id, p_owner_user_id) then
-    raise exception 'PropriÃ©taire invalide';
+
+  if p_owner_user_id is not null
+    and not public.is_active_campaign_player(
+      p_campaign_id,
+      p_owner_user_id
+    )
+  then
+    raise exception 'Propriétaire invalide';
   end if;
+
   insert into public.campaign_inventory_items (
-    campaign_id, created_by, owner_user_id, name, quantity, source_quantity_label,
-    unit_value_cp, aon_legacy_name, aon_legacy_url, source_kind, status
+    campaign_id,
+    created_by,
+    owner_user_id,
+    name,
+    quantity,
+    source_quantity_label,
+    unit_value_cp,
+    aon_legacy_name,
+    aon_legacy_url,
+    source_kind,
+    status,
+    counts_as_gain
   ) values (
-    p_campaign_id, auth.uid(), p_owner_user_id, btrim(p_name), p_quantity,
-    p_quantity::text, p_unit_value_cp, nullif(btrim(p_aon_legacy_name), ''),
-    nullif(btrim(p_aon_legacy_url), ''), 'gm', 'active'
-  ) returning id into v_item_id;
+    p_campaign_id,
+    auth.uid(),
+    p_owner_user_id,
+    btrim(p_name),
+    p_quantity,
+    p_quantity::text,
+    p_unit_value_cp,
+    nullif(btrim(p_aon_legacy_name), ''),
+    nullif(btrim(p_aon_legacy_url), ''),
+    'gm',
+    'active',
+    coalesce(p_counts_as_gain, true)
+  )
+  returning id into v_item_id;
+
   insert into public.campaign_item_events (
-    campaign_id, item_id, actor_user_id, event_type, next_owner_user_id,
-    quantity, value_cp, comment
+    campaign_id,
+    item_id,
+    actor_user_id,
+    event_type,
+    next_owner_user_id,
+    quantity,
+    value_cp,
+    comment
   ) values (
-    p_campaign_id, v_item_id, auth.uid(), 'created', p_owner_user_id,
-    p_quantity, p_unit_value_cp, nullif(btrim(p_comment), '')
+    p_campaign_id,
+    v_item_id,
+    auth.uid(),
+    'created',
+    p_owner_user_id,
+    p_quantity,
+    p_unit_value_cp,
+    nullif(btrim(p_comment), '')
   );
+
   return v_item_id;
 end;
 $$;
 
 
-ALTER FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric, "p_unit_value_cp" bigint, "p_owner_user_id" "uuid", "p_aon_legacy_name" "text", "p_aon_legacy_url" "text", "p_comment" "text") OWNER TO "postgres";
+ALTER FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric, "p_unit_value_cp" bigint, "p_owner_user_id" "uuid", "p_aon_legacy_name" "text", "p_aon_legacy_url" "text", "p_comment" "text", "p_counts_as_gain" boolean) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."delete_bestiary_entry"("p_entry_id" "uuid") RETURNS "text"
@@ -1266,31 +1314,146 @@ declare
   v_operation_id uuid := gen_random_uuid();
   v_unit_value_cp bigint;
 begin
-  if not public.is_campaign_member(p_campaign_id) then raise exception 'Accès refusé'; end if;
-  if v_owner_user_id <> auth.uid() and not public.is_campaign_gm(p_campaign_id) then raise exception 'Vous ne pouvez acheter que pour votre personnage'; end if;
-  if not public.is_active_campaign_player(p_campaign_id, v_owner_user_id) then raise exception 'Propriétaire invalide'; end if;
-  if btrim(p_name) = '' or p_quantity <= 0 or p_price_cp < 0 or p_personal_amount_cp < 0 or p_common_amount_cp < 0
-    or p_personal_amount_cp + p_common_amount_cp <> p_price_cp then raise exception 'Achat invalide'; end if;
-  v_unit_value_cp := round(p_price_cp::numeric / p_quantity)::bigint;
+  if not public.is_campaign_member(p_campaign_id) then
+    raise exception 'Accès refusé';
+  end if;
+
+  if v_owner_user_id <> auth.uid()
+    and not public.is_campaign_gm(p_campaign_id)
+  then
+    raise exception 'Vous ne pouvez acheter que pour votre personnage';
+  end if;
+
+  if not public.is_active_campaign_player(
+    p_campaign_id,
+    v_owner_user_id
+  )
+  then
+    raise exception 'Propriétaire invalide';
+  end if;
+
+  if btrim(p_name) = ''
+    or p_quantity <= 0
+    or p_price_cp < 0
+    or p_personal_amount_cp < 0
+    or p_common_amount_cp < 0
+    or p_personal_amount_cp + p_common_amount_cp <> p_price_cp
+  then
+    raise exception 'Achat invalide';
+  end if;
+
+  v_unit_value_cp :=
+    case
+      when p_price_cp = 0 then 0
+      else greatest(
+        1,
+        round(p_price_cp::numeric / p_quantity)::bigint
+      )
+    end;
 
   insert into public.campaign_inventory_items (
-    campaign_id, created_by, owner_user_id, name, quantity, source_quantity_label,
-    unit_value_cp, purchase_price_cp, aon_legacy_name, aon_legacy_url, source_kind, status
+    campaign_id,
+    created_by,
+    owner_user_id,
+    name,
+    quantity,
+    source_quantity_label,
+    unit_value_cp,
+    purchase_price_cp,
+    aon_legacy_name,
+    aon_legacy_url,
+    source_kind,
+    status,
+    counts_as_gain
   ) values (
-    p_campaign_id, auth.uid(), v_owner_user_id, btrim(p_name), p_quantity, p_quantity::text,
-    v_unit_value_cp, p_price_cp, nullif(btrim(p_aon_legacy_name), ''), nullif(btrim(p_aon_legacy_url), ''), 'purchase', 'active'
-  ) returning id into v_item_id;
+    p_campaign_id,
+    auth.uid(),
+    v_owner_user_id,
+    btrim(p_name),
+    p_quantity,
+    p_quantity::text,
+    v_unit_value_cp,
+    p_price_cp,
+    nullif(btrim(p_aon_legacy_name), ''),
+    nullif(btrim(p_aon_legacy_url), ''),
+    'purchase',
+    'active',
+    false
+  )
+  returning id into v_item_id;
 
   if p_personal_amount_cp > 0 then
-    insert into public.campaign_money_transactions (operation_id, campaign_id, actor_user_id, kind, source_account, source_user_id, destination_account, amount_cp, comment, related_item_id)
-    values (v_operation_id, p_campaign_id, auth.uid(), 'purchase', 'player', v_owner_user_id, 'external', p_personal_amount_cp, nullif(btrim(p_comment), ''), v_item_id);
+    insert into public.campaign_money_transactions (
+      operation_id,
+      campaign_id,
+      actor_user_id,
+      kind,
+      source_account,
+      source_user_id,
+      destination_account,
+      amount_cp,
+      comment,
+      related_item_id
+    ) values (
+      v_operation_id,
+      p_campaign_id,
+      auth.uid(),
+      'purchase',
+      'player',
+      v_owner_user_id,
+      'external',
+      p_personal_amount_cp,
+      nullif(btrim(p_comment), ''),
+      v_item_id
+    );
   end if;
+
   if p_common_amount_cp > 0 then
-    insert into public.campaign_money_transactions (operation_id, campaign_id, actor_user_id, kind, source_account, destination_account, amount_cp, comment, related_item_id)
-    values (v_operation_id, p_campaign_id, auth.uid(), 'purchase', 'common', 'external', p_common_amount_cp, nullif(btrim(p_comment), ''), v_item_id);
+    insert into public.campaign_money_transactions (
+      operation_id,
+      campaign_id,
+      actor_user_id,
+      kind,
+      source_account,
+      destination_account,
+      amount_cp,
+      comment,
+      related_item_id
+    ) values (
+      v_operation_id,
+      p_campaign_id,
+      auth.uid(),
+      'purchase',
+      'common',
+      'external',
+      p_common_amount_cp,
+      nullif(btrim(p_comment), ''),
+      v_item_id
+    );
   end if;
-  insert into public.campaign_item_events (campaign_id, item_id, actor_user_id, event_type, next_owner_user_id, quantity, value_cp, comment, money_operation_id)
-  values (p_campaign_id, v_item_id, auth.uid(), 'purchased', v_owner_user_id, p_quantity, p_price_cp, nullif(btrim(p_comment), ''), v_operation_id);
+
+  insert into public.campaign_item_events (
+    campaign_id,
+    item_id,
+    actor_user_id,
+    event_type,
+    next_owner_user_id,
+    quantity,
+    value_cp,
+    comment,
+    money_operation_id
+  ) values (
+    p_campaign_id,
+    v_item_id,
+    auth.uid(),
+    'purchased',
+    v_owner_user_id,
+    p_quantity,
+    p_price_cp,
+    nullif(btrim(p_comment), ''),
+    v_operation_id
+  );
+
   return v_item_id;
 end;
 $$;
@@ -2651,6 +2814,7 @@ CREATE TABLE IF NOT EXISTS "public"."campaign_inventory_items" (
     "acquired_on" "date" DEFAULT CURRENT_DATE NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "counts_as_gain" boolean DEFAULT true NOT NULL,
     CONSTRAINT "campaign_inventory_items_name_check" CHECK ((("length"("btrim"("name")) >= 1) AND ("length"("btrim"("name")) <= 240))),
     CONSTRAINT "campaign_inventory_items_purchase_price_cp_check" CHECK ((("purchase_price_cp" IS NULL) OR ("purchase_price_cp" >= 0))),
     CONSTRAINT "campaign_inventory_items_quantity_check" CHECK (("quantity" > (0)::numeric)),
@@ -3455,41 +3619,30 @@ ALTER VIEW "public"."player_contacts" OWNER TO "postgres";
 
 CREATE OR REPLACE VIEW "public"."player_economy_totals" WITH ("security_barrier"='true') AS
  SELECT "id" AS "campaign_id",
-    ((COALESCE(( SELECT "sum"(
-                CASE
-                    WHEN (("event"."event_type" = ANY (ARRAY['published'::"text", 'created'::"text"])) AND (("event"."event_type" <> 'created'::"text") OR ("event"."related_item_id" IS NULL))) THEN ((COALESCE("event"."value_cp", (0)::bigint))::numeric * COALESCE("event"."quantity", (1)::numeric))
-                    WHEN ("event"."event_type" = 'purchased'::"text") THEN (COALESCE("event"."value_cp", (0)::bigint))::numeric
-                    ELSE (0)::numeric
-                END) AS "sum"
-           FROM "public"."campaign_item_events" "event"
-          WHERE (("event"."campaign_id" = "campaign"."id") AND ("event"."reversed_event_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
+    (((COALESCE(( SELECT "sum"(((COALESCE("event"."value_cp", (0)::bigint))::numeric * COALESCE("event"."quantity", (1)::numeric))) AS "sum"
+           FROM ("public"."campaign_item_events" "event"
+             JOIN "public"."campaign_inventory_items" "item" ON (("item"."id" = "event"."item_id")))
+          WHERE (("event"."campaign_id" = "campaign"."id") AND ("event"."event_type" = ANY (ARRAY['published'::"text", 'created'::"text"])) AND (("event"."event_type" <> 'created'::"text") OR ("event"."related_item_id" IS NULL)) AND "item"."counts_as_gain" AND ("event"."reversed_event_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
                    FROM "public"."campaign_item_events" "reversal"
-                  WHERE ("reversal"."reversed_event_id" = "event"."id")))) AND (EXISTS ( SELECT 1
-                   FROM "public"."campaign_inventory_items" "visible_item"
-                  WHERE (("visible_item"."id" = "event"."item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id"))))))), (0)::numeric) + COALESCE(( SELECT "sum"("transaction"."amount_cp") AS "sum"
+                  WHERE ("reversal"."reversed_event_id" = "event"."id")))) AND ("item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))), (0)::numeric) + COALESCE(( SELECT "sum"("transaction"."amount_cp") AS "sum"
            FROM "public"."campaign_money_transactions" "transaction"
-          WHERE (("transaction"."campaign_id" = "campaign"."id") AND ("transaction"."source_account" = 'external'::"text") AND ("transaction"."reversed_transaction_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
+          WHERE (("transaction"."campaign_id" = "campaign"."id") AND ("transaction"."source_account" = 'external'::"text") AND ("transaction"."kind" <> 'sale'::"text") AND ("transaction"."reversed_transaction_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
                    FROM "public"."campaign_money_transactions" "reversal"
                   WHERE ("reversal"."reversed_transaction_id" = "transaction"."id")))) AND (("transaction"."related_item_id" IS NULL) OR (EXISTS ( SELECT 1
                    FROM "public"."campaign_inventory_items" "visible_item"
-                  WHERE (("visible_item"."id" = "transaction"."related_item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))))))), (0)::numeric)))::bigint AS "total_entered_cp",
-    ((COALESCE(( SELECT "sum"(
-                CASE
-                    WHEN ("event"."event_type" = ANY (ARRAY['sold'::"text", 'consumed'::"text", 'lost'::"text", 'donated'::"text"])) THEN COALESCE("event"."value_cp", (0)::bigint)
-                    ELSE (0)::bigint
-                END) AS "sum"
-           FROM "public"."campaign_item_events" "event"
-          WHERE (("event"."campaign_id" = "campaign"."id") AND ("event"."reversed_event_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
+                  WHERE (("visible_item"."id" = "transaction"."related_item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))))))), (0)::numeric)) + COALESCE(( SELECT "sum"(GREATEST((0)::numeric, ((COALESCE("event"."value_cp", (0)::bigint))::numeric - ((COALESCE("item"."unit_value_cp", (0)::bigint))::numeric * COALESCE("event"."quantity", (1)::numeric))))) AS "sum"
+           FROM ("public"."campaign_item_events" "event"
+             JOIN "public"."campaign_inventory_items" "item" ON (("item"."id" = "event"."item_id")))
+          WHERE (("event"."campaign_id" = "campaign"."id") AND ("event"."event_type" = 'sold'::"text") AND ("event"."reversed_event_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
                    FROM "public"."campaign_item_events" "reversal"
-                  WHERE ("reversal"."reversed_event_id" = "event"."id")))) AND (EXISTS ( SELECT 1
-                   FROM "public"."campaign_inventory_items" "visible_item"
-                  WHERE (("visible_item"."id" = "event"."item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id"))))))), (0)::numeric) + COALESCE(( SELECT "sum"("transaction"."amount_cp") AS "sum"
+                  WHERE ("reversal"."reversed_event_id" = "event"."id")))) AND ("item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))), (0)::numeric)))::bigint AS "total_entered_cp",
+    (COALESCE(( SELECT "sum"("transaction"."amount_cp") AS "sum"
            FROM "public"."campaign_money_transactions" "transaction"
           WHERE (("transaction"."campaign_id" = "campaign"."id") AND ("transaction"."destination_account" = 'external'::"text") AND ("transaction"."reversed_transaction_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
                    FROM "public"."campaign_money_transactions" "reversal"
                   WHERE ("reversal"."reversed_transaction_id" = "transaction"."id")))) AND (("transaction"."related_item_id" IS NULL) OR (EXISTS ( SELECT 1
                    FROM "public"."campaign_inventory_items" "visible_item"
-                  WHERE (("visible_item"."id" = "transaction"."related_item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))))))), (0)::numeric)))::bigint AS "total_exited_cp",
+                  WHERE (("visible_item"."id" = "transaction"."related_item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))))))), (0)::numeric))::bigint AS "total_exited_cp",
     ((COALESCE(( SELECT "sum"(
                 CASE
                     WHEN ("transaction"."source_account" = 'external'::"text") THEN "transaction"."amount_cp"
@@ -5199,9 +5352,9 @@ GRANT ALL ON FUNCTION "public"."create_campaign_money_debt"("p_campaign_id" "uui
 
 
 
-REVOKE ALL ON FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric, "p_unit_value_cp" bigint, "p_owner_user_id" "uuid", "p_aon_legacy_name" "text", "p_aon_legacy_url" "text", "p_comment" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric, "p_unit_value_cp" bigint, "p_owner_user_id" "uuid", "p_aon_legacy_name" "text", "p_aon_legacy_url" "text", "p_comment" "text") TO "service_role";
-GRANT ALL ON FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric, "p_unit_value_cp" bigint, "p_owner_user_id" "uuid", "p_aon_legacy_name" "text", "p_aon_legacy_url" "text", "p_comment" "text") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric, "p_unit_value_cp" bigint, "p_owner_user_id" "uuid", "p_aon_legacy_name" "text", "p_aon_legacy_url" "text", "p_comment" "text", "p_counts_as_gain" boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric, "p_unit_value_cp" bigint, "p_owner_user_id" "uuid", "p_aon_legacy_name" "text", "p_aon_legacy_url" "text", "p_comment" "text", "p_counts_as_gain" boolean) TO "service_role";
+GRANT ALL ON FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric, "p_unit_value_cp" bigint, "p_owner_user_id" "uuid", "p_aon_legacy_name" "text", "p_aon_legacy_url" "text", "p_comment" "text", "p_counts_as_gain" boolean) TO "authenticated";
 
 
 

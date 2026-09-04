@@ -38,8 +38,8 @@ it("présente la trésorerie, le compte commun et les demandes sans alourdir l�
   expect(economy.textContent).toContain("Prénom2 Nom2");
   expect(economy.textContent).toContain("Item anonymisé 1");
   expect(economy.textContent).toContain("Demandes d’objets");
-  expect(economy.textContent).toContain("Entré depuis le début");
-  expect(economy.textContent).toContain("Sorti depuis le début");
+  expect(economy.textContent).toContain("Gains cumulés");
+  expect(economy.textContent).toContain("Dépenses cumulées");
   expect(economy.querySelectorAll(".economy-metrics article")).toHaveLength(6);
   expect(economy.querySelector(".economy-summary-large")).toBeTruthy();
   const compact = [...economy.querySelectorAll<HTMLButtonElement>(".economy-display-picker button")].find((button) => button.textContent?.includes("Compact"));
@@ -131,6 +131,11 @@ it("montre au MJ une colonne pour chacun des joueurs", async () => {
   const transferAccounts = economy.querySelectorAll<HTMLSelectElement>(".economy-action-panel select");
   expect(transferAccounts[0]?.value).toBe("common");
   expect(transferAccounts[1]?.value).toBe("demo-arsene");
+  const createItem = [...economy.querySelectorAll<HTMLButtonElement>(".economy-actions button")].find((button) => button.textContent?.includes("Créer un objet"));
+  await act(async () => { createItem?.click(); });
+  const gainCheckbox = economy.querySelector<HTMLInputElement>('.economy-action-panel input[type="checkbox"]');
+  expect(gainCheckbox?.checked).toBe(true);
+  expect(gainCheckbox?.parentElement?.textContent).toContain("Compter comme nouveau gain");
   const groupTab = [...economy.querySelectorAll<HTMLButtonElement>(".economy-sections button")].find((button) => button.textContent?.includes("Inventaires du groupe"));
   await act(async () => { groupTab?.click(); });
   expect(economy.querySelectorAll(".economy-player-inventory")).toHaveLength(4);

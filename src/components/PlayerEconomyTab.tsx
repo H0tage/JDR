@@ -162,8 +162,8 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
         <article><span><WalletCards size={17} />{viewerRole === "gm" ? "Comptes joueurs" : "Mon compte"}</span><strong>{formatCopper(displayedPersonalBalance)}</strong><small>{viewerRole === "gm" ? "total détaillé ci-dessous" : "les soldes négatifs sont autorisés"}</small></article>
         <article><span><PackageOpen size={17} />Stock commun</span><strong>{formatCopper(commonStock)}</strong><small>{commonItems.length} objet{commonItems.length > 1 ? "s" : ""} à répartir</small></article>
         <article><span><CircleDollarSign size={17} />Patrimoine actuel</span><strong>{formatCopper(currentWealth)}</strong><small>ensemble des comptes et objets chiffrés</small></article>
-        <article><span><ArrowDownToLine size={17} />Entré depuis le début</span><strong>{formatCopper(totalEntered)}</strong><small>butins, achats et revenus</small></article>
-        <article><span><ArrowUpFromLine size={17} />Sorti depuis le début</span><strong>{formatCopper(totalExited)}</strong><small>dépenses, pertes et consommation</small></article>
+        <article><span><ArrowDownToLine size={17} />Gains cumulés</span><strong>{formatCopper(totalEntered)}</strong><small>butins, récompenses, revenus et plus-values</small></article>
+        <article><span><ArrowUpFromLine size={17} />Dépenses cumulées</span><strong>{formatCopper(totalExited)}</strong><small>achats, services et dépenses en monnaie</small></article>
       </section>
 
       {(viewerRole === "gm" || personalBalances.length > 1) && <section className="economy-player-balances panel" aria-label="Soldes personnels visibles">
@@ -279,6 +279,7 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
   const [commonShare, setCommonShare] = useState("0");
   const [aonName, setAonName] = useState("");
   const [aonUrl, setAonUrl] = useState("");
+  const [countsAsGain, setCountsAsGain] = useState(true);
   const [debtor, setDebtor] = useState(defaultPlayerId);
   const [creditor, setCreditor] = useState(players.find((player) => player.user_id !== defaultPlayerId)?.user_id ?? "");
   const amountCp = moneyToCp(Number(amount) || 0, unit);
@@ -291,7 +292,7 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
     if (action === "personal") await onExecute(() => recordPersonalMoney(campaignId, kind, amountCp, comment, viewerRole === "gm" ? source : undefined), kind === "income" ? "Revenu ajouté." : "Dépense ajoutée.");
     if (action === "common-income") await onExecute(() => recordCommonIncome(campaignId, amountCp, comment), "Entrée ajoutée au compte commun.");
     if (action === "purchase") await onExecute(() => purchaseInventoryItem({ campaignId, name, quantity: Number(quantity) || 1, priceCp: amountCp, personalAmountCp: amountCp - commonCp, commonAmountCp: commonCp, ownerUserId: viewerRole === "gm" ? destination : undefined, aonName, aonUrl, comment }), "Achat enregistré.");
-    if (action === "manual-item") await onExecute(() => createManualInventoryItem({ campaignId, name, quantity: Number(quantity) || 1, unitValueCp: amountCp || null, ownerUserId: destination === "common" ? null : destination, aonName, aonUrl, comment }), "Objet créé.");
+    if (action === "manual-item") await onExecute(() => createManualInventoryItem({ campaignId, name, quantity: Number(quantity) || 1, unitValueCp: amountCp || null, ownerUserId: destination === "common" ? null : destination, aonName, aonUrl, comment, countsAsGain }), "Objet créé.");
     if (action === "debt") await onExecute(() => createMoneyDebt(campaignId, debtor, creditor, amountCp, comment), "Dette enregistrée.");
   }
 
@@ -308,6 +309,7 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
       {action === "transfer" && <label>Vers<select value={destination} onChange={(event) => setDestination(event.target.value)}>{allAccounts.filter((account) => account.user_id !== source).map((account) => <option key={account.user_id} value={account.user_id}>{account.display_name}</option>)}</select></label>}
       {action === "personal" && viewerRole === "gm" && <label>Compte<select value={source} onChange={(event) => setSource(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>}
       {action === "manual-item" && <label>Propriétaire<select value={destination} onChange={(event) => setDestination(event.target.value)}>{allAccounts.map((account) => <option key={account.user_id} value={account.user_id}>{account.display_name}</option>)}</select></label>}
+      {action === "manual-item" && <label className="check-label"><input type="checkbox" checked={countsAsGain} onChange={(event) => setCountsAsGain(event.target.checked)} />Compter comme nouveau gain</label>}
       {action === "purchase" && viewerRole === "gm" && <label>Acheteur<select value={destination} onChange={(event) => setDestination(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>}
       {action === "debt" && <><label>Débiteur<select value={debtor} onChange={(event) => { const next = event.target.value; setDebtor(next); if (viewerRole === "player" && next !== data.viewer_user_id) setCreditor(data.viewer_user_id); else if (creditor === next) setCreditor(players.find((player) => player.user_id !== next)?.user_id ?? ""); }}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label><label>Créancier<select value={creditor} onChange={(event) => { const next = event.target.value; setCreditor(next); if (viewerRole === "player" && next !== data.viewer_user_id) setDebtor(data.viewer_user_id); }}>{players.filter((player) => player.user_id !== debtor).map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label></>}
       <MoneyField label={action === "manual-item" ? "Valeur unitaire" : "Montant"} amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />

@@ -395,6 +395,7 @@ export interface CampaignInventoryItem {
   aon_legacy_name: string | null;
   aon_legacy_url: string | null;
   source_kind: InventoryItemSource;
+  counts_as_gain: boolean;
   player_visible: boolean;
   status: InventoryItemStatus;
   acquired_on: string;

@@ -107,6 +107,87 @@ it("sécurise les objets, transfère l’argent et restitue les biens au départ
   await db.close();
 }, 30_000);
 
+it("calcule séparément les gains, les dépenses cash et le patrimoine", async () => {
+  const db = new PGlite();
+  await db.exec(`
+    create role anon; create role authenticated; create schema auth;
+    create table auth.users (id uuid primary key, email text unique);
+    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+    create schema extensions; create publication supabase_realtime; create schema storage;
+    create table storage.buckets (id text primary key, name text not null, public boolean not null default false, file_size_limit bigint, allowed_mime_types text[]);
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text not null, name text not null);
+    alter table storage.objects enable row level security;
+    create function storage.foldername(object_name text) returns text[] language sql stable as $$ select string_to_array(object_name, '/') $$;
+  `);
+  for (const file of readdirSync(migrationsDirectory).filter((name) => name.endsWith('.sql')).sort()) {
+    const sql = readFileSync(resolve(migrationsDirectory, file), 'utf8').replace('create extension if not exists pgcrypto with schema extensions;', '-- pgcrypto supplied by Supabase');
+    await db.exec(sql);
+  }
+  const gm = '25000000-0000-4000-8000-000000000001';
+  const player = '25000000-0000-4000-8000-000000000002';
+  await db.exec(`insert into auth.users values ('${gm}', 'economy-gm@example.test'), ('${player}', 'economy-player@example.test'); select set_config('request.jwt.claim.sub', '${gm}', false); set role authenticated;`);
+  const campaign = (await db.query<{ campaign_id: string }>("select * from public.create_campaign('Sémantique économique', null)")).rows[0];
+  await db.exec(`reset role; insert into public.campaign_members (campaign_id, user_id, role) values ('${campaign.campaign_id}', '${player}', 'player'); insert into public.user_profiles (user_id, display_name) values ('${player}', 'Joueur économie'); select set_config('request.jwt.claim.sub', '${gm}', false); set role authenticated;`);
+
+  const totals = async () => (await db.query<{ gains: number; expenses: number; wealth: number }>(`
+    select total_entered_cp::int gains, total_exited_cp::int expenses, current_wealth_cp::int wealth
+    from public.player_economy_totals where campaign_id = '${campaign.campaign_id}'
+  `)).rows[0];
+
+  const cashIncome = (await db.query<{ record_common_income: string }>(`select public.record_common_income('${campaign.campaign_id}', 10000, 'Argent trouvé')`)).rows[0].record_common_income;
+  expect(await totals()).toEqual({ gains: 10000, expenses: 0, wealth: 10000 });
+
+  const foundItem = (await db.query<{ create_manual_campaign_item: string }>(`select public.create_manual_campaign_item('${campaign.campaign_id}', 'Objet trouvé', 1, 30000, null, null, null, null, true)`)).rows[0].create_manual_campaign_item;
+  expect(await totals()).toEqual({ gains: 40000, expenses: 0, wealth: 40000 });
+
+  const correctionItem = (await db.query<{ create_manual_campaign_item: string }>(`select public.create_manual_campaign_item('${campaign.campaign_id}', 'Correction sans gain', 1, 1000, null, null, null, null, false)`)).rows[0].create_manual_campaign_item;
+  expect(await totals()).toEqual({ gains: 40000, expenses: 0, wealth: 41000 });
+
+  await db.exec(`select set_config('request.jwt.claim.sub', '${player}', false); set role authenticated;`);
+  const purchased = (await db.query<{ purchase_campaign_item: string }>(`select public.purchase_campaign_item('${campaign.campaign_id}', 'Objet acheté', 1, 20000, 20000, 0, null, null, null, null, null)`)).rows[0].purchase_campaign_item;
+  expect(await totals()).toEqual({ gains: 40000, expenses: 20000, wealth: 41000 });
+
+  await db.exec(`select public.record_personal_money('${campaign.campaign_id}', 'expense', 2000, null, 'Auberge')`);
+  expect(await totals()).toEqual({ gains: 40000, expenses: 22000, wealth: 39000 });
+
+  await db.exec(`select set_config('request.jwt.claim.sub', '${gm}', false); set role authenticated; select public.set_campaign_item_terminal('${foundItem}', 'consumed', null, null);`);
+  expect(await totals()).toEqual({ gains: 40000, expenses: 22000, wealth: 9000 });
+  await db.exec(`select public.set_campaign_item_terminal('${correctionItem}', 'lost', null, null); select public.set_campaign_item_terminal('${purchased}', 'donated', null, null);`);
+  expect(await totals()).toEqual({ gains: 40000, expenses: 22000, wealth: -12000 });
+
+  const saleAtCost = (await db.query<{ create_manual_campaign_item: string }>(`select public.create_manual_campaign_item('${campaign.campaign_id}', 'Vente neutre', 1, 20000, null, null, null, null, false)`)).rows[0].create_manual_campaign_item;
+  await db.exec(`select public.sell_campaign_item('${saleAtCost}', 1, 20000, null)`);
+  expect(await totals()).toEqual({ gains: 40000, expenses: 22000, wealth: 8000 });
+
+  const profitableItem = (await db.query<{ create_manual_campaign_item: string }>(`select public.create_manual_campaign_item('${campaign.campaign_id}', 'Vente bénéficiaire', 1, 20000, null, null, null, null, false)`)).rows[0].create_manual_campaign_item;
+  const profitableSale = (await db.query<{ sell_campaign_item: string }>(`select public.sell_campaign_item('${profitableItem}', 1, 30000, null)`)).rows[0].sell_campaign_item;
+  expect(await totals()).toEqual({ gains: 50000, expenses: 22000, wealth: 38000 });
+
+  const discountedItem = (await db.query<{ create_manual_campaign_item: string }>(`select public.create_manual_campaign_item('${campaign.campaign_id}', 'Vente à perte', 1, 20000, null, null, null, null, false)`)).rows[0].create_manual_campaign_item;
+  await db.exec(`select public.sell_campaign_item('${discountedItem}', 1, 15000, null)`);
+  expect(await totals()).toEqual({ gains: 50000, expenses: 22000, wealth: 53000 });
+
+  await db.exec(`select public.transfer_campaign_money('${campaign.campaign_id}', null, '${player}', 500, null)`);
+  expect(await totals()).toEqual({ gains: 50000, expenses: 22000, wealth: 53000 });
+
+  await db.exec(`select public.cancel_campaign_item_event('${profitableSale}', 'Vente annulée')`);
+  expect(await totals()).toEqual({ gains: 40000, expenses: 22000, wealth: 43000 });
+  await db.exec(`select public.cancel_campaign_money_transaction('${cashIncome}', 'Entrée annulée')`);
+  expect(await totals()).toEqual({ gains: 30000, expenses: 22000, wealth: 33000 });
+
+  const freeItem = (await db.query<{ create_manual_campaign_item: string }>(`select public.create_manual_campaign_item('${campaign.campaign_id}', 'Objet sans valeur', 1, null, null, null, null, null, false)`)).rows[0].create_manual_campaign_item;
+  await db.exec(`select public.sell_campaign_item('${freeItem}', 1, 10000, null)`);
+  expect(await totals()).toEqual({ gains: 40000, expenses: 22000, wealth: 43000 });
+
+  await db.exec(`select set_config('request.jwt.claim.sub', '${player}', false); set role authenticated;`);
+  const tinyBundle = (await db.query<{ purchase_campaign_item: string }>(`select public.purchase_campaign_item('${campaign.campaign_id}', 'Lot minimal', 3, 1, 1, 0, null, null, null, null, null)`)).rows[0].purchase_campaign_item;
+  await db.exec('reset role;');
+  expect((await db.query<{ unit_value_cp: number }>(`select unit_value_cp::int from public.campaign_inventory_items where id = '${tinyBundle}'`)).rows[0].unit_value_cp).toBe(1);
+  await db.exec(`select set_config('request.jwt.claim.sub', '${player}', false); set role authenticated;`);
+  expect(await totals()).toEqual({ gains: 40000, expenses: 22001, wealth: 43002 });
+  await db.close();
+}, 30_000);
+
 it("partage les fiches publiques sans exposer Pathbuilder ni les notes privées", async () => {
   const db = new PGlite();
   await db.exec(`
