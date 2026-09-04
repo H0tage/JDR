@@ -136,6 +136,7 @@ it("permet de cadrer puis de réinitialiser le portrait du personnage", async ()
   const horizontal = page.querySelector<HTMLInputElement>('input[aria-label="Centrage horizontal du portrait"]');
   const vertical = page.querySelector<HTMLInputElement>('input[aria-label="Centrage vertical du portrait"]');
   expect(page.querySelector(".player-page-portrait-preview > .player-page-crop-controls")).toBeNull();
+  expect(page.querySelector(".player-page-portrait-preview > img")).toBeTruthy();
   expect([zoom?.type, horizontal?.type, vertical?.type]).toEqual(["range", "range", "range"]);
   expect([zoom?.value, horizontal?.value, vertical?.value]).toEqual(["1", "50", "50"]);
   await act(async () => {
