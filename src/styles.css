@@ -255,7 +255,7 @@ textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
 .quest-postit-board .quest-column-informations { --postit: #6ca3a9; }
 .quest-postit-board .quest-column > header > span { color: var(--postit); }
 .quest-postit-list { align-content: start; min-height: 180px; }
-.quest-postit { position: relative; border-color: color-mix(in srgb, var(--postit) 34%, var(--line-soft)) !important; background: linear-gradient(135deg, color-mix(in srgb, var(--postit) 10%, #121814), #121814 58%) !important; cursor: grab; }
+.quest-postit { position: relative; border-color: color-mix(in srgb, var(--postit) 34%, var(--line-soft)) !important; background: var(--theme-image-well, #121814) !important; cursor: grab; }
 .quest-postit:active { cursor: grabbing; }
 .quest-postit.is-dragging { opacity: .28; cursor: grabbing; }
 .quest-column.drag-target > header { box-shadow: inset 0 -2px var(--postit); }
@@ -1505,7 +1505,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-light .quest-column h3, .player-theme-light .quest-column article h4, .player-theme-light .quest-history h3 { color: #30352f; }
 .player-theme-light .quest-column article { border-color: #ded6c8; background: #f5f0e6; }
 .player-theme-light .quest-column article p, .player-theme-light .quest-empty { color: #73766e; }
-.player-theme-light .quest-postit { background: linear-gradient(135deg, color-mix(in srgb, var(--postit) 16%, #fffdf7), #f9f4e9 58%) !important; }
+.player-theme-light .quest-postit { background: #f9f4e9 !important; }
 .player-theme-light .quest-postit-editor input, .player-theme-light .quest-postit-editor textarea, .player-theme-light .quest-postit-editor select { background: rgb(255 253 247 / 82%); }
 .player-theme-light .quest-history > button { background: #eee8da; color: #30352f; }
 .player-theme-light .quest-document-card { border-color: #d0c8b8; background: #faf7ef; }
