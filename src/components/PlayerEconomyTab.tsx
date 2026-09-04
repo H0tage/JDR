@@ -382,9 +382,9 @@ function describeActivity(entry: CampaignMoneyTransaction | CampaignItemEvent) {
     const destination = entry.destination_account === "common" ? "le compte commun" : entry.destination_account === "player" ? entry.destination_display_name ?? "un joueur" : "l’extérieur";
     if (entry.kind === "sale") return `${entry.actor_display_name ?? "Un joueur"} a vendu ${entry.related_item_name ?? "un objet"} pour ${formatCopper(entry.amount_cp)}`;
     if (entry.kind === "purchase") return `${entry.actor_display_name ?? "Un joueur"} a acheté ${entry.related_item_name ?? "un objet"} pour ${formatCopper(entry.amount_cp)}`;
-    return `${formatCopper(entry.amount_cp)} : ${source} → ${destination}`;
+    return `${entry.reversed_transaction_id ? "Suite à annulation : " : ""}${formatCopper(entry.amount_cp)} : ${source} → ${destination}`;
   }
-  return describeItemEvent(entry);
+  return `${entry.reversed_event_id ? "Suite à annulation : " : ""}${describeItemEvent(entry)}`;
 }
 
 function describeItemEvent(event: CampaignItemEvent) {
