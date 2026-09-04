@@ -311,6 +311,10 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
   const [debtor, setDebtor] = useState(defaultPlayerId);
   const [creditor, setCreditor] = useState(players.find((player) => player.user_id !== defaultPlayerId)?.user_id ?? "");
   const amountCp = moneyToCp(Number(amount) || 0, unit);
+  const purchaseQuantity = Number(quantity);
+  const purchaseUnitValueCp = amountCp > 0 && Number.isFinite(purchaseQuantity) && purchaseQuantity > 0
+    ? Math.max(1, Math.round(amountCp / purchaseQuantity))
+    : null;
   const commonCp = moneyToCp(Number(commonShare) || 0, unit);
   const allAccounts = [{ user_id: "common", display_name: "Compte commun" }, ...players];
 
@@ -340,7 +344,7 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
       {action === "manual-item" && <label className="check-label"><input type="checkbox" checked={countsAsGain} onChange={(event) => setCountsAsGain(event.target.checked)} />Compter comme nouveau gain</label>}
       {action === "purchase" && viewerRole === "gm" && <label>Acheteur<select value={destination} onChange={(event) => setDestination(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>}
       {action === "debt" && <><label>Débiteur<select value={debtor} onChange={(event) => { const next = event.target.value; setDebtor(next); if (viewerRole === "player" && next !== data.viewer_user_id) setCreditor(data.viewer_user_id); else if (creditor === next) setCreditor(players.find((player) => player.user_id !== next)?.user_id ?? ""); }}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label><label>Créancier<select value={creditor} onChange={(event) => { const next = event.target.value; setCreditor(next); if (viewerRole === "player" && next !== data.viewer_user_id) setDebtor(data.viewer_user_id); }}>{players.filter((player) => player.user_id !== debtor).map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label></>}
-      <MoneyField label={action === "manual-item" ? "Valeur unitaire" : "Montant"} amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />
+      {action === "purchase" ? <div className="purchase-price-field"><MoneyField label="Montant total" amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />{purchaseUnitValueCp !== null && <small>Soit {formatCopper(purchaseUnitValueCp)} par objet.</small>}</div> : <MoneyField label={action === "manual-item" ? "Valeur unitaire" : "Montant"} amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />}
       {action === "purchase" && <label>Part payée par le compte commun<input type="number" min="0" max={Number(amount) || 0} step="0.01" value={commonShare} onChange={(event) => setCommonShare(event.target.value)} /><small>Le reste sera pris sur le compte de l’acheteur. La valeur de l’objet sera égale au prix payé.</small></label>}
       <label className="span-2">Commentaire <small>facultatif</small><input value={comment} maxLength={500} onChange={(event) => setComment(event.target.value)} placeholder="Ex. remboursement de la chambre" /></label>
     </div>

@@ -73,6 +73,14 @@ it("ouvre l’achat et l’historique d’un objet à la volée", async () => {
   expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("La valeur de l’objet sera égale au prix payé");
   expect(economy.querySelector(".economy-action-panel")?.textContent).not.toContain("Valeur de référence unitaire");
   expect(economy.querySelector(".economy-action-panel")?.textContent).toContain("Archive of Nethys");
+  const purchaseNumbers = economy.querySelectorAll<HTMLInputElement>(".economy-action-panel input[type=number]");
+  const setNumber = (input: HTMLInputElement, value: string) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  await act(async () => { setNumber(purchaseNumbers[0]!, "3"); });
+  await act(async () => { setNumber(purchaseNumbers[1]!, "12"); });
+  expect(economy.querySelector(".purchase-price-field")?.textContent).toContain("Soit 4 po par objet.");
 
   const close = economy.querySelector<HTMLButtonElement>(".economy-action-panel .icon-button");
   await act(async () => { close?.click(); });

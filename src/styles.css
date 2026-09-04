@@ -1098,6 +1098,8 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .money-input { display: grid; grid-template-columns: minmax(0, 1fr) 76px; }
 .money-input input { border-radius: 7px 0 0 7px; }
 .money-input select { border-left: 0; border-radius: 0 7px 7px 0; }
+.purchase-price-field { display: grid; gap: 5px; }
+.purchase-price-field > small { color: var(--gold); font-size: .66rem; font-weight: 700; }
 .economy-requests { overflow: hidden; }
 .economy-requests > header, .economy-debts > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line-soft); padding: 12px 15px; }
 .economy-requests > header > div, .economy-debts > header { color: var(--gold); }
