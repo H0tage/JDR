@@ -63,7 +63,7 @@ Il est mis à jour à chaque ajout, suppression ou modification importante d'un 
 ## Pages joueurs, journal, relations et références
 
 43. Un joueur peut ouvrir sa page personnelle et reçoit le rappel qu'elle est privée.
-44. Le portrait d’un PJ peut être zoomé, centré horizontalement et verticalement, puis réinitialisé ; ce cadrage est conservé et partagé dans les vues joueur et MJ.
+44. Un PJ peut choisir un titre facultatif affiché en doré sous son nom, ainsi que zoomer, centrer et réinitialiser son portrait ; ces choix sont conservés dans les vues joueur et MJ.
 45. Le MJ ne voit pas l'onglet « Ma page » dans l'espace joueur.
 46. Un joueur peut voir les fiches publiques des autres sans accéder à Pathbuilder ni aux notes MJ.
 47. Un joueur ne peut pas ouvrir la vue MJ.

@@ -5,6 +5,7 @@ export interface PlayerPage {
   user_id: string;
   display_name: string | null;
   character_name: string | null;
+  character_title: string | null;
   character_summary: string | null;
   pathbuilder_url: string | null;
   notes: string | null;
@@ -28,13 +29,14 @@ export interface PlayerRelationshipNote {
   updated_at: string;
 }
 
-export type PlayerPageDraft = Pick<PlayerPage, "character_name" | "character_summary" | "pathbuilder_url" | "notes" | "objectives" | "image_path" | "image_x" | "image_y" | "image_zoom">;
+export type PlayerPageDraft = Pick<PlayerPage, "character_name" | "character_title" | "character_summary" | "pathbuilder_url" | "notes" | "objectives" | "image_path" | "image_x" | "image_y" | "image_zoom">;
 
 const demoPage: PlayerPage = {
   campaign_id: "00000000-0000-4000-8000-000000000001",
   user_id: "demo-arsene",
   display_name: "Prénom1 Nom1",
   character_name: "Aveline de la Garde-Fleur",
+  character_title: "",
   character_summary: "Chevalière enthousiaste, protectrice infatigable du groupe et spécialiste des entrées remarquées. Son optimisme résiste même aux couloirs les plus sinistres de Geb.",
   pathbuilder_url: "",
   notes: "Ne pas oublier de faire réparer le bouclier après notre prochaine halte.",
@@ -64,6 +66,7 @@ export async function saveMyPlayerPage(campaignId: string, draft: PlayerPageDraf
   const result = await client().rpc("update_my_player_page", {
     p_campaign_id: campaignId,
     p_character_name: draft.character_name,
+    p_character_title: draft.character_title,
     p_character_summary: draft.character_summary,
     p_pathbuilder_url: draft.pathbuilder_url,
     p_notes: draft.notes,

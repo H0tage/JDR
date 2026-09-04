@@ -911,7 +911,7 @@ $$;
 ALTER FUNCTION "public"."get_campaign_invitation"("p_token" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_my_player_page"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "character_name" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text", "image_x" numeric, "image_y" numeric, "image_zoom" numeric)
+CREATE OR REPLACE FUNCTION "public"."get_my_player_page"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "character_name" "text", "character_title" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text", "image_x" numeric, "image_y" numeric, "image_zoom" numeric)
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -930,9 +930,9 @@ begin
 
   return query
   select page.campaign_id, page.user_id, profile.display_name,
-    page.character_name, page.character_summary, page.pathbuilder_url, page.notes,
-    page.objectives, page.updated_at, page.image_path, page.image_x, page.image_y,
-    page.image_zoom
+    page.character_name, page.character_title, page.character_summary,
+    page.pathbuilder_url, page.notes, page.objectives, page.updated_at,
+    page.image_path, page.image_x, page.image_y, page.image_zoom
   from public.player_pages page
   join public.user_profiles profile on profile.user_id = page.user_id
   where page.campaign_id = p_campaign_id and page.user_id = auth.uid();
@@ -1197,7 +1197,7 @@ $$;
 ALTER FUNCTION "public"."list_campaign_members"("p_campaign_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."list_campaign_player_pages"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "active" boolean, "is_own" boolean, "character_name" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text", "image_x" numeric, "image_y" numeric, "image_zoom" numeric)
+CREATE OR REPLACE FUNCTION "public"."list_campaign_player_pages"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "active" boolean, "is_own" boolean, "character_name" "text", "character_title" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text", "image_x" numeric, "image_y" numeric, "image_zoom" numeric)
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -1215,6 +1215,7 @@ begin
     (member.user_id is not null),
     (page.user_id = auth.uid()),
     page.character_name,
+    page.character_title,
     page.character_summary,
     case when page.user_id = auth.uid() then page.pathbuilder_url else null end,
     case when viewer_is_gm or page.user_id = auth.uid() then page.notes else null end,
@@ -2621,6 +2622,29 @@ ALTER FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_chara
 CREATE OR REPLACE FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
+    AS $$
+declare
+  current_title text;
+begin
+  select page.character_title into current_title
+  from public.player_pages page
+  where page.campaign_id = p_campaign_id and page.user_id = auth.uid();
+
+  perform public.update_my_player_page(
+    p_campaign_id, p_character_name, current_title, p_character_summary,
+    p_pathbuilder_url, p_notes, p_objectives, p_image_path,
+    p_image_x, p_image_y, p_image_zoom
+  );
+end;
+$$;
+
+
+ALTER FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_title" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
     AS $_$
 begin
   if not exists (
@@ -2630,6 +2654,9 @@ begin
       and member.role = 'player'
   ) then raise exception 'Accès refusé'; end if;
 
+  if char_length(coalesce(p_character_title, '')) > 160 then
+    raise exception 'Le titre du personnage est trop long';
+  end if;
   if nullif(btrim(coalesce(p_image_path, '')), '') is not null
     and p_image_path !~ ('^' || p_campaign_id::text || '/' || auth.uid()::text || '/[0-9a-f-]{36}\.[a-z0-9]+$')
   then raise exception 'Chemin de portrait invalide'; end if;
@@ -2640,6 +2667,7 @@ begin
 
   update public.player_pages set
     character_name = nullif(btrim(coalesce(p_character_name, '')), ''),
+    character_title = nullif(btrim(coalesce(p_character_title, '')), ''),
     character_summary = nullif(btrim(coalesce(p_character_summary, '')), ''),
     pathbuilder_url = nullif(btrim(coalesce(p_pathbuilder_url, '')), ''),
     notes = nullif(btrim(coalesce(p_notes, '')), ''),
@@ -2654,7 +2682,7 @@ end;
 $_$;
 
 
-ALTER FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) OWNER TO "postgres";
+ALTER FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_title" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") RETURNS "void"
@@ -5009,8 +5037,10 @@ CREATE TABLE IF NOT EXISTS "public"."player_pages" (
     "image_x" numeric DEFAULT 50 NOT NULL,
     "image_y" numeric DEFAULT 50 NOT NULL,
     "image_zoom" numeric DEFAULT 1 NOT NULL,
+    "character_title" "text",
     CONSTRAINT "player_pages_character_name_check" CHECK (("char_length"(COALESCE("character_name", ''::"text")) <= 120)),
     CONSTRAINT "player_pages_character_summary_check" CHECK (("char_length"(COALESCE("character_summary", ''::"text")) <= 4000)),
+    CONSTRAINT "player_pages_character_title_length" CHECK (("char_length"(COALESCE("character_title", ''::"text")) <= 160)),
     CONSTRAINT "player_pages_image_x_range" CHECK ((("image_x" >= (0)::numeric) AND ("image_x" <= (100)::numeric))),
     CONSTRAINT "player_pages_image_y_range" CHECK ((("image_y" >= (0)::numeric) AND ("image_y" <= (100)::numeric))),
     CONSTRAINT "player_pages_image_zoom_range" CHECK ((("image_zoom" >= (1)::numeric) AND ("image_zoom" <= 2.5))),
@@ -7081,6 +7111,12 @@ GRANT ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "
 
 
 
+REVOKE ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_title" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_title" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) TO "service_role";
+GRANT ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_title" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) TO "authenticated";
+
+
+
 REVOKE ALL ON FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") TO "authenticated";
@@ -7483,6 +7519,3 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TA
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TABLES TO "service_role";
-
-
-

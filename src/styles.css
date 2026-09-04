@@ -1310,6 +1310,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-character-intro::before { top: 42px; }
 .player-character-intro::after { bottom: 42px; }
 .player-character-intro h1 { margin: 8px 0 20px; color: var(--sheet-ink); font-family: "Cinzel Decorative", Georgia, serif; font-size: clamp(2rem, 4.2vw, 3.8rem); font-weight: 400; line-height: 1.03; text-wrap: balance; }
+.player-character-intro .player-character-title { margin: -8px 0 22px; color: var(--sheet-gold); font-family: inherit; font-size: .78rem; font-weight: 800; letter-spacing: .1em; line-height: 1.45; text-transform: uppercase; }
 .player-character-intro > p:not(.eyebrow) { max-width: 620px; margin: 0 0 28px; color: var(--sheet-muted); font-family: "Source Serif 4", Georgia, serif; font-size: 1rem; line-height: 1.8; white-space: pre-wrap; }
 .player-character-intro .button { border-color: color-mix(in srgb, var(--sheet-gold) 45%, var(--sheet-line)); color: var(--sheet-ink); background: var(--sheet-alt); }
 .player-character-details { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }

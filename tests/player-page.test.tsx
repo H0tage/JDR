@@ -55,6 +55,7 @@ it("ouvre la page personnelle depuis Pages des joueurs et rappelle sa confidenti
   const page = await waitFor(() => container.querySelector<HTMLElement>(".player-page-tab"));
   expect(page.textContent).toContain("Les autres joueurs peuvent la consulter en lecture seule");
   expect(page.textContent).toContain("uniquement par vous et le MJ");
+  expect(page.textContent).not.toContain("Personnage de Prénom1 Nom1");
   expect(page.querySelector(".player-character-sheet")).toBeTruthy();
   expect(page.querySelector("textarea")).toBeNull();
   expect(page.querySelector("iframe")).toBeNull();
@@ -103,6 +104,7 @@ it("ouvre la page personnelle depuis Pages des joueurs et rappelle sa confidenti
   const editButton = [...page.querySelectorAll<HTMLButtonElement>("button")].find((candidate) => candidate.textContent?.includes("Modifier ma page"));
   await act(async () => { editButton?.click(); });
   expect(page.querySelector(".player-page-edit textarea")).toBeTruthy();
+  expect(page.querySelector<HTMLInputElement>('input[placeholder="Ex. La Flèche rouge de Féérune"]')).toBeTruthy();
 });
 
 it("ne montre pas Ma page au MJ dans la vue joueurs", async () => {
