@@ -771,15 +771,14 @@ function ProgressionTab({ data, mutate, demo }: { data: CampaignData; mutate: Mu
   ];
   const volumeGuides = campaignVolumeGuides;
   const [selectedVolume, setSelectedVolume] = useState(data.settings.current_volume);
-  const [showRoadmap, setShowRoadmap] = useState(false);
   const [selected, setSelected] = useState<Milestone | null>(null);
   const visible = data.milestones.filter((item) => item.volume === selectedVolume);
   const count = (volume: number, status: MilestoneStatus) => data.milestones.filter((item) => item.volume === volume && item.status === status).length;
 
   return <div className="page-stack">
-    <SectionHeading eyebrow="Volume en cours" title="Jalons de campagne" actions={<button type="button" className="button secondary tiny" onClick={() => setShowRoadmap((value) => !value)}>{showRoadmap ? "Masquer la feuille de route" : "Consulter les autres volumes"}</button>} />
-    <section className="volume-track" aria-label="Filtrer les jalons par volume">{volumeGuides.filter((_guide, index) => showRoadmap || index + 1 === data.settings.current_volume).map((guide) => {
-      const volume = showRoadmap ? volumeGuides.indexOf(guide) + 1 : data.settings.current_volume;
+    <SectionHeading eyebrow="Volume en cours" title="Jalons de campagne" />
+    <section className="volume-track" aria-label="Filtrer les jalons par volume">{volumeGuides.map((guide, index) => {
+      const volume = index + 1;
       const total = data.milestones.filter((item) => item.volume === volume).length;
       const resolved = count(volume, "succeeded") + count(volume, "missed") + count(volume, "excluded");
       return <button type="button" key={volume} className={`${selectedVolume === volume ? "selected" : ""} ${data.settings.current_volume === volume ? "current" : ""}`} onClick={() => setSelectedVolume(volume)}>

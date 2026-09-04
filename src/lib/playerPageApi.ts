@@ -10,6 +10,9 @@ export interface PlayerPage {
   notes: string | null;
   objectives: string | null;
   image_path: string | null;
+  image_x: number;
+  image_y: number;
+  image_zoom: number;
   updated_at: string;
 }
 
@@ -25,7 +28,7 @@ export interface PlayerRelationshipNote {
   updated_at: string;
 }
 
-export type PlayerPageDraft = Pick<PlayerPage, "character_name" | "character_summary" | "pathbuilder_url" | "notes" | "objectives" | "image_path">;
+export type PlayerPageDraft = Pick<PlayerPage, "character_name" | "character_summary" | "pathbuilder_url" | "notes" | "objectives" | "image_path" | "image_x" | "image_y" | "image_zoom">;
 
 const demoPage: PlayerPage = {
   campaign_id: "00000000-0000-4000-8000-000000000001",
@@ -37,6 +40,9 @@ const demoPage: PlayerPage = {
   notes: "Ne pas oublier de faire réparer le bouclier après notre prochaine halte.",
   objectives: "Retrouver les archives disparues et tenir la promesse faite à Prénom2 Nom2.",
   image_path: "/demo-player-character.png",
+  image_x: 50,
+  image_y: 50,
+  image_zoom: 1,
   updated_at: new Date(0).toISOString(),
 };
 
@@ -63,6 +69,9 @@ export async function saveMyPlayerPage(campaignId: string, draft: PlayerPageDraf
     p_notes: draft.notes,
     p_objectives: draft.objectives,
     p_image_path: draft.image_path,
+    p_image_x: draft.image_x,
+    p_image_y: draft.image_y,
+    p_image_zoom: draft.image_zoom,
   });
   if (result.error) throw new Error(`Ma page : ${result.error.message}`);
 }

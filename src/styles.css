@@ -1300,7 +1300,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-character-hero { min-height: 510px; display: grid; grid-template-columns: minmax(230px, .58fr) minmax(360px, 1.42fr); overflow: hidden; border: 1px solid var(--sheet-line); border-radius: 12px; color: var(--sheet-ink); background: var(--sheet); box-shadow: 0 18px 55px rgb(54 45 30 / 12%); }
 .player-character-portrait { position: relative; min-height: 510px; display: grid; place-items: end center; overflow: hidden; border-right: 1px solid var(--sheet-line); background: radial-gradient(circle at 50% 35%, #fffdf8, var(--sheet-alt) 70%); }
 .player-character-portrait::after { content: ""; position: absolute; inset: 16px; border: 1px solid color-mix(in srgb, var(--sheet-gold) 28%, transparent); border-radius: 180px 180px 8px 8px; pointer-events: none; }
-.player-character-portrait img { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: contain; object-position: center bottom; }
+.player-character-portrait img { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: contain; object-position: center bottom; transform-origin: center; transition: transform .12s ease; }
 .player-character-portrait > div { align-self: center; display: grid; justify-items: center; gap: 10px; color: var(--sheet-muted); font-size: .75rem; }
 .player-character-portrait-button { width: 100%; border: 0; padding: 0; color: inherit; font: inherit; cursor: zoom-in; }
 .player-character-portrait-button > span { position: absolute; right: 13px; bottom: 13px; z-index: 2; display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--sheet-gold) 45%, var(--sheet-line)); border-radius: 999px; padding: 7px 10px; background: color-mix(in srgb, var(--sheet) 88%, transparent); color: var(--sheet-ink); font-size: .7rem; font-weight: 800; opacity: 0; transform: translateY(4px); transition: .16s ease; }
@@ -1340,10 +1340,12 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-page-edit > section { border: 1px solid var(--sheet-line); border-radius: 9px; padding: 21px; color: var(--sheet-ink); background: var(--sheet); }
 .player-page-edit-portrait { display: flex; align-items: center; flex-direction: column; gap: 11px; }
 .player-page-edit-portrait > div { width: 100%; min-height: 360px; display: grid; place-items: center; overflow: hidden; border: 1px dashed var(--sheet-line); border-radius: 8px; color: var(--sheet-muted); background: var(--sheet-alt); }
-.player-page-edit-portrait img { width: 100%; height: 360px; object-fit: contain; }
+.player-page-edit-portrait img { width: 100%; height: 360px; object-fit: contain; transform-origin: center; transition: transform .12s ease; }
 .player-page-edit-portrait label { width: 100%; }
 .player-page-edit-portrait label input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .player-page-edit-portrait small { color: var(--sheet-muted); }
+.player-page-crop-controls { width: 100%; align-self: stretch; text-align: left; }
+.player-page-crop-controls label { color: var(--sheet-muted); }
 .player-page-edit-fields, .player-page-edit-wide { display: grid; align-content: start; gap: 15px; }
 .player-page-edit-wide, .player-page-edit .player-page-submit { grid-column: 1 / -1; }
 .player-page-edit label { color: var(--sheet-muted); }

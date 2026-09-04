@@ -53,6 +53,18 @@ it("ouvre la démo joueurs depuis la route historique", async () => {
   expect(shell.textContent).toContain("Comment fonctionne ce site ?");
 });
 
+it("affiche toujours les six volumes de la feuille de route au MJ", async () => {
+  window.history.replaceState(null, "", "/MJsecretscreen/?demo=1");
+  await act(async () => { root.render(<App />); });
+  const shell = await waitFor(() => container.querySelector<HTMLElement>(".gm-shell"));
+  const milestones = [...shell.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === "Jalons");
+  await act(async () => { milestones?.click(); });
+  const track = await waitFor(() => shell.querySelector<HTMLElement>(".volume-track"));
+  expect(track.querySelectorAll(":scope > button")).toHaveLength(6);
+  expect(shell.textContent).not.toContain("Masquer la feuille de route");
+  expect(shell.textContent).not.toContain("Consulter les autres volumes");
+});
+
 it("propose les deux espaces de démonstration depuis l’accueil déconnecté", async () => {
   window.history.replaceState(null, "", "/");
   await act(async () => { root.render(<App />); });

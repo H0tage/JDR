@@ -23,6 +23,12 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
+CREATE SCHEMA IF NOT EXISTS "storage";
+
+
+ALTER SCHEMA "storage" OWNER TO "supabase_admin";
+
+
 CREATE TYPE "public"."relationship_evidence" AS ENUM (
     'E',
     'S',
@@ -65,6 +71,16 @@ CREATE TYPE "public"."visibility_status" AS ENUM (
 
 
 ALTER TYPE "public"."visibility_status" OWNER TO "postgres";
+
+
+CREATE TYPE "storage"."buckettype" AS ENUM (
+    'STANDARD',
+    'ANALYTICS',
+    'VECTOR'
+);
+
+
+ALTER TYPE "storage"."buckettype" OWNER TO "supabase_storage_admin";
 
 
 CREATE OR REPLACE FUNCTION "public"."accept_campaign_invitation"("p_token" "uuid") RETURNS TABLE("campaign_id" "uuid", "campaign_name" "text", "role" "text", "already_member" boolean)
@@ -895,20 +911,30 @@ $$;
 ALTER FUNCTION "public"."get_campaign_invitation"("p_token" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_my_player_page"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "character_name" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text")
+CREATE OR REPLACE FUNCTION "public"."get_my_player_page"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "character_name" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text", "image_x" numeric, "image_y" numeric, "image_zoom" numeric)
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
 begin
-  if not exists (select 1 from public.campaign_members member
-    where member.campaign_id = p_campaign_id and member.user_id = auth.uid() and member.role = 'player')
-  then raise exception 'Accès refusé'; end if;
-  insert into public.user_profiles (user_id) values (auth.uid()) on conflict on constraint user_profiles_pkey do nothing;
-  insert into public.player_pages (campaign_id, user_id) values (p_campaign_id, auth.uid()) on conflict on constraint player_pages_pkey do nothing;
-  return query select page.campaign_id, page.user_id, profile.display_name,
+  if not exists (
+    select 1 from public.campaign_members member
+    where member.campaign_id = p_campaign_id
+      and member.user_id = auth.uid()
+      and member.role = 'player'
+  ) then raise exception 'Accès refusé'; end if;
+
+  insert into public.user_profiles (user_id) values (auth.uid())
+  on conflict on constraint user_profiles_pkey do nothing;
+  insert into public.player_pages (campaign_id, user_id) values (p_campaign_id, auth.uid())
+  on conflict on constraint player_pages_pkey do nothing;
+
+  return query
+  select page.campaign_id, page.user_id, profile.display_name,
     page.character_name, page.character_summary, page.pathbuilder_url, page.notes,
-    page.objectives, page.updated_at, page.image_path
-  from public.player_pages page join public.user_profiles profile on profile.user_id = page.user_id
+    page.objectives, page.updated_at, page.image_path, page.image_x, page.image_y,
+    page.image_zoom
+  from public.player_pages page
+  join public.user_profiles profile on profile.user_id = page.user_id
   where page.campaign_id = p_campaign_id and page.user_id = auth.uid();
 end;
 $$;
@@ -1171,7 +1197,7 @@ $$;
 ALTER FUNCTION "public"."list_campaign_members"("p_campaign_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."list_campaign_player_pages"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "active" boolean, "is_own" boolean, "character_name" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text")
+CREATE OR REPLACE FUNCTION "public"."list_campaign_player_pages"("p_campaign_id" "uuid") RETURNS TABLE("campaign_id" "uuid", "user_id" "uuid", "display_name" "text", "active" boolean, "is_own" boolean, "character_name" "text", "character_summary" "text", "pathbuilder_url" "text", "notes" "text", "objectives" "text", "updated_at" timestamp with time zone, "image_path" "text", "image_x" numeric, "image_y" numeric, "image_zoom" numeric)
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -1194,7 +1220,10 @@ begin
     case when viewer_is_gm or page.user_id = auth.uid() then page.notes else null end,
     page.objectives,
     page.updated_at,
-    page.image_path
+    page.image_path,
+    page.image_x,
+    page.image_y,
+    page.image_zoom
   from public.player_pages page
   left join public.user_profiles profile on profile.user_id = page.user_id
   left join public.campaign_members member
@@ -2566,28 +2595,66 @@ ALTER FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_chara
 CREATE OR REPLACE FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
+    AS $$
+declare
+  current_x numeric;
+  current_y numeric;
+  current_zoom numeric;
+begin
+  select page.image_x, page.image_y, page.image_zoom
+    into current_x, current_y, current_zoom
+  from public.player_pages page
+  where page.campaign_id = p_campaign_id and page.user_id = auth.uid();
+
+  perform public.update_my_player_page(
+    p_campaign_id, p_character_name, p_character_summary, p_pathbuilder_url,
+    p_notes, p_objectives, p_image_path,
+    coalesce(current_x, 50), coalesce(current_y, 50), coalesce(current_zoom, 1)
+  );
+end;
+$$;
+
+
+ALTER FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
     AS $_$
 begin
-  if not exists (select 1 from public.campaign_members member
-    where member.campaign_id = p_campaign_id and member.user_id = auth.uid() and member.role = 'player')
-  then raise exception 'Accès refusé'; end if;
+  if not exists (
+    select 1 from public.campaign_members member
+    where member.campaign_id = p_campaign_id
+      and member.user_id = auth.uid()
+      and member.role = 'player'
+  ) then raise exception 'Accès refusé'; end if;
+
   if nullif(btrim(coalesce(p_image_path, '')), '') is not null
     and p_image_path !~ ('^' || p_campaign_id::text || '/' || auth.uid()::text || '/[0-9a-f-]{36}\.[a-z0-9]+$')
   then raise exception 'Chemin de portrait invalide'; end if;
+  if p_image_x is null or p_image_x not between 0 and 100
+    or p_image_y is null or p_image_y not between 0 and 100
+    or p_image_zoom is null or p_image_zoom not between 1 and 2.5
+  then raise exception 'Cadrage du portrait invalide'; end if;
+
   update public.player_pages set
     character_name = nullif(btrim(coalesce(p_character_name, '')), ''),
     character_summary = nullif(btrim(coalesce(p_character_summary, '')), ''),
     pathbuilder_url = nullif(btrim(coalesce(p_pathbuilder_url, '')), ''),
     notes = nullif(btrim(coalesce(p_notes, '')), ''),
     objectives = nullif(btrim(coalesce(p_objectives, '')), ''),
-    image_path = nullif(btrim(coalesce(p_image_path, '')), '')
+    image_path = nullif(btrim(coalesce(p_image_path, '')), ''),
+    image_x = p_image_x,
+    image_y = p_image_y,
+    image_zoom = p_image_zoom
   where campaign_id = p_campaign_id and user_id = auth.uid();
   if not found then raise exception 'Page joueur introuvable'; end if;
 end;
 $_$;
 
 
-ALTER FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text") OWNER TO "postgres";
+ALTER FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") RETURNS "void"
@@ -2685,6 +2752,919 @@ $$;
 
 
 ALTER FUNCTION "public"."update_owned_campaign"("p_campaign_id" "uuid", "p_name" "text", "p_description" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "storage"."allow_any_operation"("expected_operations" "text"[]) RETURNS boolean
+    LANGUAGE "sql" STABLE
+    AS $$
+  WITH current_operation AS (
+    SELECT storage.operation() AS raw_operation
+  ),
+  normalized AS (
+    SELECT CASE
+      WHEN raw_operation LIKE 'storage.%' THEN substr(raw_operation, 9)
+      ELSE raw_operation
+    END AS current_operation
+    FROM current_operation
+  )
+  SELECT EXISTS (
+    SELECT 1
+    FROM normalized n
+    CROSS JOIN LATERAL unnest(expected_operations) AS expected_operation
+    WHERE expected_operation IS NOT NULL
+      AND expected_operation <> ''
+      AND n.current_operation = CASE
+        WHEN expected_operation LIKE 'storage.%' THEN substr(expected_operation, 9)
+        ELSE expected_operation
+      END
+  );
+$$;
+
+
+ALTER FUNCTION "storage"."allow_any_operation"("expected_operations" "text"[]) OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."allow_only_operation"("expected_operation" "text") RETURNS boolean
+    LANGUAGE "sql" STABLE
+    AS $$
+  WITH current_operation AS (
+    SELECT storage.operation() AS raw_operation
+  ),
+  normalized AS (
+    SELECT
+      CASE
+        WHEN raw_operation LIKE 'storage.%' THEN substr(raw_operation, 9)
+        ELSE raw_operation
+      END AS current_operation,
+      CASE
+        WHEN expected_operation LIKE 'storage.%' THEN substr(expected_operation, 9)
+        ELSE expected_operation
+      END AS requested_operation
+    FROM current_operation
+  )
+  SELECT CASE
+    WHEN requested_operation IS NULL OR requested_operation = '' THEN FALSE
+    ELSE COALESCE(current_operation = requested_operation, FALSE)
+  END
+  FROM normalized;
+$$;
+
+
+ALTER FUNCTION "storage"."allow_only_operation"("expected_operation" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."can_insert_object"("bucketid" "text", "name" "text", "owner" "uuid", "metadata" "jsonb") RETURNS "void"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  INSERT INTO "storage"."objects" ("bucket_id", "name", "owner", "metadata") VALUES (bucketid, name, owner, metadata);
+  -- hack to rollback the successful insert
+  RAISE sqlstate 'PT200' using
+  message = 'ROLLBACK',
+  detail = 'rollback successful insert';
+END
+$$;
+
+
+ALTER FUNCTION "storage"."can_insert_object"("bucketid" "text", "name" "text", "owner" "uuid", "metadata" "jsonb") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."enforce_bucket_name_length"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+begin
+    if length(new.name) > 100 then
+        raise exception 'bucket name "%" is too long (% characters). Max is 100.', new.name, length(new.name);
+    end if;
+    return new;
+end;
+$$;
+
+
+ALTER FUNCTION "storage"."enforce_bucket_name_length"() OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."extension"("name" "text") RETURNS "text"
+    LANGUAGE "plpgsql" IMMUTABLE
+    AS $$
+DECLARE
+    _parts text[];
+    _filename text;
+BEGIN
+    -- Split on "/" to get path segments
+    SELECT string_to_array(name, '/') INTO _parts;
+    -- Get the last path segment (the actual filename)
+    SELECT _parts[array_length(_parts, 1)] INTO _filename;
+    -- Extract extension: reverse, split on '.', then reverse again
+    RETURN reverse(split_part(reverse(_filename), '.', 1));
+END
+$$;
+
+
+ALTER FUNCTION "storage"."extension"("name" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."filename"("name" "text") RETURNS "text"
+    LANGUAGE "plpgsql" IMMUTABLE
+    AS $$
+DECLARE
+    _parts text[];
+BEGIN
+    SELECT string_to_array(name, '/') INTO _parts;
+    RETURN _parts[array_length(_parts, 1)];
+END
+$$;
+
+
+ALTER FUNCTION "storage"."filename"("name" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."foldername"("name" "text") RETURNS "text"[]
+    LANGUAGE "plpgsql" IMMUTABLE
+    AS $$
+DECLARE
+    _parts text[];
+BEGIN
+    -- Split on "/" to get path segments
+    SELECT string_to_array(name, '/') INTO _parts;
+    -- Return everything except the last segment
+    RETURN _parts[1 : array_length(_parts,1) - 1];
+END
+$$;
+
+
+ALTER FUNCTION "storage"."foldername"("name" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."get_common_prefix"("p_key" "text", "p_prefix" "text", "p_delimiter" "text") RETURNS "text"
+    LANGUAGE "sql" IMMUTABLE
+    AS $$
+SELECT CASE
+    WHEN position(p_delimiter IN substring(p_key FROM length(p_prefix) + 1)) > 0
+    THEN left(p_key, length(p_prefix) + position(p_delimiter IN substring(p_key FROM length(p_prefix) + 1)))
+    ELSE NULL
+END;
+$$;
+
+
+ALTER FUNCTION "storage"."get_common_prefix"("p_key" "text", "p_prefix" "text", "p_delimiter" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."get_size_by_bucket"() RETURNS TABLE("size" bigint, "bucket_id" "text")
+    LANGUAGE "plpgsql" STABLE
+    AS $$
+BEGIN
+    return query
+        select sum((metadata->>'size')::bigint)::bigint as size, obj.bucket_id
+        from "storage".objects as obj
+        group by obj.bucket_id;
+END
+$$;
+
+
+ALTER FUNCTION "storage"."get_size_by_bucket"() OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."list_multipart_uploads_with_delimiter"("bucket_id" "text", "prefix_param" "text", "delimiter_param" "text", "max_keys" integer DEFAULT 100, "next_key_token" "text" DEFAULT ''::"text", "next_upload_token" "text" DEFAULT ''::"text") RETURNS TABLE("key" "text", "id" "text", "created_at" timestamp with time zone)
+    LANGUAGE "plpgsql"
+    AS $_$
+BEGIN
+    RETURN QUERY EXECUTE
+        'SELECT DISTINCT ON(key COLLATE "C") * from (
+            SELECT
+                CASE
+                    WHEN position($2 IN substring(key from length($1) + 1)) > 0 THEN
+                        substring(key from 1 for length($1) + position($2 IN substring(key from length($1) + 1)))
+                    ELSE
+                        key
+                END AS key, id, created_at
+            FROM
+                storage.s3_multipart_uploads
+            WHERE
+                bucket_id = $5 AND
+                key ILIKE $1 || ''%'' AND
+                CASE
+                    WHEN $4 != '''' AND $6 = '''' THEN
+                        CASE
+                            WHEN position($2 IN substring(key from length($1) + 1)) > 0 THEN
+                                substring(key from 1 for length($1) + position($2 IN substring(key from length($1) + 1))) COLLATE "C" > $4
+                            ELSE
+                                key COLLATE "C" > $4
+                            END
+                    ELSE
+                        true
+                END AND
+                CASE
+                    WHEN $6 != '''' THEN
+                        id COLLATE "C" > $6
+                    ELSE
+                        true
+                    END
+            ORDER BY
+                key COLLATE "C" ASC, created_at ASC) as e order by key COLLATE "C" LIMIT $3'
+        USING prefix_param, delimiter_param, max_keys, next_key_token, bucket_id, next_upload_token;
+END;
+$_$;
+
+
+ALTER FUNCTION "storage"."list_multipart_uploads_with_delimiter"("bucket_id" "text", "prefix_param" "text", "delimiter_param" "text", "max_keys" integer, "next_key_token" "text", "next_upload_token" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."list_objects_with_delimiter"("_bucket_id" "text", "prefix_param" "text", "delimiter_param" "text", "max_keys" integer DEFAULT 100, "start_after" "text" DEFAULT ''::"text", "next_token" "text" DEFAULT ''::"text", "sort_order" "text" DEFAULT 'asc'::"text") RETURNS TABLE("name" "text", "id" "uuid", "metadata" "jsonb", "updated_at" timestamp with time zone, "created_at" timestamp with time zone, "last_accessed_at" timestamp with time zone)
+    LANGUAGE "plpgsql" STABLE
+    AS $_$
+DECLARE
+    v_peek_name TEXT;
+    v_current RECORD;
+    v_common_prefix TEXT;
+
+    -- Configuration
+    v_is_asc BOOLEAN;
+    v_prefix TEXT;
+    v_start TEXT;
+    v_upper_bound TEXT;
+    v_file_batch_size INT;
+
+    -- Seek state
+    v_next_seek TEXT;
+    v_count INT := 0;
+
+    -- Dynamic SQL for batch query only
+    v_batch_query TEXT;
+
+BEGIN
+    -- ========================================================================
+    -- INITIALIZATION
+    -- ========================================================================
+    v_is_asc := lower(coalesce(sort_order, 'asc')) = 'asc';
+    v_prefix := coalesce(prefix_param, '');
+    v_start := CASE WHEN coalesce(next_token, '') <> '' THEN next_token ELSE coalesce(start_after, '') END;
+    v_file_batch_size := LEAST(GREATEST(max_keys * 2, 100), 1000);
+
+    -- Calculate upper bound for prefix filtering (bytewise, using COLLATE "C")
+    IF v_prefix = '' THEN
+        v_upper_bound := NULL;
+    ELSIF right(v_prefix, 1) = delimiter_param THEN
+        v_upper_bound := left(v_prefix, -1) || chr(ascii(delimiter_param) + 1);
+    ELSE
+        v_upper_bound := left(v_prefix, -1) || chr(ascii(right(v_prefix, 1)) + 1);
+    END IF;
+
+    -- Build batch query (dynamic SQL - called infrequently, amortized over many rows)
+    IF v_is_asc THEN
+        IF v_upper_bound IS NOT NULL THEN
+            v_batch_query := 'SELECT o.name, o.id, o.updated_at, o.created_at, o.last_accessed_at, o.metadata ' ||
+                'FROM storage.objects o WHERE o.bucket_id = $1 AND o.name COLLATE "C" >= $2 ' ||
+                'AND o.name COLLATE "C" < $3 ORDER BY o.name COLLATE "C" ASC LIMIT $4';
+        ELSE
+            v_batch_query := 'SELECT o.name, o.id, o.updated_at, o.created_at, o.last_accessed_at, o.metadata ' ||
+                'FROM storage.objects o WHERE o.bucket_id = $1 AND o.name COLLATE "C" >= $2 ' ||
+                'ORDER BY o.name COLLATE "C" ASC LIMIT $4';
+        END IF;
+    ELSE
+        IF v_upper_bound IS NOT NULL THEN
+            v_batch_query := 'SELECT o.name, o.id, o.updated_at, o.created_at, o.last_accessed_at, o.metadata ' ||
+                'FROM storage.objects o WHERE o.bucket_id = $1 AND o.name COLLATE "C" < $2 ' ||
+                'AND o.name COLLATE "C" >= $3 ORDER BY o.name COLLATE "C" DESC LIMIT $4';
+        ELSE
+            v_batch_query := 'SELECT o.name, o.id, o.updated_at, o.created_at, o.last_accessed_at, o.metadata ' ||
+                'FROM storage.objects o WHERE o.bucket_id = $1 AND o.name COLLATE "C" < $2 ' ||
+                'ORDER BY o.name COLLATE "C" DESC LIMIT $4';
+        END IF;
+    END IF;
+
+    -- ========================================================================
+    -- SEEK INITIALIZATION: Determine starting position
+    -- ========================================================================
+    IF v_start = '' THEN
+        IF v_is_asc THEN
+            v_next_seek := v_prefix;
+        ELSE
+            -- DESC without cursor: find the last item in range
+            IF v_upper_bound IS NOT NULL THEN
+                SELECT o.name INTO v_next_seek FROM storage.objects o
+                WHERE o.bucket_id = _bucket_id AND o.name COLLATE "C" >= v_prefix AND o.name COLLATE "C" < v_upper_bound
+                ORDER BY o.name COLLATE "C" DESC LIMIT 1;
+            ELSIF v_prefix <> '' THEN
+                SELECT o.name INTO v_next_seek FROM storage.objects o
+                WHERE o.bucket_id = _bucket_id AND o.name COLLATE "C" >= v_prefix
+                ORDER BY o.name COLLATE "C" DESC LIMIT 1;
+            ELSE
+                SELECT o.name INTO v_next_seek FROM storage.objects o
+                WHERE o.bucket_id = _bucket_id
+                ORDER BY o.name COLLATE "C" DESC LIMIT 1;
+            END IF;
+
+            IF v_next_seek IS NOT NULL THEN
+                v_next_seek := v_next_seek || delimiter_param;
+            ELSE
+                RETURN;
+            END IF;
+        END IF;
+    ELSE
+        -- Cursor provided: determine if it refers to a folder or leaf
+        IF EXISTS (
+            SELECT 1 FROM storage.objects o
+            WHERE o.bucket_id = _bucket_id
+              AND o.name COLLATE "C" LIKE v_start || delimiter_param || '%'
+            LIMIT 1
+        ) THEN
+            -- Cursor refers to a folder
+            IF v_is_asc THEN
+                v_next_seek := v_start || chr(ascii(delimiter_param) + 1);
+            ELSE
+                v_next_seek := v_start || delimiter_param;
+            END IF;
+        ELSE
+            -- Cursor refers to a leaf object
+            IF v_is_asc THEN
+                v_next_seek := v_start || delimiter_param;
+            ELSE
+                v_next_seek := v_start;
+            END IF;
+        END IF;
+    END IF;
+
+    -- ========================================================================
+    -- MAIN LOOP: Hybrid peek-then-batch algorithm
+    -- Uses STATIC SQL for peek (hot path) and DYNAMIC SQL for batch
+    -- ========================================================================
+    LOOP
+        EXIT WHEN v_count >= max_keys;
+
+        -- STEP 1: PEEK using STATIC SQL (plan cached, very fast)
+        IF v_is_asc THEN
+            IF v_upper_bound IS NOT NULL THEN
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = _bucket_id AND o.name COLLATE "C" >= v_next_seek AND o.name COLLATE "C" < v_upper_bound
+                ORDER BY o.name COLLATE "C" ASC LIMIT 1;
+            ELSE
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = _bucket_id AND o.name COLLATE "C" >= v_next_seek
+                ORDER BY o.name COLLATE "C" ASC LIMIT 1;
+            END IF;
+        ELSE
+            IF v_upper_bound IS NOT NULL THEN
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = _bucket_id AND o.name COLLATE "C" < v_next_seek AND o.name COLLATE "C" >= v_prefix
+                ORDER BY o.name COLLATE "C" DESC LIMIT 1;
+            ELSIF v_prefix <> '' THEN
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = _bucket_id AND o.name COLLATE "C" < v_next_seek AND o.name COLLATE "C" >= v_prefix
+                ORDER BY o.name COLLATE "C" DESC LIMIT 1;
+            ELSE
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = _bucket_id AND o.name COLLATE "C" < v_next_seek
+                ORDER BY o.name COLLATE "C" DESC LIMIT 1;
+            END IF;
+        END IF;
+
+        EXIT WHEN v_peek_name IS NULL;
+
+        -- STEP 2: Check if this is a FOLDER or FILE
+        v_common_prefix := storage.get_common_prefix(v_peek_name, v_prefix, delimiter_param);
+
+        IF v_common_prefix IS NOT NULL THEN
+            -- FOLDER: Emit and skip to next folder (no heap access needed)
+            name := rtrim(v_common_prefix, delimiter_param);
+            id := NULL;
+            updated_at := NULL;
+            created_at := NULL;
+            last_accessed_at := NULL;
+            metadata := NULL;
+            RETURN NEXT;
+            v_count := v_count + 1;
+
+            -- Advance seek past the folder range
+            IF v_is_asc THEN
+                v_next_seek := left(v_common_prefix, -1) || chr(ascii(delimiter_param) + 1);
+            ELSE
+                v_next_seek := v_common_prefix;
+            END IF;
+        ELSE
+            -- FILE: Batch fetch using DYNAMIC SQL (overhead amortized over many rows)
+            -- For ASC: upper_bound is the exclusive upper limit (< condition)
+            -- For DESC: prefix is the inclusive lower limit (>= condition)
+            FOR v_current IN EXECUTE v_batch_query USING _bucket_id, v_next_seek,
+                CASE WHEN v_is_asc THEN COALESCE(v_upper_bound, v_prefix) ELSE v_prefix END, v_file_batch_size
+            LOOP
+                v_common_prefix := storage.get_common_prefix(v_current.name, v_prefix, delimiter_param);
+
+                IF v_common_prefix IS NOT NULL THEN
+                    -- Hit a folder: exit batch, let peek handle it
+                    v_next_seek := v_current.name;
+                    EXIT;
+                END IF;
+
+                -- Emit file
+                name := v_current.name;
+                id := v_current.id;
+                updated_at := v_current.updated_at;
+                created_at := v_current.created_at;
+                last_accessed_at := v_current.last_accessed_at;
+                metadata := v_current.metadata;
+                RETURN NEXT;
+                v_count := v_count + 1;
+
+                -- Advance seek past this file
+                IF v_is_asc THEN
+                    v_next_seek := v_current.name || delimiter_param;
+                ELSE
+                    v_next_seek := v_current.name;
+                END IF;
+
+                EXIT WHEN v_count >= max_keys;
+            END LOOP;
+        END IF;
+    END LOOP;
+END;
+$_$;
+
+
+ALTER FUNCTION "storage"."list_objects_with_delimiter"("_bucket_id" "text", "prefix_param" "text", "delimiter_param" "text", "max_keys" integer, "start_after" "text", "next_token" "text", "sort_order" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."operation"() RETURNS "text"
+    LANGUAGE "plpgsql" STABLE
+    AS $$
+BEGIN
+    RETURN current_setting('storage.operation', true);
+END;
+$$;
+
+
+ALTER FUNCTION "storage"."operation"() OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."protect_delete"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    -- Check if storage.allow_delete_query is set to 'true'
+    IF COALESCE(current_setting('storage.allow_delete_query', true), 'false') != 'true' THEN
+        RAISE EXCEPTION 'Direct deletion from storage tables is not allowed. Use the Storage API instead.'
+            USING HINT = 'This prevents accidental data loss from orphaned objects.',
+                  ERRCODE = '42501';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+
+ALTER FUNCTION "storage"."protect_delete"() OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."search"("prefix" "text", "bucketname" "text", "limits" integer DEFAULT 100, "levels" integer DEFAULT 1, "offsets" integer DEFAULT 0, "search" "text" DEFAULT ''::"text", "sortcolumn" "text" DEFAULT 'name'::"text", "sortorder" "text" DEFAULT 'asc'::"text") RETURNS TABLE("name" "text", "id" "uuid", "updated_at" timestamp with time zone, "created_at" timestamp with time zone, "last_accessed_at" timestamp with time zone, "metadata" "jsonb")
+    LANGUAGE "plpgsql" STABLE
+    AS $_$
+DECLARE
+    v_peek_name TEXT;
+    v_current RECORD;
+    v_common_prefix TEXT;
+    v_delimiter CONSTANT TEXT := '/';
+
+    -- Configuration
+    v_limit INT;
+    v_prefix TEXT;
+    v_prefix_lower TEXT;
+    v_prefix_len INT;
+    v_prefix_start INT;
+    v_combined_levels INT;
+    v_is_asc BOOLEAN;
+    v_order_by TEXT;
+    v_sort_order TEXT;
+    v_upper_bound TEXT;
+    v_file_batch_size INT;
+
+    -- Dynamic SQL for batch query only
+    v_batch_query TEXT;
+
+    -- Seek state
+    v_next_seek TEXT;
+    v_count INT := 0;
+    v_skipped INT := 0;
+BEGIN
+    -- ========================================================================
+    -- INITIALIZATION
+    -- ========================================================================
+    v_limit := LEAST(coalesce(limits, 100), 1500);
+    v_prefix := coalesce(prefix, '') || coalesce(search, '');
+    v_prefix_lower := lower(v_prefix);
+    v_prefix_len := length(coalesce(prefix, ''));
+    v_prefix_start := coalesce(array_length(string_to_array(coalesce(prefix, ''), v_delimiter), 1), 1);
+    v_combined_levels := coalesce(array_length(string_to_array(v_prefix, v_delimiter), 1), 1);
+    v_is_asc := lower(coalesce(sortorder, 'asc')) = 'asc';
+    v_file_batch_size := LEAST(GREATEST(v_limit * 2, 100), 1000);
+
+    -- Validate sort column
+    CASE lower(coalesce(sortcolumn, 'name'))
+        WHEN 'name' THEN v_order_by := 'name';
+        WHEN 'updated_at' THEN v_order_by := 'updated_at';
+        WHEN 'created_at' THEN v_order_by := 'created_at';
+        WHEN 'last_accessed_at' THEN v_order_by := 'last_accessed_at';
+        ELSE v_order_by := 'name';
+    END CASE;
+
+    v_sort_order := CASE WHEN v_is_asc THEN 'asc' ELSE 'desc' END;
+
+    -- ========================================================================
+    -- NON-NAME SORTING: Use path_tokens approach
+    -- ========================================================================
+    IF v_order_by != 'name' THEN
+        RETURN QUERY EXECUTE format(
+            $sql$
+            WITH folders AS (
+                SELECT array_to_string(path_tokens[$1:$2], '/') AS folder
+                FROM storage.objects
+                WHERE objects.name ILIKE $3 || '%%'
+                  AND bucket_id = $4
+                  AND array_length(objects.path_tokens, 1) <> $2
+                GROUP BY folder
+                ORDER BY folder %s
+            )
+            (SELECT folder AS "name",
+                   NULL::uuid AS id,
+                   NULL::timestamptz AS updated_at,
+                   NULL::timestamptz AS created_at,
+                   NULL::timestamptz AS last_accessed_at,
+                   NULL::jsonb AS metadata FROM folders)
+            UNION ALL
+            (SELECT array_to_string(path_tokens[$1:$2], '/') AS "name",
+                   id, updated_at, created_at, last_accessed_at, metadata
+             FROM storage.objects
+             WHERE objects.name ILIKE $3 || '%%'
+               AND bucket_id = $4
+               AND array_length(objects.path_tokens, 1) = $2
+             ORDER BY %I %s)
+            LIMIT $5 OFFSET $6
+            $sql$, v_sort_order, v_order_by, v_sort_order
+        ) USING v_prefix_start, v_combined_levels, v_prefix, bucketname, v_limit, offsets;
+        RETURN;
+    END IF;
+
+    -- ========================================================================
+    -- NAME SORTING: Hybrid skip-scan with batch optimization
+    -- ========================================================================
+
+    -- Calculate upper bound for prefix filtering
+    IF v_prefix_lower = '' THEN
+        v_upper_bound := NULL;
+    ELSIF right(v_prefix_lower, 1) = v_delimiter THEN
+        v_upper_bound := left(v_prefix_lower, -1) || chr(ascii(v_delimiter) + 1);
+    ELSE
+        v_upper_bound := left(v_prefix_lower, -1) || chr(ascii(right(v_prefix_lower, 1)) + 1);
+    END IF;
+
+    -- Build batch query (dynamic SQL - called infrequently, amortized over many rows)
+    IF v_is_asc THEN
+        IF v_upper_bound IS NOT NULL THEN
+            v_batch_query := 'SELECT o.name, o.id, o.updated_at, o.created_at, o.last_accessed_at, o.metadata ' ||
+                'FROM storage.objects o WHERE o.bucket_id = $1 AND lower(o.name) COLLATE "C" >= $2 ' ||
+                'AND lower(o.name) COLLATE "C" < $3 ORDER BY lower(o.name) COLLATE "C" ASC LIMIT $4';
+        ELSE
+            v_batch_query := 'SELECT o.name, o.id, o.updated_at, o.created_at, o.last_accessed_at, o.metadata ' ||
+                'FROM storage.objects o WHERE o.bucket_id = $1 AND lower(o.name) COLLATE "C" >= $2 ' ||
+                'ORDER BY lower(o.name) COLLATE "C" ASC LIMIT $4';
+        END IF;
+    ELSE
+        IF v_upper_bound IS NOT NULL THEN
+            v_batch_query := 'SELECT o.name, o.id, o.updated_at, o.created_at, o.last_accessed_at, o.metadata ' ||
+                'FROM storage.objects o WHERE o.bucket_id = $1 AND lower(o.name) COLLATE "C" < $2 ' ||
+                'AND lower(o.name) COLLATE "C" >= $3 ORDER BY lower(o.name) COLLATE "C" DESC LIMIT $4';
+        ELSE
+            v_batch_query := 'SELECT o.name, o.id, o.updated_at, o.created_at, o.last_accessed_at, o.metadata ' ||
+                'FROM storage.objects o WHERE o.bucket_id = $1 AND lower(o.name) COLLATE "C" < $2 ' ||
+                'ORDER BY lower(o.name) COLLATE "C" DESC LIMIT $4';
+        END IF;
+    END IF;
+
+    -- Initialize seek position
+    IF v_is_asc THEN
+        v_next_seek := v_prefix_lower;
+    ELSE
+        -- DESC: find the last item in range first (static SQL)
+        IF v_upper_bound IS NOT NULL THEN
+            SELECT o.name INTO v_peek_name FROM storage.objects o
+            WHERE o.bucket_id = bucketname AND lower(o.name) COLLATE "C" >= v_prefix_lower AND lower(o.name) COLLATE "C" < v_upper_bound
+            ORDER BY lower(o.name) COLLATE "C" DESC LIMIT 1;
+        ELSIF v_prefix_lower <> '' THEN
+            SELECT o.name INTO v_peek_name FROM storage.objects o
+            WHERE o.bucket_id = bucketname AND lower(o.name) COLLATE "C" >= v_prefix_lower
+            ORDER BY lower(o.name) COLLATE "C" DESC LIMIT 1;
+        ELSE
+            SELECT o.name INTO v_peek_name FROM storage.objects o
+            WHERE o.bucket_id = bucketname
+            ORDER BY lower(o.name) COLLATE "C" DESC LIMIT 1;
+        END IF;
+
+        IF v_peek_name IS NOT NULL THEN
+            v_next_seek := lower(v_peek_name) || v_delimiter;
+        ELSE
+            RETURN;
+        END IF;
+    END IF;
+
+    -- ========================================================================
+    -- MAIN LOOP: Hybrid peek-then-batch algorithm
+    -- Uses STATIC SQL for peek (hot path) and DYNAMIC SQL for batch
+    -- ========================================================================
+    LOOP
+        EXIT WHEN v_count >= v_limit;
+
+        -- STEP 1: PEEK using STATIC SQL (plan cached, very fast)
+        IF v_is_asc THEN
+            IF v_upper_bound IS NOT NULL THEN
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = bucketname AND lower(o.name) COLLATE "C" >= v_next_seek AND lower(o.name) COLLATE "C" < v_upper_bound
+                ORDER BY lower(o.name) COLLATE "C" ASC LIMIT 1;
+            ELSE
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = bucketname AND lower(o.name) COLLATE "C" >= v_next_seek
+                ORDER BY lower(o.name) COLLATE "C" ASC LIMIT 1;
+            END IF;
+        ELSE
+            IF v_upper_bound IS NOT NULL THEN
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = bucketname AND lower(o.name) COLLATE "C" < v_next_seek AND lower(o.name) COLLATE "C" >= v_prefix_lower
+                ORDER BY lower(o.name) COLLATE "C" DESC LIMIT 1;
+            ELSIF v_prefix_lower <> '' THEN
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = bucketname AND lower(o.name) COLLATE "C" < v_next_seek AND lower(o.name) COLLATE "C" >= v_prefix_lower
+                ORDER BY lower(o.name) COLLATE "C" DESC LIMIT 1;
+            ELSE
+                SELECT o.name INTO v_peek_name FROM storage.objects o
+                WHERE o.bucket_id = bucketname AND lower(o.name) COLLATE "C" < v_next_seek
+                ORDER BY lower(o.name) COLLATE "C" DESC LIMIT 1;
+            END IF;
+        END IF;
+
+        EXIT WHEN v_peek_name IS NULL;
+
+        -- STEP 2: Check if this is a FOLDER or FILE
+        v_common_prefix := storage.get_common_prefix(lower(v_peek_name), v_prefix_lower, v_delimiter);
+
+        IF v_common_prefix IS NOT NULL THEN
+            -- FOLDER: Handle offset, emit if needed, skip to next folder
+            IF v_skipped < offsets THEN
+                v_skipped := v_skipped + 1;
+            ELSE
+                name := substring(rtrim(storage.get_common_prefix(v_peek_name, v_prefix, v_delimiter), v_delimiter) from v_prefix_len + 1);
+                id := NULL;
+                updated_at := NULL;
+                created_at := NULL;
+                last_accessed_at := NULL;
+                metadata := NULL;
+                RETURN NEXT;
+                v_count := v_count + 1;
+            END IF;
+
+            -- Advance seek past the folder range
+            IF v_is_asc THEN
+                v_next_seek := lower(left(v_common_prefix, -1)) || chr(ascii(v_delimiter) + 1);
+            ELSE
+                v_next_seek := lower(v_common_prefix);
+            END IF;
+        ELSE
+            -- FILE: Batch fetch using DYNAMIC SQL (overhead amortized over many rows)
+            -- For ASC: upper_bound is the exclusive upper limit (< condition)
+            -- For DESC: prefix_lower is the inclusive lower limit (>= condition)
+            FOR v_current IN EXECUTE v_batch_query
+                USING bucketname, v_next_seek,
+                    CASE WHEN v_is_asc THEN COALESCE(v_upper_bound, v_prefix_lower) ELSE v_prefix_lower END, v_file_batch_size
+            LOOP
+                v_common_prefix := storage.get_common_prefix(lower(v_current.name), v_prefix_lower, v_delimiter);
+
+                IF v_common_prefix IS NOT NULL THEN
+                    -- Hit a folder: exit batch, let peek handle it
+                    v_next_seek := lower(v_current.name);
+                    EXIT;
+                END IF;
+
+                -- Handle offset skipping
+                IF v_skipped < offsets THEN
+                    v_skipped := v_skipped + 1;
+                ELSE
+                    -- Emit file
+                    name := substring(v_current.name from v_prefix_len + 1);
+                    id := v_current.id;
+                    updated_at := v_current.updated_at;
+                    created_at := v_current.created_at;
+                    last_accessed_at := v_current.last_accessed_at;
+                    metadata := v_current.metadata;
+                    RETURN NEXT;
+                    v_count := v_count + 1;
+                END IF;
+
+                -- Advance seek past this file
+                IF v_is_asc THEN
+                    v_next_seek := lower(v_current.name) || v_delimiter;
+                ELSE
+                    v_next_seek := lower(v_current.name);
+                END IF;
+
+                EXIT WHEN v_count >= v_limit;
+            END LOOP;
+        END IF;
+    END LOOP;
+END;
+$_$;
+
+
+ALTER FUNCTION "storage"."search"("prefix" "text", "bucketname" "text", "limits" integer, "levels" integer, "offsets" integer, "search" "text", "sortcolumn" "text", "sortorder" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."search_by_timestamp"("p_prefix" "text", "p_bucket_id" "text", "p_limit" integer, "p_level" integer, "p_start_after" "text", "p_sort_order" "text", "p_sort_column" "text", "p_sort_column_after" "text") RETURNS TABLE("key" "text", "name" "text", "id" "uuid", "updated_at" timestamp with time zone, "created_at" timestamp with time zone, "last_accessed_at" timestamp with time zone, "metadata" "jsonb")
+    LANGUAGE "plpgsql" STABLE
+    AS $_$
+DECLARE
+    v_cursor_op text;
+    v_query text;
+    v_prefix text;
+    v_sort_order text;
+    v_sort_column text;
+BEGIN
+    v_prefix := coalesce(p_prefix, '');
+
+    -- Defense-in-depth: this function is independently reachable and must
+    -- not trust p_sort_order/p_sort_column to already be validated by a
+    -- caller. Normalize to the same strict allow-list storage.search_v2
+    -- uses before interpolating anything into dynamic SQL below.
+    v_sort_order := lower(coalesce(p_sort_order, 'asc'));
+    IF v_sort_order NOT IN ('asc', 'desc') THEN
+        v_sort_order := 'asc';
+    END IF;
+
+    v_sort_column := lower(coalesce(p_sort_column, 'updated_at'));
+    IF v_sort_column NOT IN ('updated_at', 'created_at') THEN
+        v_sort_column := 'updated_at';
+    END IF;
+
+    IF v_sort_order = 'asc' THEN
+        v_cursor_op := '>';
+    ELSE
+        v_cursor_op := '<';
+    END IF;
+
+    v_query := format($sql$
+        WITH raw_objects AS (
+            SELECT
+                o.name AS obj_name,
+                o.id AS obj_id,
+                o.updated_at AS obj_updated_at,
+                o.created_at AS obj_created_at,
+                o.last_accessed_at AS obj_last_accessed_at,
+                o.metadata AS obj_metadata,
+                storage.get_common_prefix(o.name, $1, '/') AS common_prefix
+            FROM storage.objects o
+            WHERE o.bucket_id = $2
+              AND o.name COLLATE "C" LIKE $1 || '%%'
+        ),
+        -- Aggregate common prefixes (folders)
+        -- Both created_at and updated_at use MIN(obj_created_at) to match the old prefixes table behavior
+        aggregated_prefixes AS (
+            SELECT
+                rtrim(common_prefix, '/') AS name,
+                NULL::uuid AS id,
+                MIN(obj_created_at) AS updated_at,
+                MIN(obj_created_at) AS created_at,
+                NULL::timestamptz AS last_accessed_at,
+                NULL::jsonb AS metadata,
+                TRUE AS is_prefix
+            FROM raw_objects
+            WHERE common_prefix IS NOT NULL
+            GROUP BY common_prefix
+        ),
+        leaf_objects AS (
+            SELECT
+                obj_name AS name,
+                obj_id AS id,
+                obj_updated_at AS updated_at,
+                obj_created_at AS created_at,
+                obj_last_accessed_at AS last_accessed_at,
+                obj_metadata AS metadata,
+                FALSE AS is_prefix
+            FROM raw_objects
+            WHERE common_prefix IS NULL
+        ),
+        combined AS (
+            SELECT * FROM aggregated_prefixes
+            UNION ALL
+            SELECT * FROM leaf_objects
+        ),
+        filtered AS (
+            SELECT *
+            FROM combined
+            WHERE (
+                $5 = ''
+                OR ROW(
+                    date_trunc('milliseconds', %I),
+                    name COLLATE "C"
+                ) %s ROW(
+                    COALESCE(NULLIF($6, '')::timestamptz, 'epoch'::timestamptz),
+                    $5
+                )
+            )
+        )
+        SELECT
+            split_part(name, '/', $3) AS key,
+            name,
+            id,
+            updated_at,
+            created_at,
+            last_accessed_at,
+            metadata
+        FROM filtered
+        ORDER BY
+            COALESCE(date_trunc('milliseconds', %I), 'epoch'::timestamptz) %s,
+            name COLLATE "C" %s
+        LIMIT $4
+    $sql$,
+        v_sort_column,
+        v_cursor_op,
+        v_sort_column,
+        v_sort_order,
+        v_sort_order
+    );
+
+    RETURN QUERY EXECUTE v_query
+    USING v_prefix, p_bucket_id, p_level, p_limit, p_start_after, p_sort_column_after;
+END;
+$_$;
+
+
+ALTER FUNCTION "storage"."search_by_timestamp"("p_prefix" "text", "p_bucket_id" "text", "p_limit" integer, "p_level" integer, "p_start_after" "text", "p_sort_order" "text", "p_sort_column" "text", "p_sort_column_after" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."search_v2"("prefix" "text", "bucket_name" "text", "limits" integer DEFAULT 100, "levels" integer DEFAULT 1, "start_after" "text" DEFAULT ''::"text", "sort_order" "text" DEFAULT 'asc'::"text", "sort_column" "text" DEFAULT 'name'::"text", "sort_column_after" "text" DEFAULT ''::"text") RETURNS TABLE("key" "text", "name" "text", "id" "uuid", "updated_at" timestamp with time zone, "created_at" timestamp with time zone, "last_accessed_at" timestamp with time zone, "metadata" "jsonb")
+    LANGUAGE "plpgsql" STABLE
+    AS $$
+DECLARE
+    v_sort_col text;
+    v_sort_ord text;
+    v_limit int;
+BEGIN
+    -- Cap limit to maximum of 1500 records
+    v_limit := LEAST(coalesce(limits, 100), 1500);
+
+    -- Validate and normalize sort_order
+    v_sort_ord := lower(coalesce(sort_order, 'asc'));
+    IF v_sort_ord NOT IN ('asc', 'desc') THEN
+        v_sort_ord := 'asc';
+    END IF;
+
+    -- Validate and normalize sort_column
+    v_sort_col := lower(coalesce(sort_column, 'name'));
+    IF v_sort_col NOT IN ('name', 'updated_at', 'created_at') THEN
+        v_sort_col := 'name';
+    END IF;
+
+    -- Route to appropriate implementation
+    IF v_sort_col = 'name' THEN
+        -- Use list_objects_with_delimiter for name sorting (most efficient: O(k * log n))
+        RETURN QUERY
+        SELECT
+            split_part(l.name, '/', levels) AS key,
+            l.name AS name,
+            l.id,
+            l.updated_at,
+            l.created_at,
+            l.last_accessed_at,
+            l.metadata
+        FROM storage.list_objects_with_delimiter(
+            bucket_name,
+            coalesce(prefix, ''),
+            '/',
+            v_limit,
+            start_after,
+            '',
+            v_sort_ord
+        ) l;
+    ELSE
+        -- Use aggregation approach for timestamp sorting
+        -- Not efficient for large datasets but supports correct pagination
+        RETURN QUERY SELECT * FROM storage.search_by_timestamp(
+            prefix, bucket_name, v_limit, levels, start_after,
+            v_sort_ord, v_sort_col, sort_column_after
+        );
+    END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "storage"."search_v2"("prefix" "text", "bucket_name" "text", "limits" integer, "levels" integer, "start_after" "text", "sort_order" "text", "sort_column" "text", "sort_column_after" "text") OWNER TO "supabase_storage_admin";
+
+
+CREATE OR REPLACE FUNCTION "storage"."update_updated_at_column"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "storage"."update_updated_at_column"() OWNER TO "supabase_storage_admin";
 
 SET default_tablespace = '';
 
@@ -4026,8 +5006,14 @@ CREATE TABLE IF NOT EXISTS "public"."player_pages" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "image_path" "text",
+    "image_x" numeric DEFAULT 50 NOT NULL,
+    "image_y" numeric DEFAULT 50 NOT NULL,
+    "image_zoom" numeric DEFAULT 1 NOT NULL,
     CONSTRAINT "player_pages_character_name_check" CHECK (("char_length"(COALESCE("character_name", ''::"text")) <= 120)),
     CONSTRAINT "player_pages_character_summary_check" CHECK (("char_length"(COALESCE("character_summary", ''::"text")) <= 4000)),
+    CONSTRAINT "player_pages_image_x_range" CHECK ((("image_x" >= (0)::numeric) AND ("image_x" <= (100)::numeric))),
+    CONSTRAINT "player_pages_image_y_range" CHECK ((("image_y" >= (0)::numeric) AND ("image_y" <= (100)::numeric))),
+    CONSTRAINT "player_pages_image_zoom_range" CHECK ((("image_zoom" >= (1)::numeric) AND ("image_zoom" <= 2.5))),
     CONSTRAINT "player_pages_notes_check" CHECK (("char_length"(COALESCE("notes", ''::"text")) <= 20000)),
     CONSTRAINT "player_pages_objectives_check" CHECK (("char_length"(COALESCE("objectives", ''::"text")) <= 10000)),
     CONSTRAINT "player_pages_pathbuilder_url_check" CHECK ((("pathbuilder_url" IS NULL) OR (("char_length"("pathbuilder_url") <= 500) AND (("lower"("pathbuilder_url") ~~ 'https://pathbuilder2e.com/%'::"text") OR ("lower"("pathbuilder_url") ~~ 'https://www.pathbuilder2e.com/%'::"text")))))
@@ -4211,6 +5197,144 @@ CREATE TABLE IF NOT EXISTS "public"."source_references" (
 
 
 ALTER TABLE "public"."source_references" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "storage"."buckets" (
+    "id" "text" NOT NULL,
+    "name" "text" NOT NULL,
+    "owner" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "public" boolean DEFAULT false,
+    "avif_autodetection" boolean DEFAULT false,
+    "file_size_limit" bigint,
+    "allowed_mime_types" "text"[],
+    "owner_id" "text",
+    "type" "storage"."buckettype" DEFAULT 'STANDARD'::"storage"."buckettype" NOT NULL,
+    "versioning_status" "text" DEFAULT 'DISABLED'::"text" NOT NULL,
+    CONSTRAINT "buckets_versioning_dark_check" CHECK (("versioning_status" = 'DISABLED'::"text")),
+    CONSTRAINT "buckets_versioning_standard_only_check" CHECK ((("type" = 'STANDARD'::"storage"."buckettype") OR ("versioning_status" = 'DISABLED'::"text"))),
+    CONSTRAINT "buckets_versioning_status_check" CHECK (("versioning_status" = ANY (ARRAY['DISABLED'::"text", 'ENABLED'::"text", 'SUSPENDED'::"text"])))
+);
+
+
+ALTER TABLE "storage"."buckets" OWNER TO "supabase_storage_admin";
+
+
+COMMENT ON COLUMN "storage"."buckets"."owner" IS 'Field is deprecated, use owner_id instead';
+
+
+
+CREATE TABLE IF NOT EXISTS "storage"."buckets_analytics" (
+    "name" "text" NOT NULL,
+    "type" "storage"."buckettype" DEFAULT 'ANALYTICS'::"storage"."buckettype" NOT NULL,
+    "format" "text" DEFAULT 'ICEBERG'::"text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "deleted_at" timestamp with time zone
+);
+
+
+ALTER TABLE "storage"."buckets_analytics" OWNER TO "supabase_storage_admin";
+
+
+CREATE TABLE IF NOT EXISTS "storage"."buckets_vectors" (
+    "id" "text" NOT NULL,
+    "type" "storage"."buckettype" DEFAULT 'VECTOR'::"storage"."buckettype" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "storage"."buckets_vectors" OWNER TO "supabase_storage_admin";
+
+
+CREATE TABLE IF NOT EXISTS "storage"."migrations" (
+    "id" integer NOT NULL,
+    "name" character varying(100) NOT NULL,
+    "hash" character varying(40) NOT NULL,
+    "executed_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE "storage"."migrations" OWNER TO "supabase_storage_admin";
+
+
+CREATE TABLE IF NOT EXISTS "storage"."objects" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "bucket_id" "text",
+    "name" "text",
+    "owner" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "last_accessed_at" timestamp with time zone DEFAULT "now"(),
+    "metadata" "jsonb",
+    "path_tokens" "text"[] GENERATED ALWAYS AS ("string_to_array"("name", '/'::"text")) STORED,
+    "version" "text",
+    "owner_id" "text",
+    "user_metadata" "jsonb",
+    "archived_at" timestamp with time zone,
+    "is_delete_marker" boolean DEFAULT false NOT NULL,
+    "is_versioned" boolean DEFAULT false NOT NULL
+);
+
+
+ALTER TABLE "storage"."objects" OWNER TO "supabase_storage_admin";
+
+
+COMMENT ON COLUMN "storage"."objects"."owner" IS 'Field is deprecated, use owner_id instead';
+
+
+
+CREATE TABLE IF NOT EXISTS "storage"."s3_multipart_uploads" (
+    "id" "text" NOT NULL,
+    "in_progress_size" bigint DEFAULT 0 NOT NULL,
+    "upload_signature" "text" NOT NULL,
+    "bucket_id" "text" NOT NULL,
+    "key" "text" NOT NULL COLLATE "pg_catalog"."C",
+    "version" "text" NOT NULL,
+    "owner_id" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "user_metadata" "jsonb",
+    "metadata" "jsonb"
+);
+
+
+ALTER TABLE "storage"."s3_multipart_uploads" OWNER TO "supabase_storage_admin";
+
+
+CREATE TABLE IF NOT EXISTS "storage"."s3_multipart_uploads_parts" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "upload_id" "text" NOT NULL,
+    "size" bigint DEFAULT 0 NOT NULL,
+    "part_number" integer NOT NULL,
+    "bucket_id" "text" NOT NULL,
+    "key" "text" NOT NULL COLLATE "pg_catalog"."C",
+    "etag" "text" NOT NULL,
+    "owner_id" "text",
+    "version" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "storage"."s3_multipart_uploads_parts" OWNER TO "supabase_storage_admin";
+
+
+CREATE TABLE IF NOT EXISTS "storage"."vector_indexes" (
+    "id" "text" DEFAULT "gen_random_uuid"() NOT NULL,
+    "name" "text" NOT NULL COLLATE "pg_catalog"."C",
+    "bucket_id" "text" NOT NULL,
+    "data_type" "text" NOT NULL,
+    "dimension" integer NOT NULL,
+    "distance_metric" "text" NOT NULL,
+    "metadata_configuration" "jsonb",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "storage"."vector_indexes" OWNER TO "supabase_storage_admin";
 
 
 ALTER TABLE ONLY "public"."archive_character_templates"
@@ -4438,6 +5562,51 @@ ALTER TABLE ONLY "public"."user_profiles"
 
 
 
+ALTER TABLE ONLY "storage"."buckets_analytics"
+    ADD CONSTRAINT "buckets_analytics_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "storage"."buckets"
+    ADD CONSTRAINT "buckets_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "storage"."buckets_vectors"
+    ADD CONSTRAINT "buckets_vectors_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "storage"."migrations"
+    ADD CONSTRAINT "migrations_name_key" UNIQUE ("name");
+
+
+
+ALTER TABLE ONLY "storage"."migrations"
+    ADD CONSTRAINT "migrations_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "storage"."objects"
+    ADD CONSTRAINT "objects_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "storage"."s3_multipart_uploads_parts"
+    ADD CONSTRAINT "s3_multipart_uploads_parts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "storage"."s3_multipart_uploads"
+    ADD CONSTRAINT "s3_multipart_uploads_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "storage"."vector_indexes"
+    ADD CONSTRAINT "vector_indexes_pkey" PRIMARY KEY ("id");
+
+
+
 CREATE UNIQUE INDEX "archive_characters_template_idx" ON "public"."archive_characters" USING "btree" ("campaign_id", "template_key") WHERE ("template_key" IS NOT NULL);
 
 
@@ -4582,6 +5751,38 @@ CREATE INDEX "reputation_milestones_volume_idx" ON "public"."reputation_mileston
 
 
 
+CREATE UNIQUE INDEX "bname" ON "storage"."buckets" USING "btree" ("name");
+
+
+
+CREATE UNIQUE INDEX "bucketid_objname" ON "storage"."objects" USING "btree" ("bucket_id", "name");
+
+
+
+CREATE UNIQUE INDEX "buckets_analytics_unique_name_idx" ON "storage"."buckets_analytics" USING "btree" ("name") WHERE ("deleted_at" IS NULL);
+
+
+
+CREATE INDEX "idx_multipart_uploads_list" ON "storage"."s3_multipart_uploads" USING "btree" ("bucket_id", "key", "created_at");
+
+
+
+CREATE INDEX "idx_objects_bucket_id_name" ON "storage"."objects" USING "btree" ("bucket_id", "name" COLLATE "C");
+
+
+
+CREATE INDEX "idx_objects_bucket_id_name_lower" ON "storage"."objects" USING "btree" ("bucket_id", "lower"("name") COLLATE "C");
+
+
+
+CREATE INDEX "name_prefix_search" ON "storage"."objects" USING "btree" ("name" "text_pattern_ops");
+
+
+
+CREATE UNIQUE INDEX "vector_indexes_name_bucket_id_idx" ON "storage"."vector_indexes" USING "btree" ("name", "bucket_id");
+
+
+
 CREATE OR REPLACE TRIGGER "archive_characters_touch" BEFORE UPDATE ON "public"."archive_characters" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
 
 
@@ -4671,6 +5872,22 @@ CREATE OR REPLACE TRIGGER "settings_touch" BEFORE UPDATE ON "public"."campaign_s
 
 
 CREATE OR REPLACE TRIGGER "user_profiles_touch" BEFORE UPDATE ON "public"."user_profiles" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "enforce_bucket_name_length_trigger" BEFORE INSERT OR UPDATE OF "name" ON "storage"."buckets" FOR EACH ROW EXECUTE FUNCTION "storage"."enforce_bucket_name_length"();
+
+
+
+CREATE OR REPLACE TRIGGER "protect_buckets_delete" BEFORE DELETE ON "storage"."buckets" FOR EACH STATEMENT EXECUTE FUNCTION "storage"."protect_delete"();
+
+
+
+CREATE OR REPLACE TRIGGER "protect_objects_delete" BEFORE DELETE ON "storage"."objects" FOR EACH STATEMENT EXECUTE FUNCTION "storage"."protect_delete"();
+
+
+
+CREATE OR REPLACE TRIGGER "update_objects_updated_at" BEFORE UPDATE ON "storage"."objects" FOR EACH ROW EXECUTE FUNCTION "storage"."update_updated_at_column"();
 
 
 
@@ -5064,6 +6281,31 @@ ALTER TABLE ONLY "public"."user_profiles"
 
 
 
+ALTER TABLE ONLY "storage"."objects"
+    ADD CONSTRAINT "objects_bucketId_fkey" FOREIGN KEY ("bucket_id") REFERENCES "storage"."buckets"("id");
+
+
+
+ALTER TABLE ONLY "storage"."s3_multipart_uploads"
+    ADD CONSTRAINT "s3_multipart_uploads_bucket_id_fkey" FOREIGN KEY ("bucket_id") REFERENCES "storage"."buckets"("id");
+
+
+
+ALTER TABLE ONLY "storage"."s3_multipart_uploads_parts"
+    ADD CONSTRAINT "s3_multipart_uploads_parts_bucket_id_fkey" FOREIGN KEY ("bucket_id") REFERENCES "storage"."buckets"("id");
+
+
+
+ALTER TABLE ONLY "storage"."s3_multipart_uploads_parts"
+    ADD CONSTRAINT "s3_multipart_uploads_parts_upload_id_fkey" FOREIGN KEY ("upload_id") REFERENCES "storage"."s3_multipart_uploads"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "storage"."vector_indexes"
+    ADD CONSTRAINT "vector_indexes_bucket_id_fkey" FOREIGN KEY ("bucket_id") REFERENCES "storage"."buckets_vectors"("id");
+
+
+
 ALTER TABLE "public"."archive_character_templates" ENABLE ROW LEVEL SECURITY;
 
 
@@ -5309,10 +6551,107 @@ CREATE POLICY "sources_gm_all" ON "public"."source_references" TO "authenticated
 ALTER TABLE "public"."user_profiles" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "bestiary_images_member_delete" ON "storage"."objects" FOR DELETE TO "authenticated" USING ((("bucket_id" = 'bestiary-images'::"text") AND "public"."is_campaign_member_storage_path"("name")));
+
+
+
+CREATE POLICY "bestiary_images_member_insert" ON "storage"."objects" FOR INSERT TO "authenticated" WITH CHECK ((("bucket_id" = 'bestiary-images'::"text") AND "public"."is_campaign_member_storage_path"("name")));
+
+
+
+CREATE POLICY "bestiary_images_member_update" ON "storage"."objects" FOR UPDATE TO "authenticated" USING ((("bucket_id" = 'bestiary-images'::"text") AND "public"."is_campaign_member_storage_path"("name"))) WITH CHECK ((("bucket_id" = 'bestiary-images'::"text") AND "public"."is_campaign_member_storage_path"("name")));
+
+
+
+CREATE POLICY "bestiary_images_public_read" ON "storage"."objects" FOR SELECT TO "authenticated", "anon" USING (("bucket_id" = 'bestiary-images'::"text"));
+
+
+
+ALTER TABLE "storage"."buckets" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "storage"."buckets_analytics" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "storage"."buckets_vectors" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "contact_portraits_gm_delete" ON "storage"."objects" FOR DELETE TO "authenticated" USING ((("bucket_id" = 'contact-portraits'::"text") AND "public"."is_gm_contact_portrait_path"("name")));
+
+
+
+CREATE POLICY "contact_portraits_gm_insert" ON "storage"."objects" FOR INSERT TO "authenticated" WITH CHECK ((("bucket_id" = 'contact-portraits'::"text") AND "public"."is_gm_contact_portrait_path"("name")));
+
+
+
+CREATE POLICY "contact_portraits_gm_update" ON "storage"."objects" FOR UPDATE TO "authenticated" USING ((("bucket_id" = 'contact-portraits'::"text") AND "public"."is_gm_contact_portrait_path"("name"))) WITH CHECK ((("bucket_id" = 'contact-portraits'::"text") AND "public"."is_gm_contact_portrait_path"("name")));
+
+
+
+CREATE POLICY "contact_portraits_public_read" ON "storage"."objects" FOR SELECT TO "authenticated", "anon" USING (("bucket_id" = 'contact-portraits'::"text"));
+
+
+
+ALTER TABLE "storage"."migrations" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "storage"."objects" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "player_character_images_owner_delete" ON "storage"."objects" FOR DELETE TO "authenticated" USING ((("bucket_id" = 'player-character-images'::"text") AND "public"."is_own_player_character_image_path"("name")));
+
+
+
+CREATE POLICY "player_character_images_owner_insert" ON "storage"."objects" FOR INSERT TO "authenticated" WITH CHECK ((("bucket_id" = 'player-character-images'::"text") AND "public"."is_own_player_character_image_path"("name")));
+
+
+
+CREATE POLICY "player_character_images_owner_update" ON "storage"."objects" FOR UPDATE TO "authenticated" USING ((("bucket_id" = 'player-character-images'::"text") AND "public"."is_own_player_character_image_path"("name"))) WITH CHECK ((("bucket_id" = 'player-character-images'::"text") AND "public"."is_own_player_character_image_path"("name")));
+
+
+
+CREATE POLICY "player_character_images_public_read" ON "storage"."objects" FOR SELECT TO "authenticated", "anon" USING (("bucket_id" = 'player-character-images'::"text"));
+
+
+
+CREATE POLICY "quest_journal_images_member_delete" ON "storage"."objects" FOR DELETE TO "authenticated" USING ((("bucket_id" = 'quest-journal-images'::"text") AND "public"."is_campaign_member_storage_path"("name")));
+
+
+
+CREATE POLICY "quest_journal_images_member_insert" ON "storage"."objects" FOR INSERT TO "authenticated" WITH CHECK ((("bucket_id" = 'quest-journal-images'::"text") AND "public"."is_campaign_member_storage_path"("name")));
+
+
+
+CREATE POLICY "quest_journal_images_member_update" ON "storage"."objects" FOR UPDATE TO "authenticated" USING ((("bucket_id" = 'quest-journal-images'::"text") AND "public"."is_campaign_member_storage_path"("name"))) WITH CHECK ((("bucket_id" = 'quest-journal-images'::"text") AND "public"."is_campaign_member_storage_path"("name")));
+
+
+
+CREATE POLICY "quest_journal_images_public_read" ON "storage"."objects" FOR SELECT TO "authenticated", "anon" USING (("bucket_id" = 'quest-journal-images'::"text"));
+
+
+
+ALTER TABLE "storage"."s3_multipart_uploads" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "storage"."s3_multipart_uploads_parts" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "storage"."vector_indexes" ENABLE ROW LEVEL SECURITY;
+
+
 GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+
+
+GRANT USAGE ON SCHEMA "storage" TO "postgres" WITH GRANT OPTION;
+GRANT USAGE ON SCHEMA "storage" TO "anon";
+GRANT USAGE ON SCHEMA "storage" TO "authenticated";
+GRANT USAGE ON SCHEMA "storage" TO "service_role";
+GRANT ALL ON SCHEMA "storage" TO "supabase_storage_admin" WITH GRANT OPTION;
+GRANT ALL ON SCHEMA "storage" TO "dashboard_user";
 
 
 
@@ -5736,6 +7075,12 @@ GRANT ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "
 
 
 
+REVOKE ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) TO "service_role";
+GRANT ALL ON FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text", "p_image_path" "text", "p_image_x" numeric, "p_image_y" numeric, "p_image_zoom" numeric) TO "authenticated";
+
+
+
 REVOKE ALL ON FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."update_my_player_relationship_note"("p_campaign_id" "uuid", "p_target_user_id" "uuid", "p_notes" "text") TO "authenticated";
@@ -6042,6 +7387,54 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."source_references" TO "auth
 
 
 
+REVOKE ALL ON TABLE "storage"."buckets" FROM "supabase_storage_admin";
+GRANT ALL ON TABLE "storage"."buckets" TO "supabase_storage_admin" WITH GRANT OPTION;
+GRANT ALL ON TABLE "storage"."buckets" TO "service_role";
+GRANT ALL ON TABLE "storage"."buckets" TO "authenticated";
+GRANT ALL ON TABLE "storage"."buckets" TO "anon";
+GRANT ALL ON TABLE "storage"."buckets" TO "postgres" WITH GRANT OPTION;
+
+
+
+GRANT ALL ON TABLE "storage"."buckets_analytics" TO "service_role";
+GRANT ALL ON TABLE "storage"."buckets_analytics" TO "authenticated";
+GRANT ALL ON TABLE "storage"."buckets_analytics" TO "anon";
+
+
+
+GRANT SELECT ON TABLE "storage"."buckets_vectors" TO "service_role";
+GRANT SELECT ON TABLE "storage"."buckets_vectors" TO "authenticated";
+GRANT SELECT ON TABLE "storage"."buckets_vectors" TO "anon";
+
+
+
+REVOKE ALL ON TABLE "storage"."objects" FROM "supabase_storage_admin";
+GRANT ALL ON TABLE "storage"."objects" TO "supabase_storage_admin" WITH GRANT OPTION;
+GRANT ALL ON TABLE "storage"."objects" TO "service_role";
+GRANT ALL ON TABLE "storage"."objects" TO "authenticated";
+GRANT ALL ON TABLE "storage"."objects" TO "anon";
+GRANT ALL ON TABLE "storage"."objects" TO "postgres" WITH GRANT OPTION;
+
+
+
+GRANT ALL ON TABLE "storage"."s3_multipart_uploads" TO "service_role";
+GRANT SELECT ON TABLE "storage"."s3_multipart_uploads" TO "authenticated";
+GRANT SELECT ON TABLE "storage"."s3_multipart_uploads" TO "anon";
+
+
+
+GRANT ALL ON TABLE "storage"."s3_multipart_uploads_parts" TO "service_role";
+GRANT SELECT ON TABLE "storage"."s3_multipart_uploads_parts" TO "authenticated";
+GRANT SELECT ON TABLE "storage"."s3_multipart_uploads_parts" TO "anon";
+
+
+
+GRANT SELECT ON TABLE "storage"."vector_indexes" TO "service_role";
+GRANT SELECT ON TABLE "storage"."vector_indexes" TO "authenticated";
+GRANT SELECT ON TABLE "storage"."vector_indexes" TO "anon";
+
+
+
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "authenticated";
@@ -6070,6 +7463,26 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 
+
+
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON SEQUENCES TO "postgres";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON SEQUENCES TO "anon";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON SEQUENCES TO "authenticated";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON SEQUENCES TO "service_role";
+
+
+
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON FUNCTIONS TO "postgres";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON FUNCTIONS TO "anon";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON FUNCTIONS TO "authenticated";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON FUNCTIONS TO "service_role";
+
+
+
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TABLES TO "postgres";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TABLES TO "anon";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TABLES TO "authenticated";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "storage" GRANT ALL ON TABLES TO "service_role";
 
 
 

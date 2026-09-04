@@ -231,9 +231,10 @@ it("partage les fiches publiques sans exposer Pathbuilder ni les notes privées"
       ('${campaign.campaign_id}', '${first}', 'Aster', 'Présentation A', 'https://pathbuilder2e.com/app.html', 'Secret A', 'Objectif A'),
       ('${campaign.campaign_id}', '${second}', 'Boreal', 'Présentation B', 'https://pathbuilder2e.com/app.html', 'Secret B', 'Objectif B');
     select set_config('request.jwt.claim.sub', '${first}', false); set role authenticated;`);
-  const playerPages = (await db.query<{ user_id: string; is_own: boolean; pathbuilder_url: string | null; notes: string | null }>(`select user_id, is_own, pathbuilder_url, notes from public.list_campaign_player_pages('${campaign.campaign_id}') order by user_id`)).rows;
+  await db.exec(`select public.update_my_player_page('${campaign.campaign_id}', 'Aster', 'Présentation A', 'https://pathbuilder2e.com/app.html', 'Secret A', 'Objectif A', null, 35, 62, 1.75)`);
+  const playerPages = (await db.query<{ user_id: string; is_own: boolean; pathbuilder_url: string | null; notes: string | null; image_x: number; image_y: number; image_zoom: number }>(`select user_id, is_own, pathbuilder_url, notes, image_x::float, image_y::float, image_zoom::float from public.list_campaign_player_pages('${campaign.campaign_id}') order by user_id`)).rows;
   expect(playerPages).toHaveLength(2);
-  expect(playerPages.find((page) => page.user_id === first)).toMatchObject({ is_own: true, pathbuilder_url: 'https://pathbuilder2e.com/app.html', notes: 'Secret A' });
+  expect(playerPages.find((page) => page.user_id === first)).toMatchObject({ is_own: true, pathbuilder_url: 'https://pathbuilder2e.com/app.html', notes: 'Secret A', image_x: 35, image_y: 62, image_zoom: 1.75 });
   expect(playerPages.find((page) => page.user_id === second)).toMatchObject({ is_own: false, pathbuilder_url: null, notes: null });
   await db.exec(`select public.update_my_player_relationship_note('${campaign.campaign_id}', '${second}', 'Note strictement privée')`);
   expect((await db.query<{ notes: string }>(`select notes from public.list_my_player_relationship_notes('${campaign.campaign_id}')`)).rows[0].notes).toBe('Note strictement privée');

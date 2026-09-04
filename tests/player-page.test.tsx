@@ -29,6 +29,12 @@ async function waitFor<T>(read: () => T | null | undefined): Promise<T> {
   throw new Error("Élément attendu introuvable.");
 }
 
+function setRangeValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 it("ouvre la page personnelle depuis Pages des joueurs et rappelle sa confidentialité", async () => {
   await act(async () => { root.render(<PlayerApp campaignId="00000000-0000-4000-8000-000000000001" viewerRole="player" />); });
   const shell = await waitFor(() => container.querySelector<HTMLElement>(".player-shell"));
@@ -117,6 +123,28 @@ it("ne montre pas Ma page au MJ dans la vue joueurs", async () => {
   expect(page.textContent).toContain("Lecture seule");
   expect(page.textContent).toContain("En tant que MJ, vous voyez aussi ses notes privées");
   expect(page.querySelector("textarea")).toBeNull();
+});
+
+it("permet de cadrer puis de réinitialiser le portrait du personnage", async () => {
+  await act(async () => { root.render(<PlayerApp campaignId="00000000-0000-4000-8000-000000000001" viewerRole="player" />); });
+  const shell = await waitFor(() => container.querySelector<HTMLElement>(".player-shell"));
+  await act(async () => { shell.querySelector<HTMLButtonElement>(".player-pages-menu > button")?.click(); });
+  const page = await waitFor(() => container.querySelector<HTMLElement>(".player-page-tab"));
+  const editButton = [...page.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Modifier ma page"));
+  await act(async () => { editButton?.click(); });
+  const zoom = page.querySelector<HTMLInputElement>('input[aria-label="Zoom du portrait"]');
+  const horizontal = page.querySelector<HTMLInputElement>('input[aria-label="Centrage horizontal du portrait"]');
+  const vertical = page.querySelector<HTMLInputElement>('input[aria-label="Centrage vertical du portrait"]');
+  expect([zoom?.value, horizontal?.value, vertical?.value]).toEqual(["1", "50", "50"]);
+  await act(async () => {
+    if (zoom) setRangeValue(zoom, "2");
+    if (horizontal) setRangeValue(horizontal, "25");
+  });
+  expect(page.querySelector<HTMLImageElement>('.player-page-edit-portrait img')?.style.transform).toContain("scale(2)");
+  const reset = [...page.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Réinitialiser le cadrage"));
+  expect(reset).toBeTruthy();
+  await act(async () => { reset?.click(); });
+  expect([zoom?.value, horizontal?.value, vertical?.value]).toEqual(["1", "50", "50"]);
 });
 
 it("permet à un joueur de consulter les autres fiches sans Pathbuilder ni notes privées", async () => {
