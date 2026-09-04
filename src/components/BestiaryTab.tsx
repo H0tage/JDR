@@ -9,6 +9,7 @@ type BestiaryTabProps = {
   entries: BestiaryEntry[];
   demo: boolean;
   viewerRole: "gm" | "player";
+  theme?: "light" | "original" | "dark";
   onChanged: () => Promise<void> | void;
   onNotice: (message: string) => void;
   onError: (message: string | null) => void;
@@ -35,7 +36,7 @@ function imageSource(path: string | null, preview: string | null = null) {
   return preview ?? bestiaryImageUrl(path);
 }
 
-export function BestiaryTab({ campaignId, entries, demo, viewerRole, onChanged, onNotice, onError }: BestiaryTabProps) {
+export function BestiaryTab({ campaignId, entries, demo, viewerRole, theme = "original", onChanged, onNotice, onError }: BestiaryTabProps) {
   const [demoEntries, setDemoEntries] = useState(entries);
   const [editing, setEditing] = useState<BestiaryEntry | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -200,7 +201,7 @@ export function BestiaryTab({ campaignId, entries, demo, viewerRole, onChanged, 
       <div className="modal-actions"><button type="button" className="button secondary" disabled={busy} onClick={closeEditor}>Annuler</button><button className="button primary" disabled={busy}>{busy ? "Enregistrement…" : "Enregistrer"}</button></div>
     </form></div>}
 
-    {lightbox && <div className="modal-backdrop bestiary-lightbox" role="presentation" onClick={() => setLightbox(null)}><section className="bestiary-lightbox-card" role="dialog" aria-modal="true" aria-label={`Image de ${lightbox.name}`} onClick={(event) => event.stopPropagation()}><header><strong>{lightbox.name}</strong><button type="button" className="icon-button" onClick={() => setLightbox(null)} aria-label="Fermer l’image"><X /></button></header><img src={lightbox.src} alt={lightbox.name} /></section></div>}
+    {lightbox && <div className={`modal-backdrop bestiary-lightbox image-viewer-theme-${theme}`} role="presentation" onClick={() => setLightbox(null)}><section className="bestiary-lightbox-card" role="dialog" aria-modal="true" aria-label={`Image de ${lightbox.name}`} onClick={(event) => event.stopPropagation()}><header><strong>{lightbox.name}</strong><button type="button" className="icon-button" onClick={() => setLightbox(null)} aria-label="Fermer l’image"><X /></button></header><img src={lightbox.src} alt={lightbox.name} /></section></div>}
   </div>;
 }
 

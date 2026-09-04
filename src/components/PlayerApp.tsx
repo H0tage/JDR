@@ -153,10 +153,10 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
         {notice && <div className="player-toast">{notice}</div>}
         {tab === "dashboard" && <PlayerDashboard data={data} demo={demo} viewerRole={viewerRole} onOpen={setTab} />}
         {tab === "relations" && <PlayerRelations data={data} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
-        {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole={viewerRole} onChanged={refresh} onNotice={announce} onError={setError} />}
+        {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole={viewerRole} theme={theme} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "loot" && <PlayerEconomyTab campaignId={data.settings.campaign_id} demo={demo} viewerRole={viewerRole} />}
-        {viewerRole === "player" && <div className="persistent-player-page" hidden={tab !== "my-page"}><PlayerPageTab campaignId={data.settings.campaign_id} demo={demo} active={tab === "my-page"} playerPages={playerPages ?? []} /></div>}
-        {tab === "player-pages" && <PlayerPagesTab page={selectedPlayerPage} loading={playerPages === null && !playerPagesError} error={playerPagesError} viewerRole={viewerRole} />}
+        {viewerRole === "player" && <div className="persistent-player-page" hidden={tab !== "my-page"}><PlayerPageTab campaignId={data.settings.campaign_id} demo={demo} active={tab === "my-page"} playerPages={playerPages ?? []} theme={theme} /></div>}
+        {tab === "player-pages" && <PlayerPagesTab page={selectedPlayerPage} loading={playerPages === null && !playerPagesError} error={playerPagesError} viewerRole={viewerRole} theme={theme} />}
         {tab === "notes" && <QuestJournalTab campaignId={data.settings.campaign_id} entries={data.questEntries} factionHistory={[]} showFactionHistory={false} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "quest-journal" && <QuestWritingTab page={data.questJournalPage} revisions={data.questJournalRevisions} canRestoreHistory demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "help" && <PlayerGuide />}
@@ -243,7 +243,7 @@ function PlayerDashboard({ data, demo, viewerRole, onOpen }: { data: CampaignDat
   </div>;
 }
 
-function PlayerPagesTab({ page, loading, error, viewerRole }: { page: CampaignPlayerPage | null; loading: boolean; error: string | null; viewerRole: "gm" | "player" }) {
+function PlayerPagesTab({ page, loading, error, viewerRole, theme }: { page: CampaignPlayerPage | null; loading: boolean; error: string | null; viewerRole: "gm" | "player"; theme: PlayerTheme }) {
   const [portraitOpen, setPortraitOpen] = useState(false);
   if (loading) return <LoadingScreen label="Chargement des pages joueurs…" />;
   if (error) return <ErrorPanel error={error} />;
@@ -257,7 +257,7 @@ function PlayerPagesTab({ page, loading, error, viewerRole }: { page: CampaignPl
       <div className="player-character-details"><section><p className="eyebrow">Intentions</p><h2>Objectifs</h2><p>{page.objectives || "Aucun objectif renseigné."}</p></section>{viewerRole === "gm" && <section><p className="eyebrow">Confidentiel</p><h2>Notes privées</h2><p>{page.notes || "Aucune note privée."}</p></section>}</div>
       <p className="player-character-updated">Dernière modification : {new Date(page.updated_at).toLocaleString("fr-FR")}</p>
     </div>
-    {portraitOpen && portrait && <CharacterImageLightbox src={portrait} name={page.character_name || page.display_name} onClose={() => setPortraitOpen(false)} />}
+    {portraitOpen && portrait && <CharacterImageLightbox src={portrait} name={page.character_name || page.display_name} theme={theme} onClose={() => setPortraitOpen(false)} />}
   </div>;
 }
 
@@ -299,7 +299,7 @@ function storedPathbuilderFocus(): boolean {
   }
 }
 
-function PlayerPageTab({ campaignId, demo, active, playerPages }: { campaignId: string; demo: boolean; active: boolean; playerPages: CampaignPlayerPage[] }) {
+function PlayerPageTab({ campaignId, demo, active, playerPages, theme }: { campaignId: string; demo: boolean; active: boolean; playerPages: CampaignPlayerPage[]; theme: PlayerTheme }) {
   const [pageView, setPageView] = useState<"register" | "pathbuilder">("register");
   const [pathbuilderOpened, setPathbuilderOpened] = useState(false);
   const [pathbuilderFocusPreference, setPathbuilderFocusPreference] = useState(storedPathbuilderFocus);
@@ -440,7 +440,7 @@ function PlayerPageTab({ campaignId, demo, active, playerPages }: { campaignId: 
       <p className="player-character-updated">Dernière modification : {new Date(page.updated_at).toLocaleString("fr-FR")}</p>
     </div>}</div>
     {pathbuilderOpened && <div className="player-page-pathbuilder-view" hidden={pageView !== "pathbuilder"}><PathbuilderEmbed /><PlayerPossessionsSummary possessions={possessions} /></div>}
-    {portraitOpen && portrait && <CharacterImageLightbox src={portrait} name={page.character_name || "votre personnage"} onClose={() => setPortraitOpen(false)} />}
+    {portraitOpen && portrait && <CharacterImageLightbox src={portrait} name={page.character_name || "votre personnage"} theme={theme} onClose={() => setPortraitOpen(false)} />}
   </div>;
 }
 
@@ -484,8 +484,8 @@ function PlayerRelationshipCard({ campaignId, demo, page, initialNotes, onSaved 
   </article>;
 }
 
-function CharacterImageLightbox({ src, name, onClose }: { src: string; name: string; onClose: () => void }) {
-  return <div className="modal-backdrop bestiary-lightbox" role="presentation" onClick={onClose}><section className="bestiary-lightbox-card character-lightbox-card" role="dialog" aria-modal="true" aria-label={`Illustration de ${name}`} onClick={(event) => event.stopPropagation()}><header><strong>{name}</strong><button type="button" className="icon-button" onClick={onClose} aria-label="Fermer l’image"><X /></button></header><img src={src} alt={`Illustration de ${name}`} /></section></div>;
+function CharacterImageLightbox({ src, name, theme, onClose }: { src: string; name: string; theme: PlayerTheme; onClose: () => void }) {
+  return <div className={`modal-backdrop bestiary-lightbox image-viewer-theme-${theme}`} role="presentation" onClick={onClose}><section className="bestiary-lightbox-card character-lightbox-card" role="dialog" aria-modal="true" aria-label={`Illustration de ${name}`} onClick={(event) => event.stopPropagation()}><header><strong>{name}</strong><button type="button" className="icon-button" onClick={onClose} aria-label="Fermer l’image"><X /></button></header><img src={src} alt={`Illustration de ${name}`} /></section></div>;
 }
 
 export function PlayerRelations({ data, demo, onChanged, onNotice, onError }: {

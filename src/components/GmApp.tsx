@@ -265,7 +265,7 @@ function GmWorkspace({ campaignId, campaignSlug, demo }: { campaignId: string; c
           {tab === "milestones" && <ProgressionTab data={data} mutate={mutate} demo={demo} />}
           {tab === "loot" && <Suspense fallback={<LoadingScreen label="Ouverture du registre des butins…" />}><LootManager campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} /></Suspense>}
           {tab === "references" && <ReferencesHub campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} />}
-          {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole="gm" onChanged={refresh} onNotice={announce} onError={setError} />}
+          {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole="gm" theme={theme} onChanged={refresh} onNotice={announce} onError={setError} />}
           {tab === "settings" && <SettingsTab data={data} mutate={mutate} campaignId={campaignId} />}
         </div>
       </main>

@@ -2312,21 +2312,21 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-light .bestiary-card > .bestiary-visibility-toggle.icon-button, .gm-theme-light .bestiary-card > .bestiary-visibility-toggle.icon-button { border-color: #c7a96f; background: #fffaf0; color: #8d6827; box-shadow: 0 3px 10px rgb(76 62 38 / 15%); }
 .player-theme-light .bestiary-visibility-toggle:hover, .player-theme-light .bestiary-visibility-toggle:focus-visible,
 .gm-theme-light .bestiary-visibility-toggle:hover, .gm-theme-light .bestiary-visibility-toggle:focus-visible { border-color: #a9813d; background: #fffaf0; color: #6f4d16; }
-.player-theme-light, .gm-theme-light {
+.player-theme-light, .gm-theme-light, .image-viewer-theme-light {
   --image-viewer-surface: #e7e1d5;
   --image-viewer-line: #bdae91;
   --image-viewer-ink: #27352b;
   --image-viewer-button: #fffaf0;
   --image-viewer-backdrop: rgb(47 43 35 / 56%);
 }
-.player-theme-dark, .gm-theme-original {
+.player-theme-dark, .gm-theme-original, .image-viewer-theme-original {
   --image-viewer-surface: #101512;
   --image-viewer-line: #465249;
   --image-viewer-ink: #eef1ec;
   --image-viewer-button: #1b241f;
   --image-viewer-backdrop: rgb(0 0 0 / 68%);
 }
-.player-theme-github-dark, .gm-theme-github-dark {
+.player-theme-github-dark, .gm-theme-github-dark, .image-viewer-theme-dark {
   --image-viewer-surface: #0d1117;
   --image-viewer-line: #30363d;
   --image-viewer-ink: #e6edf3;
