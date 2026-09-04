@@ -75,31 +75,42 @@ CREATE OR REPLACE FUNCTION "public"."accept_campaign_invitation"("p_token" "uuid
 declare
   invite public.campaign_invites%rowtype;
   campaign_name_value text;
+  campaign_capacity smallint;
+  member_count integer;
   exists_member boolean;
 begin
   if auth.uid() is null then raise exception 'Connexion requise'; end if;
-
   select * into invite from public.campaign_invites where token = p_token;
   if not found then raise exception 'Invitation invalide'; end if;
   if invite.revoked_at is not null then raise exception 'Invitation révoquée'; end if;
-  if invite.expires_at is not null and invite.expires_at <= now() then
-    raise exception 'Invitation expirée';
-  end if;
+  if invite.expires_at is not null and invite.expires_at <= now() then raise exception 'Invitation expirée'; end if;
 
-  select name into campaign_name_value from public.campaigns where id = invite.campaign_id;
+  select campaign.name, campaign.max_participants
+  into campaign_name_value, campaign_capacity
+  from public.campaigns campaign
+  where campaign.id = invite.campaign_id
+  for update;
+  if not found then raise exception 'Campagne introuvable'; end if;
+
   select exists (
     select 1 from public.campaign_members member
     where member.campaign_id = invite.campaign_id and member.user_id = auth.uid()
   ) into exists_member;
 
-  insert into public.user_profiles (user_id)
-  values (auth.uid())
-  on conflict on constraint user_profiles_pkey do nothing;
+  if not exists_member then
+    select count(*) into member_count
+    from public.campaign_members member
+    where member.campaign_id = invite.campaign_id;
+    if member_count >= campaign_capacity then
+      raise exception 'La campagne que vous cherchez à rejoindre est pleine. Contactez votre MJ pour qu''il libère de la place, ou augmente la taille maximale de la campagne.';
+    end if;
+  end if;
 
+  insert into public.user_profiles (user_id) values (auth.uid())
+  on conflict on constraint user_profiles_pkey do nothing;
   insert into public.campaign_members (campaign_id, user_id, role)
   values (invite.campaign_id, auth.uid(), 'player')
   on conflict on constraint campaign_members_pkey do nothing;
-
   insert into public.player_pages (campaign_id, user_id)
   values (invite.campaign_id, auth.uid())
   on conflict on constraint player_pages_pkey do nothing;
@@ -577,6 +588,26 @@ $$;
 ALTER FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uuid", "p_name" "text", "p_quantity" numeric, "p_unit_value_cp" bigint, "p_owner_user_id" "uuid", "p_aon_legacy_name" "text", "p_aon_legacy_url" "text", "p_comment" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."delete_bestiary_entry"("p_entry_id" "uuid") RETURNS "text"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare entry public.bestiary_entries%rowtype;
+begin
+  select * into entry from public.bestiary_entries where id = p_entry_id for update;
+  if not found then raise exception 'Créature introuvable'; end if;
+  if not public.is_campaign_gm(entry.campaign_id) then raise exception 'Accès refusé'; end if;
+  insert into public.bestiary_events (campaign_id, entry_id, creature_name, event_type, actor_user_id)
+  values (entry.campaign_id, entry.id, entry.name, 'deleted', auth.uid());
+  delete from public.bestiary_entries where id = p_entry_id;
+  return entry.image_path;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."delete_bestiary_entry"("p_entry_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."delete_owned_campaign"("p_campaign_id" "uuid") RETURNS "text"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -723,6 +754,25 @@ $$;
 
 
 ALTER FUNCTION "public"."generate_available_campaign_slug"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_campaign_capacity"("p_campaign_id" "uuid") RETURNS TABLE("max_participants" smallint, "current_participants" bigint)
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  if not public.is_campaign_member(p_campaign_id) then raise exception 'Accès refusé'; end if;
+  return query
+  select campaign.max_participants, count(member.user_id)
+  from public.campaigns campaign
+  left join public.campaign_members member on member.campaign_id = campaign.id
+  where campaign.id = p_campaign_id
+  group by campaign.id, campaign.max_participants;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."get_campaign_capacity"("p_campaign_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_campaign_invitation"("p_token" "uuid") RETURNS TABLE("campaign_id" "uuid", "campaign_name" "text", "status" "text")
@@ -944,6 +994,33 @@ $$;
 
 
 ALTER FUNCTION "public"."leave_campaign"("p_campaign_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."list_campaign_bestiary"("p_campaign_id" "uuid") RETURNS TABLE("id" "uuid", "campaign_id" "uuid", "name" "text", "resistances" "text", "weaknesses" "text", "notes" "text", "image_path" "text", "created_by" "uuid", "is_visible" boolean, "revealed_at" timestamp with time zone, "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "creator_display_name" "text", "can_edit" boolean, "can_delete" boolean)
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare viewer_is_gm boolean;
+begin
+  if not public.is_campaign_member(p_campaign_id) then raise exception 'Accès refusé'; end if;
+  viewer_is_gm := public.is_campaign_gm(p_campaign_id);
+  return query
+  select entry.id, entry.campaign_id, entry.name, entry.resistances,
+    entry.weaknesses, entry.notes, entry.image_path, entry.created_by,
+    entry.is_visible, entry.revealed_at, entry.created_at, entry.updated_at,
+    case when entry.created_by is null then 'Joueur parti' else coalesce(profile.display_name, 'Sans pseudo') end,
+    (viewer_is_gm or entry.created_by = auth.uid()), viewer_is_gm
+  from public.bestiary_entries entry
+  left join public.user_profiles profile on profile.user_id = entry.created_by
+  where entry.campaign_id = p_campaign_id and (viewer_is_gm or entry.is_visible)
+  order by entry.is_visible desc,
+    case when entry.is_visible then entry.revealed_at end,
+    entry.created_at, entry.id;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."list_campaign_bestiary"("p_campaign_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."list_campaign_invites"("p_campaign_id" "uuid") RETURNS TABLE("id" "uuid", "token" "uuid", "expires_at" timestamp with time zone, "revoked_at" timestamp with time zone, "created_at" timestamp with time zone)
@@ -1601,6 +1678,55 @@ $$;
 ALTER FUNCTION "public"."revoke_campaign_invite"("p_invite_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."save_bestiary_entry"("p_id" "uuid", "p_campaign_id" "uuid", "p_name" "text", "p_resistances" "text" DEFAULT NULL::"text", "p_weaknesses" "text" DEFAULT NULL::"text", "p_notes" "text" DEFAULT NULL::"text", "p_image_path" "text" DEFAULT NULL::"text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  existing public.bestiary_entries%rowtype;
+  viewer_is_gm boolean;
+  clean_name text := btrim(coalesce(p_name, ''));
+  initial_visibility boolean;
+begin
+  if auth.uid() is null then raise exception 'Connexion requise'; end if;
+  if not public.is_campaign_member(p_campaign_id) then raise exception 'Accès refusé'; end if;
+  if clean_name = '' then raise exception 'Le nom de la créature est requis'; end if;
+  viewer_is_gm := public.is_campaign_gm(p_campaign_id);
+  select * into existing from public.bestiary_entries where id = p_id for update;
+
+  if found then
+    if existing.campaign_id <> p_campaign_id then raise exception 'Campagne invalide'; end if;
+    if not viewer_is_gm and existing.created_by is distinct from auth.uid() then raise exception 'Vous ne pouvez modifier que vos propres créatures'; end if;
+    update public.bestiary_entries
+    set name = clean_name,
+      resistances = nullif(btrim(coalesce(p_resistances, '')), ''),
+      weaknesses = nullif(btrim(coalesce(p_weaknesses, '')), ''),
+      notes = nullif(btrim(coalesce(p_notes, '')), ''), image_path = p_image_path
+    where id = p_id;
+    insert into public.bestiary_events (campaign_id, entry_id, creature_name, event_type, actor_user_id)
+    values (p_campaign_id, p_id, clean_name, 'updated', auth.uid());
+  else
+    initial_visibility := not viewer_is_gm;
+    insert into public.bestiary_entries (
+      id, campaign_id, name, resistances, weaknesses, notes, image_path,
+      created_by, is_visible, revealed_at
+    ) values (
+      p_id, p_campaign_id, clean_name,
+      nullif(btrim(coalesce(p_resistances, '')), ''),
+      nullif(btrim(coalesce(p_weaknesses, '')), ''),
+      nullif(btrim(coalesce(p_notes, '')), ''), p_image_path,
+      auth.uid(), initial_visibility, case when initial_visibility then now() else null end
+    );
+    insert into public.bestiary_events (campaign_id, entry_id, creature_name, event_type, actor_user_id)
+    values (p_campaign_id, p_id, clean_name, 'created', auth.uid());
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."save_bestiary_entry"("p_id" "uuid", "p_campaign_id" "uuid", "p_name" "text", "p_resistances" "text", "p_weaknesses" "text", "p_notes" "text", "p_image_path" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."save_player_contact_notes"("target_contact_id" "uuid", "next_character_notes" "text", "next_debt_notes" "text", "next_notes" "text") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -1772,6 +1898,28 @@ $$;
 
 
 ALTER FUNCTION "public"."sell_campaign_item"("p_item_id" "uuid", "p_quantity" numeric, "p_amount_cp" bigint, "p_comment" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_bestiary_entry_visibility"("p_entry_id" "uuid", "p_visible" boolean) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare entry public.bestiary_entries%rowtype;
+begin
+  select * into entry from public.bestiary_entries where id = p_entry_id for update;
+  if not found then raise exception 'Créature introuvable'; end if;
+  if not public.is_campaign_gm(entry.campaign_id) then raise exception 'Accès refusé'; end if;
+  if entry.is_visible = p_visible then return; end if;
+  update public.bestiary_entries
+  set is_visible = p_visible, revealed_at = case when p_visible then now() else revealed_at end
+  where id = p_entry_id;
+  insert into public.bestiary_events (campaign_id, entry_id, creature_name, event_type, actor_user_id)
+  values (entry.campaign_id, entry.id, entry.name, case when p_visible then 'revealed' else 'hidden' end, auth.uid());
+end;
+$$;
+
+
+ALTER FUNCTION "public"."set_bestiary_entry_visibility"("p_entry_id" "uuid", "p_visible" boolean) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_campaign_item_terminal"("p_item_id" "uuid", "p_status" "text", "p_quantity" numeric DEFAULT NULL::numeric, "p_comment" "text" DEFAULT NULL::"text") RETURNS "uuid"
@@ -2155,6 +2303,33 @@ $$;
 ALTER FUNCTION "public"."transfer_departing_player_assets"("p_campaign_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."update_campaign_capacity"("p_campaign_id" "uuid", "p_max_participants" integer) RETURNS smallint
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  current_count integer;
+  saved_capacity smallint;
+begin
+  if not public.is_campaign_gm(p_campaign_id) then raise exception 'Accès refusé'; end if;
+  if p_max_participants not between 1 and 7 then
+    raise exception 'La capacité doit être comprise entre 1 et 7 participants';
+  end if;
+  select count(*) into current_count from public.campaign_members where campaign_id = p_campaign_id;
+  if p_max_participants < current_count then
+    raise exception 'La capacité ne peut pas être inférieure au nombre actuel de participants';
+  end if;
+  update public.campaigns set max_participants = p_max_participants
+  where id = p_campaign_id
+  returning max_participants into saved_capacity;
+  return saved_capacity;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."update_campaign_capacity"("p_campaign_id" "uuid", "p_max_participants" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_my_player_page"("p_campaign_id" "uuid", "p_character_name" "text", "p_character_summary" "text", "p_pathbuilder_url" "text", "p_notes" "text", "p_objectives" "text") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -2397,11 +2572,29 @@ CREATE TABLE IF NOT EXISTS "public"."bestiary_entries" (
     "image_path" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid",
+    "is_visible" boolean DEFAULT true NOT NULL,
+    "revealed_at" timestamp with time zone,
     CONSTRAINT "bestiary_entries_name_check" CHECK (("length"("btrim"("name")) > 0))
 );
 
 
 ALTER TABLE "public"."bestiary_entries" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."bestiary_events" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "campaign_id" "uuid" NOT NULL,
+    "entry_id" "uuid",
+    "creature_name" "text" NOT NULL,
+    "event_type" "text" NOT NULL,
+    "actor_user_id" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "bestiary_events_event_type_check" CHECK (("event_type" = ANY (ARRAY['created'::"text", 'updated'::"text", 'revealed'::"text", 'hidden'::"text", 'deleted'::"text"])))
+);
+
+
+ALTER TABLE "public"."bestiary_events" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."bilateral_dossiers" (
@@ -2748,6 +2941,8 @@ CREATE TABLE IF NOT EXISTS "public"."campaigns" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "owner_user_id" "uuid",
+    "max_participants" smallint DEFAULT 7 NOT NULL,
+    CONSTRAINT "campaigns_max_participants_check" CHECK ((("max_participants" >= 1) AND ("max_participants" <= 7))),
     CONSTRAINT "campaigns_slug_check" CHECK (("slug" ~ '^[a-z0-9-]+$'::"text"))
 );
 
@@ -2840,6 +3035,39 @@ CREATE TABLE IF NOT EXISTS "public"."factions" (
 
 
 ALTER TABLE "public"."factions" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
+    "user_id" "uuid" NOT NULL,
+    "display_name" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "user_profiles_display_name_check" CHECK ((("display_name" IS NULL) OR ((("char_length"("btrim"("display_name")) >= 2) AND ("char_length"("btrim"("display_name")) <= 40)) AND ("display_name" = "btrim"("display_name")))))
+);
+
+
+ALTER TABLE "public"."user_profiles" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."gm_bestiary_history" WITH ("security_barrier"='true') AS
+ SELECT "event"."id",
+    "event"."campaign_id",
+    "event"."entry_id",
+    "event"."creature_name",
+    "event"."event_type",
+        CASE
+            WHEN ("event"."actor_user_id" IS NULL) THEN 'Joueur parti'::"text"
+            WHEN ("member"."role" = 'gm'::"text") THEN 'Le Maître du Jeu'::"text"
+            ELSE COALESCE("profile"."display_name", 'Sans pseudo'::"text")
+        END AS "actor_display_name",
+    "event"."created_at"
+   FROM (("public"."bestiary_events" "event"
+     LEFT JOIN "public"."campaign_members" "member" ON ((("member"."campaign_id" = "event"."campaign_id") AND ("member"."user_id" = "event"."actor_user_id"))))
+     LEFT JOIN "public"."user_profiles" "profile" ON (("profile"."user_id" = "event"."actor_user_id")))
+  WHERE "public"."is_campaign_gm"("event"."campaign_id");
+
+
+ALTER VIEW "public"."gm_bestiary_history" OWNER TO "postgres";
 
 
 CREATE OR REPLACE VIEW "public"."gm_bilateral_dossiers" WITH ("security_invoker"='true') AS
@@ -3322,18 +3550,6 @@ CREATE OR REPLACE VIEW "public"."player_faction_overview" WITH ("security_barrie
 ALTER VIEW "public"."player_faction_overview" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
-    "user_id" "uuid" NOT NULL,
-    "display_name" "text",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "user_profiles_display_name_check" CHECK ((("display_name" IS NULL) OR ((("char_length"("btrim"("display_name")) >= 2) AND ("char_length"("btrim"("display_name")) <= 40)) AND ("display_name" = "btrim"("display_name")))))
-);
-
-
-ALTER TABLE "public"."user_profiles" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."player_inventory_items" WITH ("security_barrier"='true') AS
  SELECT "item"."id",
     "item"."campaign_id",
@@ -3811,6 +4027,11 @@ ALTER TABLE ONLY "public"."bestiary_entries"
 
 
 
+ALTER TABLE ONLY "public"."bestiary_events"
+    ADD CONSTRAINT "bestiary_events_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."bilateral_dossiers"
     ADD CONSTRAINT "bilateral_dossiers_campaign_id_faction_a_id_faction_b_id_key" UNIQUE ("campaign_id", "faction_a_id", "faction_b_id");
 
@@ -4023,6 +4244,14 @@ CREATE INDEX "archive_places_volume_idx" ON "public"."archive_places" USING "btr
 
 
 CREATE INDEX "bestiary_entries_campaign_name_idx" ON "public"."bestiary_entries" USING "btree" ("campaign_id", "name");
+
+
+
+CREATE INDEX "bestiary_entries_campaign_visibility_order_idx" ON "public"."bestiary_entries" USING "btree" ("campaign_id", "is_visible", "revealed_at", "created_at");
+
+
+
+CREATE INDEX "bestiary_events_campaign_date_idx" ON "public"."bestiary_events" USING "btree" ("campaign_id", "created_at" DESC);
 
 
 
@@ -4256,6 +4485,21 @@ ALTER TABLE ONLY "public"."archive_places"
 
 ALTER TABLE ONLY "public"."bestiary_entries"
     ADD CONSTRAINT "bestiary_entries_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "public"."campaigns"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."bestiary_entries"
+    ADD CONSTRAINT "bestiary_entries_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."bestiary_events"
+    ADD CONSTRAINT "bestiary_events_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."bestiary_events"
+    ADD CONSTRAINT "bestiary_events_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "public"."campaigns"("id") ON DELETE CASCADE;
 
 
 
@@ -4525,7 +4769,7 @@ ALTER TABLE ONLY "public"."player_pages"
 
 
 ALTER TABLE ONLY "public"."player_pages"
-    ADD CONSTRAINT "player_pages_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE RESTRICT;
+    ADD CONSTRAINT "player_pages_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -4632,7 +4876,14 @@ CREATE POLICY "archive_places_gm_all" ON "public"."archive_places" TO "authentic
 ALTER TABLE "public"."bestiary_entries" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "bestiary_entries_public_manage" ON "public"."bestiary_entries" TO "authenticated", "anon" USING ("public"."is_public_campaign"("campaign_id")) WITH CHECK ("public"."is_public_campaign"("campaign_id"));
+CREATE POLICY "bestiary_entries_member_read" ON "public"."bestiary_entries" FOR SELECT TO "authenticated" USING (("public"."is_campaign_member"("campaign_id") AND ("is_visible" OR "public"."is_campaign_gm"("campaign_id"))));
+
+
+
+ALTER TABLE "public"."bestiary_events" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "bestiary_events_gm_read" ON "public"."bestiary_events" FOR SELECT TO "authenticated" USING ("public"."is_campaign_gm"("campaign_id"));
 
 
 
@@ -4946,6 +5197,12 @@ GRANT ALL ON FUNCTION "public"."create_manual_campaign_item"("p_campaign_id" "uu
 
 
 
+REVOKE ALL ON FUNCTION "public"."delete_bestiary_entry"("p_entry_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."delete_bestiary_entry"("p_entry_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."delete_bestiary_entry"("p_entry_id" "uuid") TO "authenticated";
+
+
+
 REVOKE ALL ON FUNCTION "public"."delete_owned_campaign"("p_campaign_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."delete_owned_campaign"("p_campaign_id" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."delete_owned_campaign"("p_campaign_id" "uuid") TO "authenticated";
@@ -4960,6 +5217,12 @@ GRANT ALL ON FUNCTION "public"."dismantle_campaign_item"("p_item_id" "uuid", "p_
 
 REVOKE ALL ON FUNCTION "public"."generate_available_campaign_slug"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."generate_available_campaign_slug"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."get_campaign_capacity"("p_campaign_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."get_campaign_capacity"("p_campaign_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."get_campaign_capacity"("p_campaign_id" "uuid") TO "authenticated";
 
 
 
@@ -5044,6 +5307,12 @@ GRANT ALL ON FUNCTION "public"."is_public_quest_journal_image_path"("object_name
 REVOKE ALL ON FUNCTION "public"."leave_campaign"("p_campaign_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."leave_campaign"("p_campaign_id" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."leave_campaign"("p_campaign_id" "uuid") TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."list_campaign_bestiary"("p_campaign_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."list_campaign_bestiary"("p_campaign_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."list_campaign_bestiary"("p_campaign_id" "uuid") TO "authenticated";
 
 
 
@@ -5156,6 +5425,12 @@ GRANT ALL ON FUNCTION "public"."revoke_campaign_invite"("p_invite_id" "uuid") TO
 
 
 
+REVOKE ALL ON FUNCTION "public"."save_bestiary_entry"("p_id" "uuid", "p_campaign_id" "uuid", "p_name" "text", "p_resistances" "text", "p_weaknesses" "text", "p_notes" "text", "p_image_path" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."save_bestiary_entry"("p_id" "uuid", "p_campaign_id" "uuid", "p_name" "text", "p_resistances" "text", "p_weaknesses" "text", "p_notes" "text", "p_image_path" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."save_bestiary_entry"("p_id" "uuid", "p_campaign_id" "uuid", "p_name" "text", "p_resistances" "text", "p_weaknesses" "text", "p_notes" "text", "p_image_path" "text") TO "authenticated";
+
+
+
 REVOKE ALL ON FUNCTION "public"."save_player_contact_notes"("target_contact_id" "uuid", "next_character_notes" "text", "next_debt_notes" "text", "next_notes" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."save_player_contact_notes"("target_contact_id" "uuid", "next_character_notes" "text", "next_debt_notes" "text", "next_notes" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."save_player_contact_notes"("target_contact_id" "uuid", "next_character_notes" "text", "next_debt_notes" "text", "next_notes" "text") TO "authenticated";
@@ -5176,6 +5451,12 @@ GRANT ALL ON FUNCTION "public"."seed_campaign_reference_data"("p_campaign_id" "u
 REVOKE ALL ON FUNCTION "public"."sell_campaign_item"("p_item_id" "uuid", "p_quantity" numeric, "p_amount_cp" bigint, "p_comment" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."sell_campaign_item"("p_item_id" "uuid", "p_quantity" numeric, "p_amount_cp" bigint, "p_comment" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."sell_campaign_item"("p_item_id" "uuid", "p_quantity" numeric, "p_amount_cp" bigint, "p_comment" "text") TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."set_bestiary_entry_visibility"("p_entry_id" "uuid", "p_visible" boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."set_bestiary_entry_visibility"("p_entry_id" "uuid", "p_visible" boolean) TO "service_role";
+GRANT ALL ON FUNCTION "public"."set_bestiary_entry_visibility"("p_entry_id" "uuid", "p_visible" boolean) TO "authenticated";
 
 
 
@@ -5223,6 +5504,12 @@ GRANT ALL ON FUNCTION "public"."transfer_campaign_money"("p_campaign_id" "uuid",
 
 REVOKE ALL ON FUNCTION "public"."transfer_departing_player_assets"("p_campaign_id" "uuid", "p_user_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."transfer_departing_player_assets"("p_campaign_id" "uuid", "p_user_id" "uuid") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."update_campaign_capacity"("p_campaign_id" "uuid", "p_max_participants" integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."update_campaign_capacity"("p_campaign_id" "uuid", "p_max_participants" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."update_campaign_capacity"("p_campaign_id" "uuid", "p_max_participants" integer) TO "authenticated";
 
 
 
@@ -5276,8 +5563,13 @@ GRANT ALL ON TABLE "public"."archive_places" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."bestiary_entries" TO "authenticated";
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."bestiary_entries" TO "authenticated";
 GRANT ALL ON TABLE "public"."bestiary_entries" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."bestiary_events" TO "service_role";
+GRANT SELECT ON TABLE "public"."bestiary_events" TO "authenticated";
 
 
 
@@ -5366,6 +5658,15 @@ GRANT SELECT ON TABLE "public"."factions" TO "authenticated";
 
 
 
+GRANT ALL ON TABLE "public"."user_profiles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."gm_bestiary_history" TO "service_role";
+GRANT SELECT ON TABLE "public"."gm_bestiary_history" TO "authenticated";
+
+
+
 GRANT ALL ON TABLE "public"."gm_bilateral_dossiers" TO "service_role";
 GRANT SELECT ON TABLE "public"."gm_bilateral_dossiers" TO "authenticated";
 
@@ -5437,10 +5738,6 @@ GRANT ALL ON TABLE "public"."player_economy_totals" TO "service_role";
 
 GRANT ALL ON TABLE "public"."player_faction_overview" TO "service_role";
 GRANT SELECT ON TABLE "public"."player_faction_overview" TO "authenticated";
-
-
-
-GRANT ALL ON TABLE "public"."user_profiles" TO "service_role";
 
 
 

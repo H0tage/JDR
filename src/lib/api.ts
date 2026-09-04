@@ -55,7 +55,7 @@ export async function loadGmData(campaignId: string, demo = false): Promise<Camp
   const [settings, sessionPrep, bestiary, questEntries, questJournalPage, questJournalRevisions, factions, journal, contacts, services, relationships, dossiers, milestones] = await Promise.all([
     client.from("campaign_settings").select("*").eq("campaign_id", campaignId).single(),
     client.from("campaign_session_preps").select("*").eq("campaign_id", campaignId).maybeSingle(),
-    client.from("bestiary_entries").select("*").eq("campaign_id", campaignId).order("name"),
+    client.rpc("list_campaign_bestiary", { p_campaign_id: campaignId }),
     client.from("quest_entries").select("*").eq("campaign_id", campaignId).order("sort_order").order("created_at"),
     client.from("quest_journal_pages").select("*").eq("campaign_id", campaignId).maybeSingle(),
     client.from("quest_journal_revisions").select("*").eq("campaign_id", campaignId).order("created_at", { ascending: false }).limit(20),
@@ -87,9 +87,10 @@ export async function loadGmData(campaignId: string, demo = false): Promise<Camp
   };
 }
 
-export async function loadPlayerData(campaignId: string, demo = false): Promise<CampaignData> {
+export async function loadPlayerData(campaignId: string, demo = false, viewerRole: "gm" | "player" = "player"): Promise<CampaignData> {
   if (demo) {
     const data = anonymizeDemoCampaignData(mockCampaignData);
+    if (viewerRole !== "gm") data.bestiary = data.bestiary.filter((entry) => entry.is_visible);
     data.relationships = data.relationships.filter((item) => item.visibility === "players");
     data.contacts = data.contacts.filter((item) => item.visibility === "players");
     data.journal = data.journal.filter((item) => item.visibility === "players");
@@ -123,7 +124,7 @@ export async function loadPlayerData(campaignId: string, demo = false): Promise<
   };
   const selectedCampaignId = campaign.campaign_id as string;
   const [bestiary, questEntries, questJournalPage, questJournalRevisions, factions, journal, contacts, services, relationships] = await Promise.all([
-    client.from("bestiary_entries").select("*").eq("campaign_id", selectedCampaignId).order("name"),
+    client.rpc("list_campaign_bestiary", { p_campaign_id: selectedCampaignId }),
     client.from("quest_entries").select("*").eq("campaign_id", selectedCampaignId).order("sort_order").order("created_at"),
     client.from("quest_journal_pages").select("*").eq("campaign_id", selectedCampaignId).maybeSingle(),
     client.from("quest_journal_revisions").select("*").eq("campaign_id", selectedCampaignId).order("created_at", { ascending: false }).limit(20),
@@ -274,27 +275,32 @@ export async function saveSessionPrep(prep: SessionPrep): Promise<void> {
 
 export async function saveBestiaryEntry(entry: BestiaryEntry): Promise<void> {
   const client = requireClient();
-  const payload = {
-    id: entry.id,
-    campaign_id: entry.campaign_id,
-    name: entry.name.trim(),
-    resistances: entry.resistances?.trim() || null,
-    weaknesses: entry.weaknesses?.trim() || null,
-    notes: entry.notes?.trim() || null,
-    image_path: entry.image_path,
-  };
-  const { error } = await client.from("bestiary_entries").upsert(payload);
+  const { error } = await client.rpc("save_bestiary_entry", {
+    p_id: entry.id,
+    p_campaign_id: entry.campaign_id,
+    p_name: entry.name.trim(),
+    p_resistances: entry.resistances?.trim() || null,
+    p_weaknesses: entry.weaknesses?.trim() || null,
+    p_notes: entry.notes?.trim() || null,
+    p_image_path: entry.image_path,
+  });
   if (error) throw new Error(`Bestiaire : ${error.message}`);
 }
 
 export async function deleteBestiaryEntry(entry: BestiaryEntry): Promise<void> {
   const client = requireClient();
-  const { error } = await client.from("bestiary_entries").delete().eq("id", entry.id);
+  const { error } = await client.rpc("delete_bestiary_entry", { p_entry_id: entry.id });
   if (error) throw new Error(`Bestiaire : ${error.message}`);
   if (entry.image_path && !entry.image_path.startsWith("blob:")) {
     const { error: imageError } = await client.storage.from(BESTIARY_BUCKET).remove([entry.image_path]);
     if (imageError) throw new Error(`Image du bestiaire : ${imageError.message}`);
   }
+}
+
+export async function setBestiaryEntryVisibility(entryId: string, visible: boolean): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.rpc("set_bestiary_entry_visibility", { p_entry_id: entryId, p_visible: visible });
+  if (error) throw new Error(`Bestiaire : ${error.message}`);
 }
 
 export async function uploadBestiaryImage(campaignId: string, file: File): Promise<string> {

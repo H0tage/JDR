@@ -1,13 +1,14 @@
-import { ImagePlus, Maximize2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Eye, EyeOff, ImagePlus, Maximize2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { bestiaryImageUrl, deleteBestiaryEntry, deleteBestiaryImage, saveBestiaryEntry, uploadBestiaryImage } from "../lib/api";
+import { bestiaryImageUrl, deleteBestiaryEntry, deleteBestiaryImage, saveBestiaryEntry, setBestiaryEntryVisibility, uploadBestiaryImage } from "../lib/api";
 import type { BestiaryEntry } from "../lib/types";
-import { EmptyState, SectionHeading } from "./ui";
+import { SectionHeading } from "./ui";
 
 type BestiaryTabProps = {
   campaignId: string;
   entries: BestiaryEntry[];
   demo: boolean;
+  viewerRole: "gm" | "player";
   onChanged: () => Promise<void> | void;
   onNotice: (message: string) => void;
   onError: (message: string | null) => void;
@@ -22,6 +23,11 @@ function emptyEntry(campaignId: string): BestiaryEntry {
     weaknesses: null,
     notes: null,
     image_path: null,
+    created_by: null,
+    is_visible: true,
+    revealed_at: null,
+    can_edit: true,
+    can_delete: false,
   };
 }
 
@@ -29,7 +35,7 @@ function imageSource(path: string | null, preview: string | null = null) {
   return preview ?? bestiaryImageUrl(path);
 }
 
-export function BestiaryTab({ campaignId, entries, demo, onChanged, onNotice, onError }: BestiaryTabProps) {
+export function BestiaryTab({ campaignId, entries, demo, viewerRole, onChanged, onNotice, onError }: BestiaryTabProps) {
   const [demoEntries, setDemoEntries] = useState(entries);
   const [editing, setEditing] = useState<BestiaryEntry | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -44,7 +50,12 @@ export function BestiaryTab({ campaignId, entries, demo, onChanged, onNotice, on
     if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
   }, [imagePreview]);
 
-  const displayedEntries = useMemo(() => (demo ? demoEntries : entries), [demo, demoEntries, entries]);
+  const displayedEntries = useMemo(() => [...(demo ? demoEntries : entries)].sort((left, right) => {
+    if (left.is_visible !== right.is_visible) return left.is_visible ? -1 : 1;
+    const leftDate = left.is_visible ? left.revealed_at ?? left.created_at : left.created_at;
+    const rightDate = right.is_visible ? right.revealed_at ?? right.created_at : right.created_at;
+    return String(leftDate ?? "").localeCompare(String(rightDate ?? "")) || left.name.localeCompare(right.name, "fr");
+  }), [demo, demoEntries, entries]);
 
   function beginEdit(entry: BestiaryEntry | null) {
     setEditing(entry ? structuredClone(entry) : emptyEntry(campaignId));
@@ -84,13 +95,24 @@ export function BestiaryTab({ campaignId, entries, demo, onChanged, onNotice, on
     try {
       let imagePath = editing.image_path;
       if (imageFile) imagePath = demo ? imagePreview : await uploadBestiaryImage(campaignId, imageFile);
-      const saved: BestiaryEntry = { ...editing, name: editing.name.trim(), image_path: imagePath };
+      const isNew = !original;
+      const initialVisibility = viewerRole === "player";
+      const saved: BestiaryEntry = {
+        ...editing,
+        name: editing.name.trim(),
+        image_path: imagePath,
+        created_by: editing.created_by ?? "demo-viewer",
+        is_visible: isNew ? initialVisibility : editing.is_visible,
+        revealed_at: isNew && initialVisibility ? new Date().toISOString() : editing.revealed_at,
+        created_at: editing.created_at ?? new Date().toISOString(),
+        can_edit: true,
+        can_delete: viewerRole === "gm",
+      };
 
       if (demo) {
         setDemoEntries((current) => {
           const exists = current.some((item) => item.id === saved.id);
-          return (exists ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved])
-            .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+          return exists ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved];
         });
       } else {
         await saveBestiaryEntry(saved);
@@ -124,22 +146,48 @@ export function BestiaryTab({ campaignId, entries, demo, onChanged, onNotice, on
     }
   }
 
+  async function toggleVisibility(entry: BestiaryEntry) {
+    const nextVisible = !entry.is_visible;
+    setBusy(true);
+    onError(null);
+    try {
+      if (demo) {
+        setDemoEntries((current) => current.map((item) => item.id === entry.id ? {
+          ...item,
+          is_visible: nextVisible,
+          revealed_at: nextVisible ? new Date().toISOString() : item.revealed_at,
+        } : item));
+      } else {
+        await setBestiaryEntryVisibility(entry.id, nextVisible);
+        await onChanged();
+      }
+      onNotice(nextVisible ? `« ${entry.name} » est maintenant visible par les joueurs.` : `« ${entry.name} » est maintenant masquée aux joueurs.`);
+    } catch (caught) {
+      onError(caught instanceof Error ? caught.message : "Changement de visibilité impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return <div className="page-stack bestiary-page">
-    <SectionHeading eyebrow="Registre collaboratif" title="Bestiaire" actions={<button className="button primary" onClick={() => beginEdit(null)}><Plus size={17} />Ajouter une entrée</button>} />
+    <SectionHeading eyebrow="Registre collaboratif" title="Bestiaire" />
     <p className="section-intro">Consignez les créatures rencontrées, leurs défenses et tout détail utile au groupe.</p>
     <section className="bestiary-grid">
       {displayedEntries.map((entry) => {
         const src = imageSource(entry.image_path);
-        return <article key={entry.id} className="bestiary-card">
+        const canEdit = viewerRole === "gm" || entry.can_edit;
+        const canDelete = viewerRole === "gm" && (demo || entry.can_delete !== false);
+        return <article key={entry.id} className={`bestiary-card${entry.is_visible ? "" : " is-hidden"}`}>
+          {viewerRole === "gm" && <button type="button" className="icon-button bestiary-visibility-toggle" disabled={busy} title={entry.is_visible ? "Masquer aux joueurs" : "Rendre visible aux joueurs"} aria-label={entry.is_visible ? `Masquer ${entry.name}` : `Révéler ${entry.name}`} onClick={() => void toggleVisibility(entry)}>{entry.is_visible ? <Eye size={17} /> : <EyeOff size={17} />}</button>}
           {src ? <button type="button" className="bestiary-image" onClick={() => setLightbox({ src, name: entry.name })} title={`Agrandir l’image de ${entry.name}`}><img src={src} alt={entry.name} /><span><Maximize2 size={16} />Agrandir</span></button> : <div className="bestiary-image placeholder"><ImagePlus size={28} /><span>Aucune image</span></div>}
-          <div className="bestiary-card-body"><div className="bestiary-card-title"><h3>{entry.name}</h3><div><button type="button" className="icon-button" disabled={busy} title="Modifier" aria-label={`Modifier ${entry.name}`} onClick={() => beginEdit(entry)}><Pencil size={15} /></button><button type="button" className="icon-button danger" disabled={busy} title="Supprimer" aria-label={`Supprimer ${entry.name}`} onClick={() => void remove(entry)}><Trash2 size={15} /></button></div></div>
+          <div className="bestiary-card-body"><div className="bestiary-card-title"><h3>{entry.name}</h3><div>{canEdit && <button type="button" className="icon-button" disabled={busy} title="Modifier" aria-label={`Modifier ${entry.name}`} onClick={() => beginEdit(entry)}><Pencil size={15} /></button>}{canDelete && <button type="button" className="icon-button danger" disabled={busy} title="Supprimer" aria-label={`Supprimer ${entry.name}`} onClick={() => void remove(entry)}><Trash2 size={15} /></button>}</div></div>
             <BestiaryDetail label="Résistances" value={entry.resistances} />
             <BestiaryDetail label="Faiblesses" value={entry.weaknesses} />
             {entry.notes && <BestiaryDetail label="Notes" value={entry.notes} />}
           </div>
         </article>;
       })}
-      {displayedEntries.length === 0 && <EmptyState title="Bestiaire vide">Ajoutez la première créature rencontrée par le groupe.</EmptyState>}
+      <button type="button" className="bestiary-add-card" onClick={() => beginEdit(null)}><span><Plus size={34} /></span><strong>Ajouter une créature</strong><small>{viewerRole === "gm" ? "Elle sera masquée aux joueurs par défaut." : "Elle sera immédiatement visible par le groupe."}</small></button>
     </section>
 
     {editing && <div className="modal-backdrop" role="presentation"><form className="modal-card bestiary-editor" onSubmit={save}>

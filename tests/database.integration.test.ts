@@ -149,3 +149,54 @@ it("partage les fiches publiques sans exposer Pathbuilder ni les notes privées"
   expect(gmPages.find((page) => page.user_id === second)).toMatchObject({ active: false, notes: 'Secret B' });
   await db.close();
 }, 30_000);
+
+it("limite les participants et sécurise le cycle collaboratif du bestiaire", async () => {
+  const db = new PGlite();
+  await db.exec(`
+    create role anon; create role authenticated; create schema auth;
+    create table auth.users (id uuid primary key, email text unique);
+    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+    create schema extensions; create publication supabase_realtime; create schema storage;
+    create table storage.buckets (id text primary key, name text not null, public boolean not null default false, file_size_limit bigint, allowed_mime_types text[]);
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text not null, name text not null);
+    alter table storage.objects enable row level security;
+    create function storage.foldername(object_name text) returns text[] language sql stable as $$ select string_to_array(object_name, '/') $$;
+  `);
+  for (const file of readdirSync(migrationsDirectory).filter((name) => name.endsWith('.sql')).sort()) {
+    const sql = readFileSync(resolve(migrationsDirectory, file), 'utf8').replace('create extension if not exists pgcrypto with schema extensions;', '-- pgcrypto supplied by Supabase');
+    await db.exec(sql);
+  }
+  const gm = '40000000-0000-4000-8000-000000000001';
+  const first = '40000000-0000-4000-8000-000000000002';
+  const second = '40000000-0000-4000-8000-000000000003';
+  const invite = '40000000-0000-4000-8000-000000000010';
+  const hiddenCreature = '40000000-0000-4000-8000-000000000020';
+  const playerCreature = '40000000-0000-4000-8000-000000000021';
+  await db.exec(`insert into auth.users values ('${gm}', 'gm4@example.test'), ('${first}', 'one@example.test'), ('${second}', 'two@example.test'); select set_config('request.jwt.claim.sub', '${gm}', false); set role authenticated;`);
+  const campaign = (await db.query<{ campaign_id: string }>("select * from public.create_campaign('Capacité et bestiaire', null)")).rows[0];
+  await db.exec(`select public.update_campaign_capacity('${campaign.campaign_id}', 2); reset role; insert into public.campaign_invites (id, campaign_id, token, created_by) values ('${invite}', '${campaign.campaign_id}', '${invite}', '${gm}'); select set_config('request.jwt.claim.sub', '${first}', false); set role authenticated; select * from public.accept_campaign_invitation('${invite}');`);
+  await expect(db.exec(`reset role; select set_config('request.jwt.claim.sub', '${second}', false); set role authenticated; select * from public.accept_campaign_invitation('${invite}');`)).rejects.toThrow(/campagne que vous cherchez à rejoindre est pleine/);
+  await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${gm}', false); set role authenticated;`);
+  await expect(db.exec(`select public.update_campaign_capacity('${campaign.campaign_id}', 1)`)).rejects.toThrow(/inférieure au nombre actuel/);
+  expect((await db.query<{ max_participants: number; current_participants: number }>(`select * from public.get_campaign_capacity('${campaign.campaign_id}')`)).rows[0]).toEqual({ max_participants: 2, current_participants: 2 });
+
+  await db.exec(`select public.save_bestiary_entry('${hiddenCreature}', '${campaign.campaign_id}', 'Liche cachée', null, null, 'Secret MJ', null);`);
+  expect((await db.query(`select * from public.list_campaign_bestiary('${campaign.campaign_id}')`)).rows).toHaveLength(1);
+  await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${first}', false); set role authenticated;`);
+  expect((await db.query(`select * from public.list_campaign_bestiary('${campaign.campaign_id}')`)).rows).toHaveLength(0);
+  await expect(db.exec(`select public.save_bestiary_entry('${hiddenCreature}', '${campaign.campaign_id}', 'Nom volé', null, null, null, null)`)).rejects.toThrow(/propres créatures/);
+  await db.exec(`select public.save_bestiary_entry('${playerCreature}', '${campaign.campaign_id}', 'Zombie aperçu', null, 'Feu', null, null); select public.save_bestiary_entry('${playerCreature}', '${campaign.campaign_id}', 'Zombie reconnu', null, 'Feu', null, null);`);
+  await expect(db.exec(`select public.delete_bestiary_entry('${playerCreature}')`)).rejects.toThrow(/Accès refusé/);
+  expect((await db.query<{ name: string; is_visible: boolean }>(`select name, is_visible from public.list_campaign_bestiary('${campaign.campaign_id}')`)).rows).toEqual([{ name: 'Zombie reconnu', is_visible: true }]);
+
+  await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${gm}', false); set role authenticated; select public.set_bestiary_entry_visibility('${hiddenCreature}', true);`);
+  const visibleNames = (await db.query<{ name: string }>(`select name from public.list_campaign_bestiary('${campaign.campaign_id}')`)).rows.map((row) => row.name);
+  expect(visibleNames).toEqual(['Zombie reconnu', 'Liche cachée']);
+  await db.exec(`select public.set_bestiary_entry_visibility('${hiddenCreature}', false); select public.set_bestiary_entry_visibility('${hiddenCreature}', true);`);
+  expect((await db.query<{ event_type: string }>(`select event_type from public.gm_bestiary_history where campaign_id = '${campaign.campaign_id}' and entry_id = '${hiddenCreature}' order by created_at`)).rows.map((row) => row.event_type)).toEqual(['created', 'revealed', 'hidden', 'revealed']);
+
+  await db.exec(`reset role; delete from auth.users where id = '${first}'; select set_config('request.jwt.claim.sub', '${gm}', false); set role authenticated;`);
+  expect((await db.query<{ created_by: string | null }>(`select created_by from public.bestiary_entries where id = '${playerCreature}'`)).rows[0].created_by).toBeNull();
+  expect((await db.query<{ actor_display_name: string }>(`select actor_display_name from public.gm_bestiary_history where entry_id = '${playerCreature}' and event_type = 'created'`)).rows[0].actor_display_name).toBe('Joueur parti');
+  await db.close();
+}, 30_000);

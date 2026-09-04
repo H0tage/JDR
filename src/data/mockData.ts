@@ -8,7 +8,10 @@ const FACTION_2 = "00000000-0000-4000-8100-000000000002";
 export const mockCampaignData: CampaignData = {
   settings: { campaign_id: CAMPAIGN_ID, current_volume: 1, jf_cap: 20, minor_cost: 1, moderate_cost: 6, major_cost: 10, liked_threshold: 5, admired_threshold: 15, revered_threshold: 30, carters_major_threshold: 25, tension_max: 4, tension_surcharge_level: 2, tension_surcharge: 1, admired_discount: 1, show_numeric_tension: false, player_display_mode: "intuitive", show_all_player_balances: true },
   sessionPrep: { campaign_id: CAMPAIGN_ID, objective: "Objectif de démonstration.", scenes: "• Scène de démonstration", reminders: "Rappel de démonstration.", notes: "Notes de démonstration." },
-  bestiary: [{ id: "demo-creature-1", campaign_id: CAMPAIGN_ID, name: "Créature 1", resistances: null, weaknesses: null, notes: "Notes de démonstration.", image_path: null }],
+  bestiary: [
+    { id: "demo-creature-1", campaign_id: CAMPAIGN_ID, name: "Créature 1", resistances: null, weaknesses: null, notes: "Notes de démonstration.", image_path: null, created_by: "demo-player-1", is_visible: true, revealed_at: "2026-01-01T10:00:00Z", created_at: "2026-01-01T10:00:00Z", can_edit: true, can_delete: true },
+    { id: "demo-creature-2", campaign_id: CAMPAIGN_ID, name: "Créature 2", resistances: "Résistances inconnues", weaknesses: null, notes: "Créature encore masquée au groupe.", image_path: null, created_by: "demo-gm", is_visible: false, revealed_at: null, created_at: "2026-01-02T10:00:00Z", can_edit: true, can_delete: true },
+  ],
   questEntries: [{ id: "demo-quest-1", campaign_id: CAMPAIGN_ID, title: "Quête 1", notes: "Notes de démonstration.", status: "Actif", category: "Objectifs", sort_order: 1 }],
   questJournalPage: { campaign_id: CAMPAIGN_ID, content: "Contenu de démonstration." },
   questJournalRevisions: [],

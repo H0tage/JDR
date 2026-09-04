@@ -90,6 +90,11 @@ export async function acceptInvitation(token: string): Promise<{ campaign_id: st
   return result.data[0] as { campaign_id: string; campaign_name: string; role: CampaignRole; already_member: boolean };
 }
 
+export interface CampaignCapacity {
+  max_participants: number;
+  current_participants: number;
+}
+
 export async function createCampaign(name: string, description: string): Promise<CreatedCampaign> {
   const result = await client().rpc("create_campaign", {
     p_name: name,
@@ -151,6 +156,22 @@ export async function listCampaignMembers(campaignId: string): Promise<CampaignM
   const result = await client().rpc("list_campaign_members", { p_campaign_id: campaignId });
   throwError(result.error, "Membres");
   return (result.data ?? []) as CampaignMember[];
+}
+
+export async function getCampaignCapacity(campaignId: string): Promise<CampaignCapacity> {
+  const result = await client().rpc("get_campaign_capacity", { p_campaign_id: campaignId });
+  throwError(result.error, "Capacité de la campagne");
+  if (!result.data?.[0]) throw new Error("Capacité de la campagne : aucune donnée reçue.");
+  return result.data[0] as CampaignCapacity;
+}
+
+export async function updateCampaignCapacity(campaignId: string, maxParticipants: number): Promise<number> {
+  const result = await client().rpc("update_campaign_capacity", {
+    p_campaign_id: campaignId,
+    p_max_participants: maxParticipants,
+  });
+  throwError(result.error, "Capacité de la campagne");
+  return Number(result.data);
 }
 
 export async function listCampaignInvites(campaignId: string): Promise<CampaignInvite[]> {

@@ -54,14 +54,14 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
 
   const refresh = useCallback(async () => {
     try {
-      setData(await loadPlayerData(campaignId, demo));
+      setData(await loadPlayerData(campaignId, demo, viewerRole));
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Chargement impossible.");
     } finally {
       setLoading(false);
     }
-  }, [campaignId, demo]);
+  }, [campaignId, demo, viewerRole]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -153,7 +153,7 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
         {notice && <div className="player-toast">{notice}</div>}
         {tab === "dashboard" && <PlayerDashboard data={data} demo={demo} viewerRole={viewerRole} onOpen={setTab} />}
         {tab === "relations" && <PlayerRelations data={data} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
-        {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
+        {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole={viewerRole} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "loot" && <PlayerEconomyTab campaignId={data.settings.campaign_id} demo={demo} viewerRole={viewerRole} />}
         {viewerRole === "player" && <div className="persistent-player-page" hidden={tab !== "my-page"}><PlayerPageTab campaignId={data.settings.campaign_id} demo={demo} active={tab === "my-page"} playerPages={playerPages ?? []} /></div>}
         {tab === "player-pages" && <PlayerPagesTab page={selectedPlayerPage} loading={playerPages === null && !playerPagesError} error={playerPagesError} viewerRole={viewerRole} />}

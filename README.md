@@ -46,8 +46,9 @@ soit choisie implicitement.
   propriétaire et au MJ ;
 - inventaire et économie partagés : attribution, demandes, ventes annulables,
   démontage, achats, transferts, dettes, historique et soldes négatifs ;
-- bestiaire collaboratif ;
-- portail multi-campagnes, invitations, départ volontaire et gestion des membres ;
+- bestiaire collaboratif avec créations joueur/MJ, révélation contrôlée et historique ;
+- portail multi-campagnes, invitations, capacité réglable de 1 à 7 participants,
+  départ volontaire et gestion des membres ;
 - thèmes Clair, Original et Sombre, avec affichage adaptatif côté joueurs.
 
 ## Développement local
@@ -120,6 +121,10 @@ Les migrations du `20260904` corrigent la cohérence des demandes et du
 patrimoine, puis rendent les fiches publiques consultables par le groupe sans
 exposer Pathbuilder ni les notes privées. Les relations personnelles qu’un
 joueur consigne sur ses compagnons restent strictement privées à leur auteur.
+La migration `20260904140000_campaign_capacity_and_bestiary_workflow.sql`
+limite les campagnes à sept participants maximum, bloque atomiquement les
+adhésions excédentaires et sécurise la visibilité, l’édition et l’historique du
+bestiaire selon le rôle.
 
 Après une modification SQL distante, régénérer le snapshot comme indiqué dans
 [`supabase/README.md`](supabase/README.md).

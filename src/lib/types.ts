@@ -65,6 +65,12 @@ export interface BestiaryEntry {
   weaknesses: string | null;
   notes: string | null;
   image_path: string | null;
+  created_by: string | null;
+  is_visible: boolean;
+  revealed_at: string | null;
+  creator_display_name?: string;
+  can_edit?: boolean;
+  can_delete?: boolean;
   created_at?: string;
   updated_at?: string;
 }

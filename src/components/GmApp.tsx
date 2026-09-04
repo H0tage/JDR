@@ -65,7 +65,7 @@ import { EmptyState, ErrorPanel, LoadingScreen, SectionHeading, VisibilityBadge 
 import { BestiaryTab } from "./BestiaryTab";
 import { QuestJournalTab } from "./QuestJournalTab";
 import { QuestWritingTab } from "./QuestWritingTab";
-import { createCampaignInvite, listCampaignInvites, listCampaignMembers, removeCampaignPlayer, revokeCampaignInvite, type CampaignInvite, type CampaignMember } from "../lib/campaignPortalApi";
+import { createCampaignInvite, getCampaignCapacity, listCampaignInvites, listCampaignMembers, removeCampaignPlayer, revokeCampaignInvite, updateCampaignCapacity, type CampaignCapacity, type CampaignInvite, type CampaignMember } from "../lib/campaignPortalApi";
 import { listCampaignPlayerPages, type CampaignPlayerPage } from "../lib/playerPageApi";
 import { ArchivesTab } from "./ReferenceTables";
 import { LootManager } from "./LootManager";
@@ -265,7 +265,7 @@ function GmWorkspace({ campaignId, campaignSlug, demo }: { campaignId: string; c
           {tab === "milestones" && <ProgressionTab data={data} mutate={mutate} demo={demo} />}
           {tab === "loot" && <Suspense fallback={<LoadingScreen label="Ouverture du registre des butins…" />}><LootManager campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} /></Suspense>}
           {tab === "references" && <ReferencesHub campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} />}
-          {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
+          {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole="gm" onChanged={refresh} onNotice={announce} onError={setError} />}
           {tab === "settings" && <SettingsTab data={data} mutate={mutate} campaignId={campaignId} />}
         </div>
       </main>
@@ -943,19 +943,23 @@ function CampaignAccessPanel({ campaignId }: { campaignId: string }) {
   const [invites, setInvites] = useState<CampaignInvite[]>([]);
   const [pages, setPages] = useState<CampaignPlayerPage[]>([]);
   const [openedPage, setOpenedPage] = useState<CampaignPlayerPage | null>(null);
+  const [capacity, setCapacity] = useState<CampaignCapacity | null>(null);
+  const [capacityBusy, setCapacityBusy] = useState(false);
   const [expiresOn, setExpiresOn] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const refresh = useCallback(async () => { try { const [nextMembers, nextInvites, nextPages] = await Promise.all([listCampaignMembers(campaignId), listCampaignInvites(campaignId), listCampaignPlayerPages(campaignId)]); setMembers(nextMembers); setInvites(nextInvites); setPages(nextPages); setError(null); } catch (caught) { setError(caught instanceof Error ? caught.message : "Gestion de campagne indisponible."); } }, [campaignId]);
+  const refresh = useCallback(async () => { try { const [nextMembers, nextInvites, nextPages, nextCapacity] = await Promise.all([listCampaignMembers(campaignId), listCampaignInvites(campaignId), listCampaignPlayerPages(campaignId), getCampaignCapacity(campaignId)]); setMembers(nextMembers); setInvites(nextInvites); setPages(nextPages); setCapacity(nextCapacity); setError(null); } catch (caught) { setError(caught instanceof Error ? caught.message : "Gestion de campagne indisponible."); } }, [campaignId]);
   useEffect(() => { void refresh(); }, [refresh]);
   const link = (invite: CampaignInvite) => `${window.location.origin}/join/${invite.token}`;
   async function create() { try { const expiresAt = expiresOn ? new Date(`${expiresOn}T23:59:59`).toISOString() : null; const invite = await createCampaignInvite(campaignId, expiresAt); setInvites((current) => [invite, ...current]); setNotice("Invitation créée."); } catch (caught) { setError(caught instanceof Error ? caught.message : "Création impossible."); } }
   async function copy(invite: CampaignInvite) { try { await navigator.clipboard.writeText(link(invite)); setNotice("Lien copié."); } catch { setError("Copie impossible : sélectionnez le lien dans votre navigateur."); } }
   async function revoke(invite: CampaignInvite) { try { await revokeCampaignInvite(invite.id); await refresh(); setNotice("Invitation révoquée."); } catch (caught) { setError(caught instanceof Error ? caught.message : "Révocation impossible."); } }
   async function remove(member: CampaignMember) { if (!window.confirm(`Retirer ${member.display_name} de la campagne ? Sa page personnelle sera conservée.`)) return; try { await removeCampaignPlayer(campaignId, member.user_id); await refresh(); setNotice("Joueur retiré. Sa page personnelle est conservée."); } catch (caught) { setError(caught instanceof Error ? caught.message : "Suppression impossible."); } }
+  async function changeCapacity(nextCapacity: number) { setCapacityBusy(true); setError(null); try { const saved = await updateCampaignCapacity(campaignId, nextCapacity); setCapacity((current) => current ? { ...current, max_participants: saved } : current); setNotice("Capacité de la campagne enregistrée."); } catch (caught) { setError(caught instanceof Error ? caught.message : "Modification de la capacité impossible."); } finally { setCapacityBusy(false); } }
   return <section className="panel campaign-access-panel">
     <div><p className="eyebrow">Accès de la campagne</p><h3>Joueurs et invitations</h3><p>Les liens invitent directement comme joueur ; une invitation révoquée ne peut plus être utilisée.</p></div>
     {error && <p className="form-error">{error}</p>}{notice && <p className="form-success">{notice}</p>}
+    {capacity && <div className="campaign-capacity"><div><strong>Capacité de la campagne</strong><small>{capacity.current_participants} participant{capacity.current_participants > 1 ? "s" : ""} actuellement · MJ compris</small></div><label><span>Maximum</span><select disabled={capacityBusy} value={capacity.max_participants} onChange={(event) => void changeCapacity(Number(event.target.value))}>{[1, 2, 3, 4, 5, 6, 7].map((value) => <option key={value} value={value} disabled={value < capacity.current_participants}>{value} au total{value > 1 ? ` · ${value - 1} joueur${value > 2 ? "s" : ""} + MJ` : " · MJ seul"}</option>)}</select></label></div>}
     <div className="invite-create"><label>Expiration facultative<input type="date" min={new Date().toISOString().slice(0, 10)} value={expiresOn} onChange={(event) => setExpiresOn(event.target.value)} /></label><button type="button" className="button primary" onClick={() => void create()}><Plus size={17} />Créer une invitation</button></div>
     <div className="access-list"><h4>Invitations</h4>{invites.length === 0 && <p className="muted-copy">Aucune invitation créée.</p>}{invites.map((invite) => <article key={invite.id} className={invite.revoked_at ? "access-row muted" : "access-row"}><div><strong>{invite.revoked_at ? "Révoquée" : invite.expires_at && new Date(invite.expires_at) <= new Date() ? "Expirée" : "Active"}</strong><small>{link(invite)}</small></div><div><button type="button" className="button ghost" onClick={() => void copy(invite)}>Copier</button>{!invite.revoked_at && <button type="button" className="button ghost danger" onClick={() => void revoke(invite)}>Révoquer</button>}</div></article>)}</div>
     <div className="access-list"><h4>Membres</h4>{members.map((member) => <article key={member.user_id} className="access-row"><div><strong>{member.display_name}</strong><small>{member.role === "gm" ? "Maître de jeu" : "Joueur"}</small></div>{member.role === "player" && <button type="button" className="button ghost danger" onClick={() => void remove(member)}>Retirer</button>}</article>)}</div>

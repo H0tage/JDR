@@ -119,6 +119,15 @@ son propriétaire ; les notes personnelles sont visibles par lui et le MJ. Les
 notes qu’un joueur prend sur un autre personnage sont stockées séparément et
 restent accessibles uniquement à leur auteur.
 
+La migration `20260904140000_campaign_capacity_and_bestiary_workflow.sql`
+ajoute une capacité configurable de 1 à 7 participants, MJ compris. Son contrôle
+est effectué sous verrou lors de l’acceptation d’une invitation. Elle remplace
+également la gestion directe du bestiaire par des RPC : les joueurs créent des
+cartes visibles et ne modifient que les leurs, tandis que le MJ crée masqué par
+défaut, contrôle toute carte et décide de sa révélation. Les entrées masquées ne
+sont jamais retournées aux joueurs. L’historique conserve les cartes supprimées
+et remplace l’auteur par « Joueur parti » après suppression complète du compte.
+
 Tant que cette migration n’a pas été appliquée à la production,
 `schema-remote.sql` doit continuer à représenter la production actuelle. Il ne
 faut mettre l’instantané à jour qu’après l’exécution distante et sa vérification.
