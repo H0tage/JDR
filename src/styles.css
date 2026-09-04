@@ -1153,6 +1153,9 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .economy-activity article > div, .item-timeline article > div { display: grid; gap: 2px; }
 .economy-activity strong, .item-timeline strong { color: var(--ivory); font-size: .7rem; }
 .economy-activity small, .item-timeline small { color: var(--muted); font-size: .64rem; font-style: italic; }
+.economy-activity article.cancelled > div { opacity: .48; text-decoration: line-through; text-decoration-thickness: 1px; }
+.economy-activity article.cancelled time { opacity: .58; }
+.economy-cancelled-label { color: var(--muted); font-size: .64rem; font-style: italic; white-space: nowrap; opacity: .72; }
 .economy-item-history .item-timeline { max-height: 520px; overflow-y: auto; padding: 8px 17px; }
 .item-timeline article { position: relative; display: grid; grid-template-columns: 145px minmax(0, 1fr); gap: 14px; border-left: 1px solid var(--line); padding: 9px 0 9px 18px; }
 .item-timeline article::before { content: ""; position: absolute; left: -4px; top: 14px; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
