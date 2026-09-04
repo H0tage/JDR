@@ -1339,10 +1339,10 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-page-edit { display: grid; grid-template-columns: minmax(250px, .7fr) minmax(360px, 1.3fr); gap: 16px; }
 .player-page-edit > section { border: 1px solid var(--sheet-line); border-radius: 9px; padding: 21px; color: var(--sheet-ink); background: var(--sheet); }
 .player-page-edit-portrait { display: flex; align-items: center; flex-direction: column; gap: 11px; }
-.player-page-edit-portrait > div { width: 100%; min-height: 360px; display: grid; place-items: center; overflow: hidden; border: 1px dashed var(--sheet-line); border-radius: 8px; color: var(--sheet-muted); background: var(--sheet-alt); }
+.player-page-edit-portrait > .player-page-portrait-preview { width: 100%; min-height: 360px; display: grid; place-items: center; overflow: hidden; border: 1px dashed var(--sheet-line); border-radius: 8px; color: var(--sheet-muted); background: var(--sheet-alt); }
 .player-page-edit-portrait img { width: 100%; height: 360px; object-fit: contain; transform-origin: center; transition: transform .12s ease; }
-.player-page-edit-portrait label { width: 100%; }
-.player-page-edit-portrait label input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.player-page-edit-portrait > label { width: 100%; }
+.player-page-edit-portrait > .player-page-image-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .player-page-edit-portrait small { color: var(--sheet-muted); }
 .player-page-crop-controls { width: 100%; align-self: stretch; text-align: left; }
 .player-page-crop-controls label { color: var(--sheet-muted); }
