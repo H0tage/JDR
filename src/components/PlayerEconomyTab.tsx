@@ -5,7 +5,7 @@ import {
   List, ListChecks, Plus, ReceiptText, RefreshCw, Scissors, Send, ShoppingBag, Trash2, WalletCards, X,
 } from "lucide-react";
 import {
-  assignInventoryItem, batchUpdateInventoryItems, cancelItemEvent, cancelItemRequest, cancelMoneyTransaction,
+  assignInventoryItem, batchUpdateInventoryItems, cancelItemEvent, cancelItemRequest, cancelMoneyDebt, cancelMoneyTransaction,
   createManualInventoryItem, createMoneyDebt, dismantleInventoryItem, formatCopper,
   loadPlayerEconomy, mergeInventoryItems, moneyToCp, payMoneyDebt, purchaseInventoryItem, recordCommonIncome,
   recordPersonalMoney, requestInventoryItem, resolveItemRequest, returnInventoryItem,
@@ -200,14 +200,14 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
 
     {section !== "activity" && selectedIds.length > 0 && <BatchActionBar count={selectedIds.length} players={players} saving={saving} onClear={() => setSelectedIds([])} onApply={(action, targetUserId, comment) => void execute(async () => { await batchUpdateInventoryItems(selectedIds, action, targetUserId, comment); setSelectedIds([]); }, `${selectedIds.length} objet${selectedIds.length > 1 ? "s" : ""} mis à jour.`)} />}
 
-    {section === "activity" ? <EconomyActivity data={data} saving={saving} onExecute={execute} />
+    {section === "activity" ? <EconomyActivity data={data} viewerRole={viewerRole} saving={saving} onExecute={execute} />
       : section === "others" ? <GroupInventories players={groupInventoryPlayers} items={otherItems} mobilePlayerId={mobileInventoryUserId} onMobilePlayer={setMobileInventoryUserId} renderItem={(item) => renderInventoryCard(item, false)} />
         : visibleItems.length > 0 ? <section className="economy-item-grid">{visibleItems.map((item) => renderInventoryCard(item))}</section>
           : <EmptyState title={section === "common" ? "Le compte commun est vide" : "Aucun objet personnel"}>Les objets apparaîtront ici au fil de leur attribution.</EmptyState>}
 
     {selectedItem && itemAction && <ItemActionPanel item={selectedItem} action={itemAction} mergeCandidates={activeItems.filter((candidate) => candidate.id !== selectedItem.id && candidate.name === selectedItem.name && candidate.owner_user_id === selectedItem.owner_user_id && candidate.unit_value_cp === selectedItem.unit_value_cp && candidate.aon_legacy_url === selectedItem.aon_legacy_url)} events={data.item_history.filter((event) => event.item_id === selectedItem.id || event.related_item_id === selectedItem.id)} saving={saving} onClose={() => { setSelectedItem(null); setItemAction(null); }} onExecute={execute} />}
 
-    {data.debts.some((debt) => debt.status === "open") && <section className="economy-debts panel"><header><ReceiptText size={18} /><h2>Dettes en cours</h2></header>{data.debts.filter((debt) => debt.status === "open").map((debt) => <article key={debt.id}><div><strong>{debt.debtor_display_name} doit {formatCopper(debt.remaining_cp)} à {debt.creditor_display_name}</strong>{debt.comment && <small>{debt.comment}</small>}</div>{debt.debtor_user_id === data.viewer_user_id && <button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => payMoneyDebt(debt.id, debt.remaining_cp), "Dette remboursée." )}>Rembourser</button>}</article>)}</section>}
+    {data.debts.some((debt) => debt.status === "open") && <section className="economy-debts panel"><header><ReceiptText size={18} /><h2>Dettes en cours</h2></header>{data.debts.filter((debt) => debt.status === "open").map((debt) => <article key={debt.id}><div><strong>{debt.debtor_display_name} doit {formatCopper(debt.remaining_cp)} à {debt.creditor_display_name}</strong>{debt.comment && <small>{debt.comment}</small>}</div><div>{(viewerRole === "gm" || debt.debtor_user_id === data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => payMoneyDebt(debt.id, debt.remaining_cp), "Dette remboursée." )}>Rembourser</button>}{(viewerRole === "gm" || debt.created_by === data.viewer_user_id || debt.debtor_user_id === data.viewer_user_id || debt.creditor_user_id === data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => cancelMoneyDebt(debt.id), "Dette annulée.")}>Annuler la dette</button>}</div></article>)}</section>}
   </div>;
 }
 
@@ -309,7 +309,7 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
       {action === "personal" && viewerRole === "gm" && <label>Compte<select value={source} onChange={(event) => setSource(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>}
       {action === "manual-item" && <label>Propriétaire<select value={destination} onChange={(event) => setDestination(event.target.value)}>{allAccounts.map((account) => <option key={account.user_id} value={account.user_id}>{account.display_name}</option>)}</select></label>}
       {action === "purchase" && viewerRole === "gm" && <label>Acheteur<select value={destination} onChange={(event) => setDestination(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>}
-      {action === "debt" && <><label>Débiteur<select value={debtor} onChange={(event) => { const next = event.target.value; setDebtor(next); if (creditor === next) setCreditor(players.find((player) => player.user_id !== next)?.user_id ?? ""); }}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label><label>Créancier<select value={creditor} onChange={(event) => setCreditor(event.target.value)}>{players.filter((player) => player.user_id !== debtor).map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label></>}
+      {action === "debt" && <><label>Débiteur<select value={debtor} onChange={(event) => { const next = event.target.value; setDebtor(next); if (viewerRole === "player" && next !== data.viewer_user_id) setCreditor(data.viewer_user_id); else if (creditor === next) setCreditor(players.find((player) => player.user_id !== next)?.user_id ?? ""); }}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label><label>Créancier<select value={creditor} onChange={(event) => { const next = event.target.value; setCreditor(next); if (viewerRole === "player" && next !== data.viewer_user_id) setDebtor(data.viewer_user_id); }}>{players.filter((player) => player.user_id !== debtor).map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label></>}
       <MoneyField label={action === "manual-item" ? "Valeur unitaire" : "Montant"} amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />
       {action === "purchase" && <label>Part payée par le compte commun<input type="number" min="0" max={Number(amount) || 0} step="0.01" value={commonShare} onChange={(event) => setCommonShare(event.target.value)} /><small>Le reste sera pris sur le compte de l’acheteur. La valeur de l’objet sera égale au prix payé.</small></label>}
       <label className="span-2">Commentaire <small>facultatif</small><input value={comment} maxLength={500} onChange={(event) => setComment(event.target.value)} placeholder="Ex. remboursement de la chambre" /></label>
@@ -353,7 +353,7 @@ function ItemActionPanel({ item, action, mergeCandidates, events, saving, onClos
   </form>;
 }
 
-function EconomyActivity({ data, saving, onExecute }: { data: PlayerEconomyData; saving: boolean; onExecute: (operation: () => Promise<unknown>, success: string) => Promise<void> }) {
+function EconomyActivity({ data, viewerRole, saving, onExecute }: { data: PlayerEconomyData; viewerRole: "player" | "gm"; saving: boolean; onExecute: (operation: () => Promise<unknown>, success: string) => Promise<void> }) {
   const [filter, setFilter] = useState("");
   const cancelledMoneyIds = useMemo(() => new Set(data.money_history.flatMap((entry) => entry.reversed_transaction_id ? [entry.reversed_transaction_id] : [])), [data.money_history]);
   const cancelledItemEventIds = useMemo(() => new Set(data.item_history.flatMap((entry) => entry.reversed_event_id ? [entry.reversed_event_id] : [])), [data.item_history]);
@@ -364,7 +364,7 @@ function EconomyActivity({ data, saving, onExecute }: { data: PlayerEconomyData;
   ].sort((first, second) => second.date.localeCompare(first.date)).filter((row) => describeActivity(row.entry).toLowerCase().includes(filter.toLowerCase())), [data, filter, itemOperationIds]);
   return <section className="economy-activity panel"><header><div><History size={18} /><h2>Journal des opérations</h2></div><input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Joueur, objet, commentaire…" /></header><div>{entries.length ? entries.map((row) => {
     const cancelled = row.kind === "money" ? cancelledMoneyIds.has(row.entry.id) : cancelledItemEventIds.has(row.entry.id);
-    return <article key={`${row.kind}-${row.entry.id}`} className={cancelled ? "cancelled" : undefined}><time>{formatDateTime(row.date)}</time><div><strong>{describeActivity(row.entry)}</strong>{row.entry.comment && <small>{row.entry.comment}</small>}</div>{cancelled ? <span className="economy-cancelled-label">Action annulée</span> : <>{row.kind === "money" && canCancelMoney(row.entry, data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelMoneyTransaction(row.entry.id), "Opération annulée.")}>Annuler</button>}{row.kind === "item" && row.entry.event_type === "sold" && row.entry.actor_user_id === data.viewer_user_id && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelItemEvent(row.entry.id), "Vente annulée.")}>Annuler la vente</button>}</>}</article>;
+    return <article key={`${row.kind}-${row.entry.id}`} className={cancelled ? "cancelled" : undefined}><time>{formatDateTime(row.date)}</time><div><strong>{describeActivity(row.entry)}</strong>{row.entry.comment && <small>{row.entry.comment}</small>}</div>{cancelled ? <span className="economy-cancelled-label">Action annulée</span> : <>{row.kind === "money" && canCancelMoney(row.entry, data.viewer_user_id, viewerRole) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelMoneyTransaction(row.entry.id), "Opération annulée.")}>Annuler</button>}{row.kind === "item" && row.entry.event_type === "sold" && (viewerRole === "gm" || row.entry.actor_user_id === data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelItemEvent(row.entry.id), "Vente annulée.")}>Annuler la vente</button>}</>}</article>;
   }) : <p className="empty-state">Aucune opération correspondante.</p>}</div></section>;
 }
 
@@ -409,8 +409,8 @@ function describeItemEvent(event: CampaignItemEvent) {
   }[event.event_type];
 }
 
-function canCancelMoney(entry: CampaignMoneyTransaction, viewerId: string) {
-  return entry.actor_user_id === viewerId && !["sale", "purchase", "reversal", "departure_transfer"].includes(entry.kind) && !entry.reversed_transaction_id;
+function canCancelMoney(entry: CampaignMoneyTransaction, viewerId: string, viewerRole: "player" | "gm") {
+  return (viewerRole === "gm" || entry.actor_user_id === viewerId) && !["sale", "purchase", "reversal", "departure_transfer"].includes(entry.kind) && !entry.reversed_transaction_id;
 }
 
 function formatQuantity(value: number) { return Number.isInteger(value) ? String(value) : String(value).replace(".", ","); }

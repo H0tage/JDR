@@ -1162,6 +1162,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .economy-debts { overflow: hidden; }
 .economy-debts > header { justify-content: flex-start; }
 .economy-debts article > div { display: grid; gap: 3px; }
+.economy-debts article > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 
 .player-theme-light .player-economy { --economy-card: #fffaf0; --economy-soft: #eee6d4; }
 .player-theme-light .economy-display-picker button.active { color: #2f392f; background: #eee6d4; }

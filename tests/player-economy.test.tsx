@@ -90,6 +90,18 @@ it("retire immédiatement une demande annulée de l’écran", async () => {
   expect(economy.textContent).not.toContain("demande envoyée à Prénom4 Nom4");
 });
 
+it("maintient le joueur connecté dans toute dette qu’il déclare", async () => {
+  await act(async () => { root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />); });
+  const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));
+  const debtButton = [...economy.querySelectorAll<HTMLButtonElement>(".economy-actions button")].find((button) => button.textContent?.includes("Déclarer une dette"));
+  await act(async () => { debtButton?.click(); });
+  const accounts = economy.querySelectorAll<HTMLSelectElement>(".economy-action-panel select");
+  expect(accounts[0]?.value).toBe("demo-arsene");
+  accounts[0]!.value = "demo-morrigan";
+  await act(async () => { accounts[0]!.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(accounts[1]?.value).toBe("demo-arsene");
+});
+
 it("range les inventaires des autres joueurs dans des colonnes distinctes", async () => {
   await act(async () => {
     root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />);
