@@ -112,6 +112,8 @@ it("montre au MJ une colonne pour chacun des joueurs", async () => {
     root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="gm" />);
   });
   const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));
+  expect(economy.textContent).not.toContain("Achat boutique");
+  expect(economy.textContent).toContain("Créer un objet");
   const groupTab = [...economy.querySelectorAll<HTMLButtonElement>(".economy-sections button")].find((button) => button.textContent?.includes("Inventaires du groupe"));
   await act(async () => { groupTab?.click(); });
   expect(economy.querySelectorAll(".economy-player-inventory")).toHaveLength(4);

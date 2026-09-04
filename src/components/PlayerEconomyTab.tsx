@@ -175,7 +175,7 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
     <section className="economy-actions" aria-label="Actions financières">
       <button type="button" onClick={() => setMoneyAction("transfer")}><ArrowRightLeft size={17} /><span>Transférer</span></button>
       <button type="button" onClick={() => setMoneyAction("personal")}><HandCoins size={17} /><span>Revenu ou dépense</span></button>
-      <button type="button" onClick={() => setMoneyAction("purchase")}><ShoppingBag size={17} /><span>Achat boutique</span></button>
+      {viewerRole === "player" && <button type="button" onClick={() => setMoneyAction("purchase")}><ShoppingBag size={17} /><span>Achat boutique</span></button>}
       <button type="button" disabled={players.length < 2} title={players.length < 2 ? "Deux joueurs sont nécessaires" : undefined} onClick={() => setMoneyAction("debt")}><ReceiptText size={17} /><span>Déclarer une dette</span></button>
       {viewerRole === "gm" && <button type="button" onClick={() => setMoneyAction("common-income")}><ArrowDownToLine size={17} /><span>Entrée commune</span></button>}
       {viewerRole === "gm" && <button type="button" onClick={() => setMoneyAction("manual-item")}><Plus size={17} /><span>Créer un objet</span></button>}
@@ -357,10 +357,11 @@ function EconomyActivity({ data, saving, onExecute }: { data: PlayerEconomyData;
   const [filter, setFilter] = useState("");
   const cancelledMoneyIds = useMemo(() => new Set(data.money_history.flatMap((entry) => entry.reversed_transaction_id ? [entry.reversed_transaction_id] : [])), [data.money_history]);
   const cancelledItemEventIds = useMemo(() => new Set(data.item_history.flatMap((entry) => entry.reversed_event_id ? [entry.reversed_event_id] : [])), [data.item_history]);
+  const itemOperationIds = useMemo(() => new Set(data.item_history.flatMap((entry) => entry.money_operation_id ? [entry.money_operation_id] : [])), [data.item_history]);
   const entries = useMemo(() => [
-    ...data.money_history.map((entry) => ({ date: entry.created_at, kind: "money" as const, entry })),
+    ...data.money_history.filter((entry) => !itemOperationIds.has(entry.operation_id)).map((entry) => ({ date: entry.created_at, kind: "money" as const, entry })),
     ...data.item_history.map((entry) => ({ date: entry.created_at, kind: "item" as const, entry })),
-  ].sort((first, second) => second.date.localeCompare(first.date)).filter((row) => describeActivity(row.entry).toLowerCase().includes(filter.toLowerCase())), [data, filter]);
+  ].sort((first, second) => second.date.localeCompare(first.date)).filter((row) => describeActivity(row.entry).toLowerCase().includes(filter.toLowerCase())), [data, filter, itemOperationIds]);
   return <section className="economy-activity panel"><header><div><History size={18} /><h2>Journal des opérations</h2></div><input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Joueur, objet, commentaire…" /></header><div>{entries.length ? entries.map((row) => {
     const cancelled = row.kind === "money" ? cancelledMoneyIds.has(row.entry.id) : cancelledItemEventIds.has(row.entry.id);
     return <article key={`${row.kind}-${row.entry.id}`} className={cancelled ? "cancelled" : undefined}><time>{formatDateTime(row.date)}</time><div><strong>{describeActivity(row.entry)}</strong>{row.entry.comment && <small>{row.entry.comment}</small>}</div>{cancelled ? <span className="economy-cancelled-label">Action annulée</span> : <>{row.kind === "money" && canCancelMoney(row.entry, data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelMoneyTransaction(row.entry.id), "Opération annulée.")}>Annuler</button>}{row.kind === "item" && row.entry.event_type === "sold" && row.entry.actor_user_id === data.viewer_user_id && <button className="button tiny secondary" disabled={saving} onClick={() => void onExecute(() => cancelItemEvent(row.entry.id), "Vente annulée.")}>Annuler la vente</button>}</>}</article>;
