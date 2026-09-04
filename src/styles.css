@@ -1025,6 +1025,27 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-economy { --economy-card: color-mix(in srgb, var(--surface) 88%, transparent); --economy-soft: color-mix(in srgb, var(--gold) 9%, var(--surface)); max-width: 1480px; margin-inline: auto; }
 .economy-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .economy-heading-actions { display: flex; align-items: center; gap: 8px; }
+.economy-view-tabs { display: flex; width: max-content; max-width: 100%; gap: 4px; overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; padding: 4px; background: var(--surface); }
+.economy-view-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex: 0 0 auto; border: 0; border-radius: 6px; padding: 9px 13px; color: var(--muted); background: transparent; font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; }
+.economy-view-tabs button:hover { color: var(--ivory); }
+.economy-view-tabs button.active { color: var(--ivory); background: var(--surface-strong); box-shadow: inset 0 -1px var(--gold); }
+.economy-guide { display: grid; gap: 14px; }
+.economy-guide-title { border-bottom: 1px solid var(--line-soft); padding: 4px 2px 12px; }
+.economy-guide-title h2 { margin: 3px 0 0; color: var(--ivory); font-family: Georgia, serif; font-size: 1.35rem; font-weight: 500; }
+.economy-guide-metrics, .economy-guide-grid { display: grid; gap: 10px; }
+.economy-guide-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.economy-guide-metrics article, .economy-guide-grid article, .economy-guide-permissions { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--economy-card); }
+.economy-guide-metrics article { display: grid; gap: 4px; padding: 13px 15px; }
+.economy-guide-metrics strong { color: var(--gold); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; }
+.economy-guide-metrics span { color: var(--text); font-size: .72rem; line-height: 1.45; }
+.economy-guide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.economy-guide-grid article { padding: 15px 17px; }
+.economy-guide-grid h3 { margin: 0 0 9px; color: var(--ivory); font-family: Georgia, serif; font-size: .98rem; font-weight: 500; }
+.economy-guide-grid ul { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: var(--text); font-size: .71rem; line-height: 1.45; }
+.economy-guide-grid li::marker { color: var(--gold); }
+.economy-guide-permissions { display: flex; align-items: baseline; gap: 10px; padding: 13px 15px; }
+.economy-guide-permissions strong { flex: 0 0 auto; color: var(--gold); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; }
+.economy-guide-permissions span { color: var(--text); font-size: .72rem; line-height: 1.45; }
 .economy-display-picker { display: inline-flex; gap: 3px; margin: 0; border: 1px solid var(--line-soft); border-radius: 8px; padding: 3px; background: var(--surface); }
 .economy-display-picker legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .economy-display-picker button { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 5px; padding: 7px 9px; color: var(--muted); background: transparent; font-size: .66rem; font-weight: 800; cursor: pointer; }
@@ -1166,7 +1187,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 
 .player-theme-light .player-economy { --economy-card: #fffaf0; --economy-soft: #eee6d4; }
 .player-theme-light .economy-display-picker button.active { color: #2f392f; background: #eee6d4; }
-.player-theme-light .economy-metrics strong, .player-theme-light .economy-player-balances h2, .player-theme-light .economy-player-balances article strong:not(.negative), .player-theme-light .economy-batch-bar strong, .player-theme-light .economy-action-panel h2, .player-theme-light .economy-requests h2, .player-theme-light .economy-debts h2, .player-theme-light .economy-requests strong, .player-theme-light .economy-debts strong, .player-theme-light .economy-sections button.active, .player-theme-light .economy-player-inventory h2, .player-theme-light .economy-item-card h2, .player-theme-light .economy-item-value strong, .player-theme-light .economy-activity h2, .player-theme-light .economy-activity strong, .player-theme-light .item-timeline strong { color: #2f392f; }
+.player-theme-light .economy-metrics strong, .player-theme-light .economy-player-balances h2, .player-theme-light .economy-player-balances article strong:not(.negative), .player-theme-light .economy-batch-bar strong, .player-theme-light .economy-action-panel h2, .player-theme-light .economy-requests h2, .player-theme-light .economy-debts h2, .player-theme-light .economy-requests strong, .player-theme-light .economy-debts strong, .player-theme-light .economy-sections button.active, .player-theme-light .economy-player-inventory h2, .player-theme-light .economy-item-card h2, .player-theme-light .economy-item-value strong, .player-theme-light .economy-activity h2, .player-theme-light .economy-activity strong, .player-theme-light .item-timeline strong, .player-theme-light .economy-view-tabs button.active, .player-theme-light .economy-guide-title h2, .player-theme-light .economy-guide-grid h3 { color: #2f392f; }
 
 @media (max-width: 1050px) {
   .economy-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1174,6 +1195,10 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 }
 @media (max-width: 680px) {
   .economy-metrics, .economy-item-grid, .economy-action-fields { grid-template-columns: 1fr; }
+  .economy-view-tabs { width: 100%; }
+  .economy-view-tabs button { flex: 1 0 auto; }
+  .economy-guide-metrics, .economy-guide-grid { grid-template-columns: 1fr; }
+  .economy-guide-permissions { align-items: flex-start; flex-direction: column; }
   .economy-action-fields .span-2 { grid-column: auto; }
   .economy-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .economy-actions button { align-items: flex-start; }

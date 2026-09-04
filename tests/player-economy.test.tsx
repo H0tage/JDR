@@ -48,6 +48,20 @@ it("présente la trésorerie, le compte commun et les demandes sans alourdir l�
   expect(window.localStorage.getItem("blood-lords-economy-summary-display")).toBe("compact");
 });
 
+it("sépare le gestionnaire de butins de ses explications détaillées", async () => {
+  await act(async () => { root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />); });
+  const economy = await waitFor(() => container.querySelector<HTMLElement>(".player-economy"));
+  const views = [...economy.querySelectorAll<HTMLButtonElement>(".economy-view-tabs button")];
+  expect(views.map((button) => button.textContent)).toEqual(["Butins", "Explications détaillées"]);
+  expect(economy.querySelector(".economy-summary")).toBeTruthy();
+  await act(async () => { views[1]?.click(); });
+  expect(economy.querySelector(".economy-guide")?.textContent).toContain("Seule la plus-value compte comme nouveau gain");
+  expect(economy.querySelector(".economy-summary")).toBeNull();
+  expect(economy.querySelector(".economy-sections")).toBeNull();
+  await act(async () => { views[0]?.click(); });
+  expect(economy.querySelector(".economy-summary")).toBeTruthy();
+});
+
 it("ouvre l’achat et l’historique d’un objet à la volée", async () => {
   await act(async () => {
     root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />);

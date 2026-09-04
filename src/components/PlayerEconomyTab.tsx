@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Banknote, Check, ChevronDown,
-  CircleDollarSign, Coins, Gem, GitBranch, HandCoins, History, LayoutGrid, PackageOpen,
+  BookOpen, CircleDollarSign, Coins, Gem, GitBranch, HandCoins, History, LayoutGrid, PackageOpen,
   List, ListChecks, Plus, ReceiptText, RefreshCw, Scissors, Send, ShoppingBag, Trash2, WalletCards, X,
 } from "lucide-react";
 import {
@@ -17,6 +17,7 @@ import type { CampaignInventoryItem, CampaignItemEvent, CampaignMoneyTransaction
 import { EmptyState, ErrorPanel, LoadingScreen, SectionHeading } from "./ui";
 
 type InventorySection = "common" | "mine" | "others" | "activity";
+type EconomyView = "loot" | "guide";
 type ItemAction = "sell" | "split" | "merge" | "dismantle" | "terminal" | "history" | null;
 type MoneyAction = "transfer" | "personal" | "purchase" | "debt" | "common-income" | "manual-item" | null;
 type SummaryDisplay = "compact" | "large";
@@ -30,6 +31,7 @@ function storedSummaryDisplay(): SummaryDisplay {
 }
 
 export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId: string; demo: boolean; viewerRole: "player" | "gm" }) {
+  const [view, setView] = useState<EconomyView>("loot");
   const [data, setData] = useState<PlayerEconomyData | null>(null);
   const [players, setPlayers] = useState<CampaignPlayer[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -151,8 +153,13 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
   return <div className="page-stack player-economy">
     <div className="economy-heading">
       <SectionHeading eyebrow="Inventaire et trésorerie" title="Butins" />
-      <div className="economy-heading-actions"><fieldset className="economy-display-picker"><legend>Affichage du résumé</legend><button type="button" className={summaryDisplay === "compact" ? "active" : ""} aria-pressed={summaryDisplay === "compact"} onClick={() => setSummaryDisplay("compact")}><List size={15} />Compact</button><button type="button" className={summaryDisplay === "large" ? "active" : ""} aria-pressed={summaryDisplay === "large"} onClick={() => setSummaryDisplay("large")}><LayoutGrid size={15} />Large</button></fieldset><button className="icon-button" type="button" title="Actualiser" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
+      {view === "loot" && <div className="economy-heading-actions"><fieldset className="economy-display-picker"><legend>Affichage du résumé</legend><button type="button" className={summaryDisplay === "compact" ? "active" : ""} aria-pressed={summaryDisplay === "compact"} onClick={() => setSummaryDisplay("compact")}><List size={15} />Compact</button><button type="button" className={summaryDisplay === "large" ? "active" : ""} aria-pressed={summaryDisplay === "large"} onClick={() => setSummaryDisplay("large")}><LayoutGrid size={15} />Large</button></fieldset><button className="icon-button" type="button" title="Actualiser" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>}
     </div>
+    <nav className="economy-view-tabs" aria-label="Contenu des butins">
+      <button type="button" className={view === "loot" ? "active" : ""} aria-current={view === "loot" ? "page" : undefined} onClick={() => setView("loot")}><Gem size={17} />Butins</button>
+      <button type="button" className={view === "guide" ? "active" : ""} aria-current={view === "guide" ? "page" : undefined} onClick={() => setView("guide")}><BookOpen size={17} />Explications détaillées</button>
+    </nav>
+    {view === "guide" ? <EconomyGuide /> : <>
     {notice && <p className="economy-notice"><Check size={15} />{notice}<button type="button" onClick={() => setNotice(null)}><X size={13} /></button></p>}
     {error && <p className="player-loot-save-error" role="alert">{error}</p>}
 
@@ -208,7 +215,28 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
     {selectedItem && itemAction && <ItemActionPanel item={selectedItem} action={itemAction} mergeCandidates={activeItems.filter((candidate) => candidate.id !== selectedItem.id && candidate.name === selectedItem.name && candidate.owner_user_id === selectedItem.owner_user_id && candidate.unit_value_cp === selectedItem.unit_value_cp && candidate.aon_legacy_url === selectedItem.aon_legacy_url)} events={data.item_history.filter((event) => event.item_id === selectedItem.id || event.related_item_id === selectedItem.id)} saving={saving} onClose={() => { setSelectedItem(null); setItemAction(null); }} onExecute={execute} />}
 
     {data.debts.some((debt) => debt.status === "open") && <section className="economy-debts panel"><header><ReceiptText size={18} /><h2>Dettes en cours</h2></header>{data.debts.filter((debt) => debt.status === "open").map((debt) => <article key={debt.id}><div><strong>{debt.debtor_display_name} doit {formatCopper(debt.remaining_cp)} à {debt.creditor_display_name}</strong>{debt.comment && <small>{debt.comment}</small>}</div><div>{(viewerRole === "gm" || debt.debtor_user_id === data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => payMoneyDebt(debt.id, debt.remaining_cp), "Dette remboursée." )}>Rembourser</button>}{(viewerRole === "gm" || debt.created_by === data.viewer_user_id || debt.debtor_user_id === data.viewer_user_id || debt.creditor_user_id === data.viewer_user_id) && <button className="button tiny secondary" disabled={saving} onClick={() => void execute(() => cancelMoneyDebt(debt.id), "Dette annulée.")}>Annuler la dette</button>}</div></article>)}</section>}
+    </>}
   </div>;
+}
+
+function EconomyGuide() {
+  return <section className="economy-guide" aria-labelledby="economy-guide-title">
+    <div className="economy-guide-title"><p className="eyebrow">Règles de fonctionnement</p><h2 id="economy-guide-title">Explications détaillées</h2></div>
+    <div className="economy-guide-metrics">
+      <article><strong>Patrimoine actuel</strong><span>Argent du groupe + valeur des objets encore actifs.</span></article>
+      <article><strong>Gains cumulés</strong><span>Richesses découvertes, revenus et plus-values de vente.</span></article>
+      <article><strong>Dépenses cumulées</strong><span>Argent réellement versé à l’extérieur : achats, services, taxes…</span></article>
+    </div>
+    <div className="economy-guide-grid">
+      <article><h3>Répartir les objets</h3><ul><li>Le <strong>compte commun</strong> contient les objets sans propriétaire.</li><li>Chacun peut prendre un objet commun ou donner l’un de ses objets.</li><li>Personne ne peut prendre directement l’objet d’un autre joueur.</li><li>Un objet possédé peut être demandé, puis accepté ou refusé par son propriétaire.</li></ul></article>
+      <article><h3>Vendre et sortir un objet</h3><ul><li>Une vente place l’argent dans le compte commun.</li><li>Seule la plus-value compte comme nouveau gain.</li><li>Consommer, perdre ou donner un objet réduit le patrimoine, sans créer de dépense.</li><li>Fractionner et regrouper permettent de gérer les piles.</li></ul></article>
+      <article><h3>Démonter</h3><ul><li>L’objet d’origine quitte l’inventaire actif.</li><li>Les composants obtenus sont ajoutés à son ancien propriétaire.</li><li>Le démontage transforme le patrimoine : il ne crée ni gain ni dépense.</li></ul></article>
+      <article><h3>Argent</h3><ul><li>Les transferts entre joueurs et compte commun ne changent aucun total global.</li><li>Un revenu extérieur augmente les gains ; une dépense extérieure augmente les dépenses.</li><li>Les soldes personnels peuvent être négatifs.</li><li>Une dette mémorise une somme due ; son remboursement est un transfert interne.</li></ul></article>
+      <article><h3>Achat boutique</h3><ul><li>L’objet rejoint directement l’inventaire de l’acheteur.</li><li>Le prix peut être partagé entre son compte et le compte commun.</li><li>Le prix payé devient la valeur d’acquisition de l’objet.</li><li>L’achat augmente les dépenses, jamais les gains.</li></ul></article>
+      <article><h3>Annulations et historique</h3><ul><li>Chaque action reste visible dans le journal.</li><li>Une action annulée est barrée et marquée « Action annulée ».</li><li>L’action inverse commence par « Suite à annulation ».</li><li>L’action et son inverse sont retirées des gains et dépenses cumulés.</li></ul></article>
+    </div>
+    <aside className="economy-guide-permissions"><strong>Règle simple</strong><span>Le MJ peut tout administrer. Un joueur contrôle le compte commun, son propre argent et ses propres objets, mais jamais les possessions ou le compte d’un autre joueur.</span></aside>
+  </section>;
 }
 
 function GroupInventories({ players, items, mobilePlayerId, onMobilePlayer, renderItem }: { players: CampaignPlayer[]; items: CampaignInventoryItem[]; mobilePlayerId: string; onMobilePlayer: (userId: string) => void; renderItem: (item: CampaignInventoryItem) => ReactNode }) {
