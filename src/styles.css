@@ -235,7 +235,7 @@ textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
 .quest-journal-page .section-intro { margin-top: -14px; }
 .quest-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; align-items: start; }
 .quest-column { overflow: hidden; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surface); }
-.quest-column > header { display: flex; align-items: flex-start; gap: 9px; padding: 13px 15px; border-bottom: 1px solid var(--line-soft); background: linear-gradient(110deg, #202a24, #161d19); }
+.quest-column > header { display: flex; align-items: flex-start; gap: 9px; padding: 13px 15px; border-bottom: 1px solid var(--line-soft); background: #161d19; }
 .quest-column > header > span { color: var(--gold); }
 .quest-column h3 { margin: 0; color: var(--ivory); font-family: Georgia, serif; font-size: 1.04rem; font-weight: 500; }
 .quest-column header > div { min-width: 0; }
@@ -1501,7 +1501,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-light .bestiary-detail p { color: #62675f; }
 .player-theme-light .bestiary-page .section-intro { color: #666b63; }
 .player-theme-light .quest-column, .player-theme-light .quest-history { border-color: #d0c8b8; background: #faf7ef; }
-.player-theme-light .quest-column > header { border-color: #d0c8b8; background: linear-gradient(110deg, #eee8da, #e3dbc9); }
+.player-theme-light .quest-column > header { border-color: #d0c8b8; background: #eee8da; }
 .player-theme-light .quest-column h3, .player-theme-light .quest-column article h4, .player-theme-light .quest-history h3 { color: #30352f; }
 .player-theme-light .quest-column article { border-color: #ded6c8; background: #f5f0e6; }
 .player-theme-light .quest-column article p, .player-theme-light .quest-empty { color: #73766e; }
@@ -1690,7 +1690,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-dark .bestiary-detail p { color: #bdc6be; }
 .player-theme-dark .player-toast { border-color: #4e7158; background: #1c3023; color: #b9dfc1; }
 .player-theme-dark .quest-column, .player-theme-dark .quest-history { border-color: #35423a; background: #18211c; }
-.player-theme-dark .quest-column > header { border-color: #35423a; background: linear-gradient(110deg, #26352c, #18211c); }
+.player-theme-dark .quest-column > header { border-color: #35423a; background: #18211c; }
 .player-theme-dark .quest-column article { border-color: #344038; background: #111813; }
 .player-theme-dark .quest-column article h4, .player-theme-dark .quest-history h3 { color: #eef1ec; }
 .player-theme-dark .quest-column article p, .player-theme-dark .quest-empty { color: #adb7af; }
@@ -2229,7 +2229,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-github-dark .bestiary-image.placeholder { background: linear-gradient(145deg, #21262d, #0d1117); color: #8b949e; }
 .player-theme-github-dark .bestiary-card-title h3, .player-theme-github-dark .quest-column article h4, .player-theme-github-dark .quest-history h3, .player-theme-github-dark .quest-document-card summary strong, .player-theme-github-dark .quest-block-heading, .player-theme-github-dark .quest-editor-title, .player-theme-github-dark .journal-canvas h2, .player-theme-github-dark .journal-canvas h3, .player-theme-github-dark .journal-canvas h4, .player-theme-github-dark .journal-canvas h5 { color: #e6edf3; }
 .player-theme-github-dark .bestiary-detail p, .player-theme-github-dark .quest-column article p, .player-theme-github-dark .quest-empty, .player-theme-github-dark .quest-block-paragraph, .player-theme-github-dark .quest-block-callout > div, .player-theme-github-dark .quest-block-toggle > div, .player-theme-github-dark .journal-canvas { color: #8b949e; }
-.player-theme-github-dark .quest-column > header { border-color: #30363d; background: linear-gradient(110deg, #21262d, #161b22); }
+.player-theme-github-dark .quest-column > header { border-color: #30363d; background: #161b22; }
 .player-theme-github-dark .quest-document-content, .player-theme-github-dark .quest-block-toggle > div { border-color: #30363d; }
 .player-theme-github-dark .quest-block-callout { border-color: #8b6f3d; background: #2b2417; }
 .player-theme-github-dark .quest-note-index, .player-theme-github-dark .quest-editor-inline { border-color: #30363d; background: #161b22; }
@@ -2357,7 +2357,7 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-light .player-content .politics-matrix td { border-color: #d7cebd; color: #304034; }
 .player-theme-light .player-content .politics-matrix td.diagonal { background: #e3ddcf; color: #aaa28f; }
 .player-theme-light .player-content .politics-matrix td p { color: #647065; }
-.player-theme-light .quest-column > header { border-color: #c9c0ad; background: linear-gradient(110deg, #e0e5dc, #eee8da); }
+.player-theme-light .quest-column > header { border-color: #c9c0ad; background: #eee8da; }
 .player-theme-light .quest-document-content, .player-theme-light .quest-block-toggle > div { border-color: #d7cebd; }
 .player-theme-light .quest-block-callout, .player-theme-light .journal-canvas .journal-callout { border-color: #c9b98f; background: #f1e8d2; }
 .player-theme-light .quest-note-index, .player-theme-light .quest-editor-inline { border-color: #c9c0ad; background: #f8f4ea; }
