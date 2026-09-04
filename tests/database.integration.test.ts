@@ -85,6 +85,10 @@ it("sécurise les objets, transfère l’argent et restitue les biens au départ
   expect(balances).toEqual({ common_balance: 400, former_balance: 0 });
   await db.exec(`select set_config('request.jwt.claim.sub', '${first}', false); set role authenticated;`);
   expect((await db.query<{ total_entered_cp: number; total_exited_cp: number }>(`select total_entered_cp::int, total_exited_cp::int from public.player_economy_totals where campaign_id = '${campaign.campaign_id}'`)).rows[0]).toEqual({ total_entered_cp: 4400, total_exited_cp: 0 });
+  const reversibleIncome = (await db.query<{ record_personal_money: string }>(`select public.record_personal_money('${campaign.campaign_id}', 'income', 2000, null, 'Revenu annulable')`)).rows[0].record_personal_money;
+  expect((await db.query<{ total_entered_cp: number; total_exited_cp: number }>(`select total_entered_cp::int, total_exited_cp::int from public.player_economy_totals where campaign_id = '${campaign.campaign_id}'`)).rows[0]).toEqual({ total_entered_cp: 6400, total_exited_cp: 0 });
+  await db.exec(`select public.cancel_campaign_money_transaction('${reversibleIncome}', 'Erreur de saisie')`);
+  expect((await db.query<{ total_entered_cp: number; total_exited_cp: number }>(`select total_entered_cp::int, total_exited_cp::int from public.player_economy_totals where campaign_id = '${campaign.campaign_id}'`)).rows[0]).toEqual({ total_entered_cp: 4400, total_exited_cp: 0 });
   expect((await db.query<{ actor_display_name: string }>(`select actor_display_name from public.player_item_history where item_id = '${item}' and event_type = 'created'`)).rows[0].actor_display_name).toBe('Le Maître du Jeu');
 
   const wealthBefore = (await db.query<{ current_wealth_cp: number }>(`select current_wealth_cp::int from public.player_economy_totals where campaign_id = '${campaign.campaign_id}'`)).rows[0].current_wealth_cp;

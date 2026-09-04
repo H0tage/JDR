@@ -3458,15 +3458,19 @@ CREATE OR REPLACE VIEW "public"."player_economy_totals" WITH ("security_barrier"
     ((COALESCE(( SELECT "sum"(
                 CASE
                     WHEN (("event"."event_type" = ANY (ARRAY['published'::"text", 'created'::"text"])) AND (("event"."event_type" <> 'created'::"text") OR ("event"."related_item_id" IS NULL))) THEN ((COALESCE("event"."value_cp", (0)::bigint))::numeric * COALESCE("event"."quantity", (1)::numeric))
-                    WHEN ("event"."event_type" = ANY (ARRAY['purchased'::"text", 'sale_cancelled'::"text"])) THEN (COALESCE("event"."value_cp", (0)::bigint))::numeric
+                    WHEN ("event"."event_type" = 'purchased'::"text") THEN (COALESCE("event"."value_cp", (0)::bigint))::numeric
                     ELSE (0)::numeric
                 END) AS "sum"
            FROM "public"."campaign_item_events" "event"
-          WHERE (("event"."campaign_id" = "campaign"."id") AND (EXISTS ( SELECT 1
+          WHERE (("event"."campaign_id" = "campaign"."id") AND ("event"."reversed_event_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM "public"."campaign_item_events" "reversal"
+                  WHERE ("reversal"."reversed_event_id" = "event"."id")))) AND (EXISTS ( SELECT 1
                    FROM "public"."campaign_inventory_items" "visible_item"
                   WHERE (("visible_item"."id" = "event"."item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id"))))))), (0)::numeric) + COALESCE(( SELECT "sum"("transaction"."amount_cp") AS "sum"
            FROM "public"."campaign_money_transactions" "transaction"
-          WHERE (("transaction"."campaign_id" = "campaign"."id") AND ("transaction"."source_account" = 'external'::"text") AND (("transaction"."related_item_id" IS NULL) OR (EXISTS ( SELECT 1
+          WHERE (("transaction"."campaign_id" = "campaign"."id") AND ("transaction"."source_account" = 'external'::"text") AND ("transaction"."reversed_transaction_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM "public"."campaign_money_transactions" "reversal"
+                  WHERE ("reversal"."reversed_transaction_id" = "transaction"."id")))) AND (("transaction"."related_item_id" IS NULL) OR (EXISTS ( SELECT 1
                    FROM "public"."campaign_inventory_items" "visible_item"
                   WHERE (("visible_item"."id" = "transaction"."related_item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))))))), (0)::numeric)))::bigint AS "total_entered_cp",
     ((COALESCE(( SELECT "sum"(
@@ -3475,11 +3479,15 @@ CREATE OR REPLACE VIEW "public"."player_economy_totals" WITH ("security_barrier"
                     ELSE (0)::bigint
                 END) AS "sum"
            FROM "public"."campaign_item_events" "event"
-          WHERE (("event"."campaign_id" = "campaign"."id") AND (EXISTS ( SELECT 1
+          WHERE (("event"."campaign_id" = "campaign"."id") AND ("event"."reversed_event_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM "public"."campaign_item_events" "reversal"
+                  WHERE ("reversal"."reversed_event_id" = "event"."id")))) AND (EXISTS ( SELECT 1
                    FROM "public"."campaign_inventory_items" "visible_item"
                   WHERE (("visible_item"."id" = "event"."item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id"))))))), (0)::numeric) + COALESCE(( SELECT "sum"("transaction"."amount_cp") AS "sum"
            FROM "public"."campaign_money_transactions" "transaction"
-          WHERE (("transaction"."campaign_id" = "campaign"."id") AND ("transaction"."destination_account" = 'external'::"text") AND (("transaction"."related_item_id" IS NULL) OR (EXISTS ( SELECT 1
+          WHERE (("transaction"."campaign_id" = "campaign"."id") AND ("transaction"."destination_account" = 'external'::"text") AND ("transaction"."reversed_transaction_id" IS NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM "public"."campaign_money_transactions" "reversal"
+                  WHERE ("reversal"."reversed_transaction_id" = "transaction"."id")))) AND (("transaction"."related_item_id" IS NULL) OR (EXISTS ( SELECT 1
                    FROM "public"."campaign_inventory_items" "visible_item"
                   WHERE (("visible_item"."id" = "transaction"."related_item_id") AND ("visible_item"."player_visible" OR "public"."is_campaign_gm"("campaign"."id")))))))), (0)::numeric)))::bigint AS "total_exited_cp",
     ((COALESCE(( SELECT "sum"(
