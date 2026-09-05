@@ -4616,6 +4616,25 @@ CREATE TABLE IF NOT EXISTS "public"."loot_player_publications" (
 ALTER TABLE "public"."loot_player_publications" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."pf2e_equipment_references" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "source_tab" "text" NOT NULL,
+    "equipment_kind" "text" NOT NULL,
+    "name_en" "text" NOT NULL,
+    "price_label" "text",
+    "price_cp" bigint,
+    "aon_url" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "pf2e_equipment_references_equipment_kind_check" CHECK (("equipment_kind" = ANY (ARRAY['weapon'::"text", 'armor'::"text", 'shield'::"text", 'accessory'::"text", 'consumable'::"text", 'gear'::"text", 'other'::"text"]))),
+    CONSTRAINT "pf2e_equipment_references_name_en_check" CHECK ((("length"("btrim"("name_en")) >= 1) AND ("length"("btrim"("name_en")) <= 240))),
+    CONSTRAINT "pf2e_equipment_references_price_cp_check" CHECK ((("price_cp" IS NULL) OR ("price_cp" >= 0)))
+);
+
+
+ALTER TABLE "public"."pf2e_equipment_references" OWNER TO "postgres";
+
+
 CREATE OR REPLACE VIEW "public"."player_campaign" WITH ("security_barrier"='true') AS
  SELECT "c"."id" AS "campaign_id",
     "c"."slug",
@@ -5532,6 +5551,16 @@ ALTER TABLE ONLY "public"."loot_player_publications"
 
 
 
+ALTER TABLE ONLY "public"."pf2e_equipment_references"
+    ADD CONSTRAINT "pf2e_equipment_references_aon_url_key" UNIQUE ("aon_url");
+
+
+
+ALTER TABLE ONLY "public"."pf2e_equipment_references"
+    ADD CONSTRAINT "pf2e_equipment_references_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."player_pages"
     ADD CONSTRAINT "player_pages_pkey" PRIMARY KEY ("campaign_id", "user_id");
 
@@ -5750,6 +5779,10 @@ CREATE INDEX "loot_player_publications_campaign_date_idx" ON "public"."loot_play
 
 
 CREATE UNIQUE INDEX "one_primary_contact_per_faction" ON "public"."contacts" USING "btree" ("campaign_id", "faction_id") WHERE "is_primary";
+
+
+
+CREATE INDEX "pf2e_equipment_references_kind_name_idx" ON "public"."pf2e_equipment_references" USING "btree" ("equipment_kind", "name_en");
 
 
 
@@ -6336,6 +6369,10 @@ ALTER TABLE ONLY "storage"."vector_indexes"
 
 
 
+CREATE POLICY "Authenticated users can read PF2e equipment references" ON "public"."pf2e_equipment_references" FOR SELECT TO "authenticated" USING (true);
+
+
+
 ALTER TABLE "public"."archive_character_templates" ENABLE ROW LEVEL SECURITY;
 
 
@@ -6484,6 +6521,9 @@ CREATE POLICY "members_self_read" ON "public"."campaign_members" FOR SELECT TO "
 
 CREATE POLICY "milestones_gm_all" ON "public"."reputation_milestones" TO "authenticated" USING ("public"."is_campaign_gm"("campaign_id")) WITH CHECK ("public"."is_campaign_gm"("campaign_id"));
 
+
+
+ALTER TABLE "public"."pf2e_equipment_references" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."player_pages" ENABLE ROW LEVEL SECURITY;
@@ -7310,6 +7350,12 @@ GRANT SELECT ON TABLE "public"."gm_services" TO "authenticated";
 
 
 GRANT ALL ON TABLE "public"."loot_player_publications" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."pf2e_equipment_references" TO "anon";
+GRANT ALL ON TABLE "public"."pf2e_equipment_references" TO "authenticated";
+GRANT ALL ON TABLE "public"."pf2e_equipment_references" TO "service_role";
 
 
 
