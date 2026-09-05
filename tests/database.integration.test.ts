@@ -23,6 +23,9 @@ it("installe une base vierge et peut créer une campagne sans contenu privé", a
   }
   expect((await db.query<{ count: number }>('select count(*)::int count from public.campaigns')).rows[0].count).toBe(0);
   expect((await db.query<{ count: number }>('select count(*)::int count from public.campaign_slug_words')).rows[0].count).toBe(244);
+  expect((await db.query<{ count: number }>('select count(*)::int count from public.pf2e_equipment_references')).rows[0].count).toBe(225);
+  expect((await db.query<{ equipment_kind: string; price_cp: number }>("select equipment_kind, price_cp::int from public.pf2e_equipment_references where name_en = 'Dagger'"))
+    .rows[0]).toEqual({ equipment_kind: 'weapon', price_cp: 20 });
   await db.exec(`insert into auth.users values ('10000000-0000-4000-8000-000000000001', 'gm@example.test'); select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', false); set role authenticated;`);
   const campaign = (await db.query<{ campaign_id: string; slug: string; name: string }>("select * from public.create_campaign('Campagne de test', null)")).rows[0];
   expect(campaign.name).toBe('Campagne de test');

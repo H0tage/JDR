@@ -43,7 +43,7 @@ Il est mis à jour à chaque ajout, suppression ou modification importante d'un 
 
 ## Économie : cohérence des données et calculs
 
-27. Une base vide peut créer une campagne sans contenu privé.
+27. Une base vide installe les 225 références d’équipement PF2e, avec leur type, leur lien AoN et les prix connus convertis en pièces de cuivre, puis peut créer une campagne sans contenu privé.
 28. Les objets sont protégés, l'argent peut être transféré, les possessions d'un joueur partant reviennent correctement au groupe, et le MJ peut annuler un envoi partiel tant que l'objet n'a pas changé depuis.
 29. Gains cumulés, dépenses cumulées et patrimoine sont calculés séparément.
 30. L'argent trouvé augmente les gains et le patrimoine.
