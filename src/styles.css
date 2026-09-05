@@ -2274,9 +2274,10 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-light .player-brand strong { color: #fffaf0; }
 .player-theme-light .player-brand small { color: #c5d0c6; }
 .player-theme-light .player-header .button { border-color: #718272; color: #f4f0e6; }
-.player-theme-light .player-theme-picker { border-color: #647769; background: #223329; }
-.player-theme-light .player-theme-picker label { color: #bdcbbf; }
-.player-theme-light .player-theme-picker label.active { background: #f4eee1; color: #29382e; box-shadow: 0 1px 3px rgb(0 0 0 / 22%); }
+.player-shell.player-theme-light .player-theme-picker { border-color: #718577; background: #223329; }
+.player-shell.player-theme-light .player-theme-picker label { color: #dce6de; }
+.player-shell.player-theme-light .player-theme-picker label:hover { background: #30483a; color: #fffaf0; }
+.player-shell.player-theme-light .player-theme-picker label.active { background: #f4eee1; color: #29382e; box-shadow: 0 1px 3px rgb(0 0 0 / 22%); }
 .player-theme-light .player-tabs { border-color: #c8bfad; background: rgb(245 240 229 / 95%); box-shadow: 0 4px 14px rgb(60 53 39 / 9%); }
 .player-theme-light .player-tabs button { color: #627064; }
 .player-theme-light .player-tabs button.active { background: #30483a; color: #fffaf0; box-shadow: 0 2px 5px rgb(38 56 45 / 18%); }
