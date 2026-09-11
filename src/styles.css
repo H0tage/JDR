@@ -2309,27 +2309,37 @@ textarea.cell-input { min-height: 68px; resize: vertical; }
 .player-theme-light .bestiary-visibility-toggle:hover, .player-theme-light .bestiary-visibility-toggle:focus-visible,
 .gm-theme-light .bestiary-visibility-toggle:hover, .gm-theme-light .bestiary-visibility-toggle:focus-visible { border-color: #a9813d; background: var(--theme-panel-strong); color: #6f4d16; }
 
-/* Journal readability: keep the navigator quiet, but give the editor toolbar a solid anchor. */
+/* Journal toolbar: light surfaces and readable controls, including native fields. */
 .player-theme-light .journal-toolbar {
-  border-color: #3d5143;
-  background: #2d3d32;
-  box-shadow: 0 9px 16px rgb(42 53 44 / 22%);
+  border-color: var(--theme-line);
+  background: var(--theme-panel-soft);
+  color: var(--theme-text);
+  color-scheme: light;
+  box-shadow: 0 5px 12px rgb(70 61 44 / 10%);
 }
-.player-theme-light .journal-toolbar button { color: #e7eee5; }
+.player-theme-light .journal-toolbar button { color: var(--theme-text); }
 .player-theme-light .journal-toolbar button:hover,
-.player-theme-light .journal-toolbar button.active-lock { border-color: #839887; background: #405646; color: var(--theme-panel-strong); }
-.player-theme-light .journal-toolbar button.active-lock { color: #f1d488; }
-.player-theme-light .journal-toolbar button:disabled { color: #afbbb0; }
-.player-theme-light .journal-toolbar button:disabled:hover { border-color: transparent; background: transparent; color: #afbbb0; }
-.player-theme-light .journal-toolbar .journal-toolbar-label { color: #e4c777; }
-.player-theme-light .journal-toolbar .journal-delete-session { color: #f0b4a7; }
-.player-theme-light .journal-toolbar .journal-delete-session:not(:disabled):hover { border-color: #a86e62; background: #57352f; color: #ffe0d8; }
-.player-theme-light .journal-toolbar select { color: #edf3ec; }
+.player-theme-light .journal-toolbar button.active-lock { border-color: var(--theme-line); background: var(--theme-hover); color: var(--theme-text); }
+.player-theme-light .journal-toolbar button.active-lock { color: #805817; }
+.player-theme-light .journal-toolbar button:disabled { color: var(--theme-muted); opacity: .65; }
+.player-theme-light .journal-toolbar button:disabled:hover { border-color: transparent; background: transparent; color: var(--theme-muted); }
+.player-theme-light .journal-toolbar .journal-toolbar-label,
+.player-theme-light .journal-toolbar.compact .journal-toolbar-toggle { color: #805817; }
+.player-theme-light .journal-toolbar .journal-delete-session:not(:disabled) { color: #993c30; }
+.player-theme-light .journal-toolbar .journal-delete-session:not(:disabled):hover { border-color: #c38b80; background: #f5e3de; color: #803025; }
+.player-theme-light .journal-toolbar select { border-color: var(--theme-line); background: var(--theme-panel-strong); color: var(--theme-text); }
 .player-theme-light .journal-toolbar select:hover,
-.player-theme-light .journal-toolbar select:focus { border-color: #839887; background: #405646; }
-.player-theme-light .journal-toolbar select option { background: #2d3d32; color: #edf3ec; }
+.player-theme-light .journal-toolbar select:focus { border-color: #805817; background: var(--theme-panel-strong); }
+.player-theme-light .journal-toolbar select option { background: var(--theme-panel-strong); color: var(--theme-text); }
+.player-theme-light .journal-toolbar .journal-session-date-picker { border-color: var(--theme-line); background: var(--theme-panel-strong); color: var(--theme-text); }
+.player-theme-light .journal-toolbar .journal-session-date-picker:has(input:disabled) { opacity: 1; background: var(--theme-panel-soft); }
+.player-theme-light .journal-toolbar .journal-session-date-picker span { color: #805817; }
+.player-theme-light .journal-toolbar .journal-session-date-picker input { background: transparent; color: var(--theme-text); }
+.player-theme-light .journal-toolbar .journal-session-date-picker input:disabled { color: var(--theme-muted); opacity: .65; }
+.player-theme-light .journal-toolbar select:focus-visible,
+.player-theme-light .journal-toolbar .journal-session-date-picker:focus-within { outline: 2px solid #805817; outline-offset: 2px; }
 .player-theme-light .journal-toolbar > span,
-.player-theme-light .journal-toolbar-controls > span { background: #607565; }
+.player-theme-light .journal-toolbar-controls > span { background: var(--theme-line); }
 .player-theme-light .journal-canvas { color: #403d36; }
 .player-theme-light .journal-canvas h2, .player-theme-light .journal-canvas h3,
 .player-theme-light .journal-canvas h4, .player-theme-light .journal-canvas h5 { color: #263329; }
