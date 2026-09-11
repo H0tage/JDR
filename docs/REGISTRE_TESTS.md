@@ -4,7 +4,34 @@ Ce document est une lecture humaine des tests automatiques du projet.
 
 Il est mis à jour à chaque ajout, suppression ou modification importante d'un test. Les intitulés décrivent le comportement vérifié, pas l'implémentation technique.
 
-État au 11 septembre 2026 : **69 tests**, répartis dans 21 fichiers.
+État au 12 septembre 2026 : **82 tests**, répartis dans 23 fichiers.
+
+## Achat boutique
+
+- Choisir une arme à distance remplit le formulaire sans acheter ; le total suit la quantité, sauf après une modification manuelle du prix. L’achat attend une confirmation.
+- Recherche des consommables, présence des huiles et prix obligatoire lorsqu’un tarif manque.
+- Le catalogue de secours livré avec le site correspond aux 563 références SQL pour les noms, prix et filtres mêlée/distance.
+
+## Catalogue des consommables
+
+- L’enrichissement des armes/armures/boucliers conserve les 30 colonnes du CSV pour chacun des 225 objets, sans changer les identifiants ni créer de doublon. Vérifie mêlée/distance, dégâts, traits et bonus défensifs complexes ; les consommables restent inchangés.
+
+- L’import ajoute 338 potions, huiles et élixirs aux 225 références existantes, conserve types/niveaux/raretés et les anciennes armes, convertit les prix composés et garde les deux prix absents non renseignés. Réexécuter l’import ne crée pas de doublon et conserve les identifiants.
+
+## Permissions — 12 septembre
+
+Tests exécutés dans PostgreSQL local (PGlite), avec toutes les migrations et les rôles `authenticated`/`anon`. Ils ne certifient pas la configuration Supabase déployée, le stockage de fichiers ou la validation réelle des jetons d’authentification.
+
+- Le joueur consulte sa fiche privée ; les fiches des autres ne dévoilent ni notes personnelles ni lien Pathbuilder.
+- Le MJ peut lire les notes personnelles, mais pas le lien Pathbuilder du joueur.
+- Un utilisateur extérieur ne peut pas lire les fiches ni le bestiaire de la campagne.
+- Un visiteur anonyme ne peut pas appeler la lecture des fiches privées.
+- Les créatures secrètes restent invisibles aux joueurs et visibles au MJ.
+- Un joueur ne peut ni révéler une créature secrète ni se promouvoir MJ.
+- L’accès direct aux tables ne permet pas de lire ou modifier les fiches d’autrui.
+- Les notes de relation restent privées à leur auteur, même vis-à-vis du MJ.
+- Un MJ d’une autre campagne n’obtient aucun droit sur cette campagne.
+- Retirer un joueur lui enlève l’accès sans supprimer sa fiche.
 
 ## Suite de l’audit du 11 septembre
 

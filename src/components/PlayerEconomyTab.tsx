@@ -13,6 +13,8 @@ import {
   type MoneyUnit,
 } from "../lib/playerEconomyApi";
 import { listCampaignPlayers, type CampaignPlayer } from "../lib/profileApi";
+import { ShopCatalog } from "./ShopCatalog";
+import type { EquipmentReference } from "../lib/equipmentCatalog";
 import type { CampaignInventoryItem, CampaignItemEvent, CampaignMoneyTransaction, PlayerEconomyData } from "../lib/types";
 import { EmptyState, ErrorPanel, LoadingScreen, SectionHeading } from "./ui";
 
@@ -324,6 +326,19 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
   const [aonName, setAonName] = useState("");
   const [aonUrl, setAonUrl] = useState("");
   const [countsAsGain, setCountsAsGain] = useState(true);
+  const [catalogPrice, setCatalogPrice] = useState<number | null>(null);
+  const [priceEdited, setPriceEdited] = useState(false);
+  function selectReference(item: EquipmentReference) {
+    setName(item.name_en); setAonName(item.name_en); setAonUrl(item.aon_url);
+    setCatalogPrice(item.price_cp); setPriceEdited(false); setUnit("gp"); setCommonShare("0");
+    setAmount(item.price_cp === null ? "" : String(item.price_cp * (Number(quantity) || 1) / 100));
+  }
+  function changeQuantity(value: string) {
+    setQuantity(value);
+    if (action === "purchase" && catalogPrice !== null && !priceEdited) {
+      setAmount(String(catalogPrice * (Number(value) || 1) / ({ gp: 100, sp: 10, cp: 1 }[unit])));
+    }
+  }
   const [debtor, setDebtor] = useState(defaultPlayerId);
   const [creditor, setCreditor] = useState(players.find((player) => player.user_id !== defaultPlayerId)?.user_id ?? "");
   const amountCp = moneyToCp(Number(amount) || 0, unit);
@@ -336,6 +351,8 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
+    if (action === "purchase" && (!name.trim() || !Number.isInteger(purchaseQuantity) || purchaseQuantity < 1 || amount.trim() === "" || !Number.isFinite(Number(amount)) || amountCp <= 0 || commonCp < 0 || commonCp > amountCp)) return;
     if (action === "transfer") await onExecute(() => transferMoney(campaignId, source === "common" ? null : source, destination === "common" ? null : destination, amountCp, comment), "Transfert enregistré.");
     if (action === "personal") await onExecute(() => recordPersonalMoney(campaignId, kind, amountCp, comment, viewerRole === "gm" ? source : undefined), kind === "income" ? "Revenu ajouté." : "Dépense ajoutée.");
     if (action === "common-income") await onExecute(() => recordCommonIncome(campaignId, amountCp, comment), "Entrée ajoutée au compte commun.");
@@ -347,9 +364,10 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
   const title = { transfer: "Transférer de l’or", personal: "Revenu ou dépense personnelle", purchase: "Achat boutique", debt: "Déclarer une dette", "common-income": "Ajouter une entrée commune", "manual-item": "Créer un objet" }[action ?? "transfer"];
   return <form className="economy-action-panel panel" onSubmit={(event) => void submit(event)}>
     <header><div><Banknote size={19} /><h2>{title}</h2></div><button type="button" className="icon-button" onClick={onClose}><X size={16} /></button></header>
+    {action === "purchase" && <ShopCatalog onSelect={selectReference} />}
     <div className="economy-action-fields">
       {(action === "purchase" || action === "manual-item") && <label>Objet<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Nom de l’objet" /></label>}
-      {(action === "purchase" || action === "manual-item") && <label>Quantité<input type="number" min="1" step="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>}
+      {(action === "purchase" || action === "manual-item") && <label>Quantité<input required type="number" min="1" step="1" value={quantity} onChange={(event) => changeQuantity(event.target.value)} /></label>}
       {(action === "purchase" || action === "manual-item") && <label>Nom Archive of Nethys <small>facultatif</small><input value={aonName} onChange={(event) => setAonName(event.target.value)} placeholder="Nom anglais de la référence" /></label>}
       {(action === "purchase" || action === "manual-item") && <label>Lien Archive of Nethys <small>facultatif</small><input type="url" value={aonUrl} onChange={(event) => setAonUrl(event.target.value)} placeholder="https://2e.aonprd.com/…" /></label>}
       {action === "personal" && <label>Opération<select value={kind} onChange={(event) => setKind(event.target.value as "income" | "expense")}><option value="income">Revenu</option><option value="expense">Dépense</option></select></label>}
@@ -360,7 +378,7 @@ function MoneyActionPanel({ action, data, players, saving, onClose, onExecute, c
       {action === "manual-item" && <label className="check-label"><input type="checkbox" checked={countsAsGain} onChange={(event) => setCountsAsGain(event.target.checked)} />Compter comme nouveau gain</label>}
       {action === "purchase" && viewerRole === "gm" && <label>Acheteur<select value={destination} onChange={(event) => setDestination(event.target.value)}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label>}
       {action === "debt" && <><label>Débiteur<select value={debtor} onChange={(event) => { const next = event.target.value; setDebtor(next); if (viewerRole === "player" && next !== data.viewer_user_id) setCreditor(data.viewer_user_id); else if (creditor === next) setCreditor(players.find((player) => player.user_id !== next)?.user_id ?? ""); }}>{players.map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label><label>Créancier<select value={creditor} onChange={(event) => { const next = event.target.value; setCreditor(next); if (viewerRole === "player" && next !== data.viewer_user_id) setDebtor(data.viewer_user_id); }}>{players.filter((player) => player.user_id !== debtor).map((player) => <option key={player.user_id} value={player.user_id}>{player.display_name}</option>)}</select></label></>}
-      {action === "purchase" ? <div className="purchase-price-field"><MoneyField label="Montant total" amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />{purchaseUnitValueCp !== null && <small>Soit {formatCopper(purchaseUnitValueCp)} par objet.</small>}</div> : <MoneyField label={action === "manual-item" ? "Valeur unitaire" : "Montant"} amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />}
+      {action === "purchase" ? <div className="purchase-price-field"><MoneyField label="Montant total" amount={amount} unit={unit} onAmount={value => { setAmount(value); setPriceEdited(true); }} onUnit={value => { setUnit(value); setPriceEdited(true); }} />{catalogPrice !== null && <small>Prix catalogue : {formatCopper(catalogPrice)} par objet. Montant total modifiable.</small>}{purchaseUnitValueCp !== null && <small>Soit {formatCopper(purchaseUnitValueCp)} par objet.</small>}</div> : <MoneyField label={action === "manual-item" ? "Valeur unitaire" : "Montant"} amount={amount} unit={unit} onAmount={setAmount} onUnit={setUnit} />}
       {action === "purchase" && <label>Part payée par le compte commun<input type="number" min="0" max={Number(amount) || 0} step="0.01" value={commonShare} onChange={(event) => setCommonShare(event.target.value)} /><small>Le reste sera pris sur le compte de l’acheteur. La valeur de l’objet sera égale au prix payé.</small></label>}
       <label className="span-2">Commentaire <small>facultatif</small><input value={comment} maxLength={500} onChange={(event) => setComment(event.target.value)} placeholder="Ex. remboursement de la chambre" /></label>
     </div>

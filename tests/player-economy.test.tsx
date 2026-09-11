@@ -6,6 +6,47 @@ import { activityActorLabel, PlayerEconomyTab } from "../src/components/PlayerEc
 let root: Root;
 let container: HTMLDivElement;
 
+it("sélectionne une arme à distance sans acheter et recalcule le prix sauf ajustement manuel", async () => {
+  await act(async () => { root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />); });
+  const button = (text: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find(node => node.textContent === text)!;
+  await waitFor(() => button("Achat boutique"));
+  await act(async () => button("Achat boutique").click());
+  await act(async () => button("Choisir une arme").click());
+  await waitFor(() => container.querySelector(".shop-results button"));
+  const filter = container.querySelector<HTMLSelectElement>(".shop-filters select")!;
+  await act(async () => { filter.value = "ranged"; filter.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(container.querySelector(".shop-results")!.textContent).not.toContain("Dagger");
+  const longbow = [...container.querySelectorAll<HTMLButtonElement>(".shop-results button")].find(node => node.querySelector("strong")?.textContent === "Longbow")!;
+  await act(async () => longbow.click());
+  expect(container.querySelector<HTMLInputElement>('input[placeholder="Nom de l’objet"]')!.value).toBe("Longbow");
+  expect(container.querySelector(".economy-action-panel")).toBeTruthy();
+  const numbers = container.querySelectorAll<HTMLInputElement>(".economy-action-panel input[type=number]");
+  const input = (node: HTMLInputElement, value: string) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(node, value); node.dispatchEvent(new Event("input", { bubbles: true })); };
+  await act(async () => input(numbers[0], "3"));
+  expect(numbers[1].value).toBe("18");
+  await act(async () => input(numbers[1], "15"));
+  await act(async () => input(numbers[0], "4"));
+  expect(numbers[1].value).toBe("15");
+  await act(async () => button("Confirmer").click());
+  expect(container.textContent).toContain("Achat enregistré.");
+});
+
+it("permet de chercher les huiles et demande un prix pour un consommable sans tarif", async () => {
+  await act(async () => { root.render(<PlayerEconomyTab campaignId="demo" demo viewerRole="player" />); });
+  const click = async (text: string) => act(async () => [...container.querySelectorAll<HTMLButtonElement>("button")].find(node => node.textContent === text)!.click());
+  await waitFor(() => container.querySelector(".economy-action-buttons") || container.querySelector(".player-economy"));
+  await click("Achat boutique"); await click("Choisir un élixir / une potion");
+  await waitFor(() => container.querySelector(".shop-results button"));
+  const oil = [...container.querySelectorAll<HTMLOptionElement>(".shop-filters option")].find(node => node.value === "Huile");
+  expect(oil).toBeTruthy();
+  const search = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "Sun Orchid"); search.dispatchEvent(new Event("input", { bubbles: true })); });
+  expect(container.querySelectorAll(".shop-results button")).toHaveLength(1);
+  await act(async () => container.querySelector<HTMLButtonElement>(".shop-results button")!.click());
+  expect(container.querySelectorAll<HTMLInputElement>(".economy-action-panel input[type=number]")[1].value).toBe("");
+  expect([...container.querySelectorAll<HTMLButtonElement>("button")].find(node => node.textContent === "Confirmer")!.disabled).toBe(true);
+});
+
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   window.localStorage.clear();
