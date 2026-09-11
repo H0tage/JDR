@@ -48,17 +48,17 @@ function normalizeVisibility<T extends { visibility: string }>(items: T[]): T[] 
   })) as T[];
 }
 
-export async function loadGmData(campaignId: string, demo = false): Promise<CampaignData> {
+export async function loadGmData(campaignId: string, demo = false, sections?: readonly string[]): Promise<CampaignData> {
   if (demo) return anonymizeDemoCampaignData(mockCampaignData);
   const client = requireClient();
 
   const [settings, sessionPrep, bestiary, questEntries, questJournalPage, questJournalRevisions, factions, journal, contacts, services, relationships, dossiers, milestones] = await Promise.all([
     client.from("campaign_settings").select("*").eq("campaign_id", campaignId).single(),
     client.from("campaign_session_preps").select("*").eq("campaign_id", campaignId).maybeSingle(),
-    client.rpc("list_campaign_bestiary", { p_campaign_id: campaignId }),
-    client.from("quest_entries").select("*").eq("campaign_id", campaignId).order("sort_order").order("created_at"),
-    client.from("quest_journal_pages").select("*").eq("campaign_id", campaignId).maybeSingle(),
-    client.from("quest_journal_revisions").select("*").eq("campaign_id", campaignId).order("created_at", { ascending: false }).limit(20),
+    !sections || sections.includes("bestiary") ? client.rpc("list_campaign_bestiary", { p_campaign_id: campaignId }) : { data: [], error: null },
+    !sections || sections.includes("notes") ? client.from("quest_entries").select("*").eq("campaign_id", campaignId).order("sort_order").order("created_at") : { data: [], error: null },
+    !sections || sections.includes("journal") ? client.from("quest_journal_pages").select("*").eq("campaign_id", campaignId).maybeSingle() : { data: null, error: null },
+    !sections || sections.includes("journal") ? client.from("quest_journal_revisions").select("*").eq("campaign_id", campaignId).order("created_at", { ascending: false }).limit(20) : { data: [], error: null },
     client.from("gm_faction_overview").select("*").eq("campaign_id", campaignId).order("sort_order"),
     client.from("gm_journal_entries").select("*").eq("campaign_id", campaignId).order("occurred_on", { ascending: false }).order("created_at", { ascending: false }),
     client.from("gm_contacts").select("*").eq("campaign_id", campaignId).order("is_primary", { ascending: false }).order("name"),
@@ -69,6 +69,7 @@ export async function loadGmData(campaignId: string, demo = false): Promise<Camp
   ]);
 
   if (sessionPrep.error) throw new Error(`Préparation de séance : ${sessionPrep.error.message}`);
+  if (questJournalPage.error) throw new Error(`Journal de quête : ${questJournalPage.error.message}`);
 
   return {
     settings: unwrap(settings, "Configuration") as CampaignSettings,
@@ -87,7 +88,7 @@ export async function loadGmData(campaignId: string, demo = false): Promise<Camp
   };
 }
 
-export async function loadPlayerData(campaignId: string, demo = false, viewerRole: "gm" | "player" = "player"): Promise<CampaignData> {
+export async function loadPlayerData(campaignId: string, demo = false, viewerRole: "gm" | "player" = "player", sections?: readonly string[]): Promise<CampaignData> {
   if (demo) {
     const data = anonymizeDemoCampaignData(mockCampaignData);
     if (viewerRole !== "gm") data.bestiary = data.bestiary.filter((entry) => entry.is_visible);
@@ -124,16 +125,17 @@ export async function loadPlayerData(campaignId: string, demo = false, viewerRol
   };
   const selectedCampaignId = campaign.campaign_id as string;
   const [bestiary, questEntries, questJournalPage, questJournalRevisions, factions, journal, contacts, services, relationships] = await Promise.all([
-    client.rpc("list_campaign_bestiary", { p_campaign_id: selectedCampaignId }),
-    client.from("quest_entries").select("*").eq("campaign_id", selectedCampaignId).order("sort_order").order("created_at"),
-    client.from("quest_journal_pages").select("*").eq("campaign_id", selectedCampaignId).maybeSingle(),
-    client.from("quest_journal_revisions").select("*").eq("campaign_id", selectedCampaignId).order("created_at", { ascending: false }).limit(20),
+    !sections || sections.includes("bestiary") ? client.rpc("list_campaign_bestiary", { p_campaign_id: selectedCampaignId }) : { data: [], error: null },
+    !sections || sections.includes("notes") ? client.from("quest_entries").select("*").eq("campaign_id", selectedCampaignId).order("sort_order").order("created_at") : { data: [], error: null },
+    !sections || sections.includes("journal") ? client.from("quest_journal_pages").select("*").eq("campaign_id", selectedCampaignId).maybeSingle() : { data: null, error: null },
+    !sections || sections.includes("journal") ? client.from("quest_journal_revisions").select("*").eq("campaign_id", selectedCampaignId).order("created_at", { ascending: false }).limit(20) : { data: [], error: null },
     client.from("player_faction_overview").select("*").eq("campaign_id", selectedCampaignId).order("sort_order"),
     client.from("player_journal").select("*").eq("campaign_id", selectedCampaignId).order("occurred_on", { ascending: false }),
     client.from("player_contacts").select("*").eq("campaign_id", selectedCampaignId).order("is_primary", { ascending: false }).order("name"),
     client.from("player_services").select("*").eq("campaign_id", selectedCampaignId).order("faction_sort_order").order("scale_sort"),
     client.from("player_relationships").select("*").eq("campaign_id", selectedCampaignId).order("source_sort_order").order("target_sort_order"),
   ]);
+  if (questJournalPage.error) throw new Error(`Journal de quête : ${questJournalPage.error.message}`);
 
   return {
     settings: {
@@ -362,6 +364,19 @@ export async function saveQuestEntry(entry: QuestEntry): Promise<void> {
     sort_order: entry.sort_order,
   });
   if (error) throw new Error(`Journal de quête : ${error.message}`);
+}
+
+export async function reorderQuestEntries(previous: QuestEntry[], next: QuestEntry[]): Promise<void> {
+  if (!next.length) return;
+  const { error } = await requireClient().rpc("reorder_quest_entries", {
+    p_campaign_id: next[0].campaign_id,
+    p_entries: next.map((entry) => {
+      const before = previous.find((item) => item.id === entry.id);
+      return { id: entry.id, category: entry.category, sort_order: entry.sort_order,
+        previous_category: before?.category, previous_order: before?.sort_order };
+    }),
+  });
+  if (error) throw new Error(`Carnet de notes : ${error.message}`);
 }
 
 export async function deleteQuestEntry(id: string): Promise<void> {

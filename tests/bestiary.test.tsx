@@ -55,6 +55,20 @@ it("permet au joueur d’ajouter et modifier sans afficher suppression ni visibi
   expect([...container.querySelectorAll(".bestiary-card h3")].map((node) => node.textContent)).toContain("Goule ajoutée");
 });
 
+it("ferme la fenêtre avec Échap et rend le focus au bouton d’ajout", async () => {
+  await act(async () => root.render(<BestiaryTab campaignId={visibleEntry.campaign_id} entries={[]} demo viewerRole="gm" onChanged={() => undefined} onNotice={() => undefined} onError={() => undefined} />));
+  const add = container.querySelector<HTMLButtonElement>(".bestiary-add-card")!;
+  add.focus();
+  await act(async () => add.click());
+  const dialog = container.querySelector('[role="dialog"]')!;
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  expect(document.body.style.overflow).toBe("hidden");
+  await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(container.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.activeElement).toBe(add);
+  expect(document.body.style.overflow).not.toBe("hidden");
+});
+
 it("donne au MJ le contrôle de visibilité et de suppression", async () => {
   const hiddenEntry = { ...visibleEntry, is_visible: false, revealed_at: null, can_delete: true };
   await act(async () => root.render(<BestiaryTab campaignId={visibleEntry.campaign_id} entries={[hiddenEntry]} demo viewerRole="gm" onChanged={() => undefined} onNotice={() => undefined} onError={() => undefined} />));

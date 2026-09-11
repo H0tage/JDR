@@ -1,6 +1,6 @@
 import { Check, CircleHelp, ClipboardList, GripVertical, Lightbulb, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FormEvent } from "react";
-import { deleteQuestEntry, saveQuestEntry } from "../lib/api";
+import { deleteQuestEntry, reorderQuestEntries, saveQuestEntry } from "../lib/api";
 import type { JournalEntry, QuestCategory, QuestEntry, QuestStatus } from "../lib/types";
 import { SectionHeading } from "./ui";
 
@@ -95,7 +95,7 @@ export function QuestJournalTab({ campaignId, entries, factionHistory, showFacti
     if (changed.length === 0) return;
     try {
       if (demo) setDemoEntries(nextEntries);
-      else { for (const item of changed) await saveQuestEntry(item); await onChanged(); }
+      else { await reorderQuestEntries(visibleEntries, nextEntries); await onChanged(); }
       onNotice(`Post-it déplacé vers « ${target.category} ».`);
     } catch (caught) { onError(caught instanceof Error ? caught.message : "Déplacement impossible."); }
   }

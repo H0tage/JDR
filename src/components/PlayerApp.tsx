@@ -12,6 +12,7 @@ import { QuestJournalTab } from "./QuestJournalTab";
 import { QuestWritingTab } from "./QuestWritingTab";
 import { PlayerEconomyTab } from "./PlayerEconomyTab";
 import { PathbuilderEmbed } from "./PathbuilderEmbed";
+import { useModalFocus } from "../lib/useModalFocus";
 
 type PlayerTab = "dashboard" | "relations" | "bestiary" | "loot" | "my-page" | "player-pages" | "notes" | "quest-journal" | "help";
 type PlayerTheme = "light" | "original" | "dark";
@@ -51,19 +52,27 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
   const [playerPages, setPlayerPages] = useState<CampaignPlayerPage[] | null>(null);
   const [playerPagesError, setPlayerPagesError] = useState<string | null>(null);
   const [selectedPlayerPage, setSelectedPlayerPage] = useState<CampaignPlayerPage | null>(null);
+  const refreshVersion = useRef(0);
+  const [loadedTab, setLoadedTab] = useState<PlayerTab | null>(null);
 
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
     try {
-      setData(await loadPlayerData(campaignId, demo, viewerRole));
+      const sections = tab === "dashboard" ? ["bestiary", "notes"] : tab === "quest-journal" ? ["journal"] : tab === "bestiary" ? ["bestiary"] : tab === "notes" ? ["notes"] : [];
+      const nextData = await loadPlayerData(campaignId, demo, viewerRole, sections);
+      if (version !== refreshVersion.current) return;
+      setData(nextData);
+      setLoadedTab(tab);
       setError(null);
     } catch (caught) {
+      if (version !== refreshVersion.current) return;
       setError(caught instanceof Error ? caught.message : "Chargement impossible.");
     } finally {
-      setLoading(false);
+      if (version === refreshVersion.current) setLoading(false);
     }
-  }, [campaignId, demo, viewerRole]);
+  }, [campaignId, demo, viewerRole, tab]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); return () => { refreshVersion.current += 1; }; }, [refresh]);
   useEffect(() => {
     void listCampaignPlayerPages(campaignId, demo)
       .then((pages) => { setPlayerPages(pages); setPlayerPagesError(null); })
@@ -131,9 +140,9 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
         <a className="player-brand" href="/"><span><span>BL</span></span><div><strong>Registre du groupe</strong><small>{intuitive ? "Blood Lords · Campagne en cours" : `Blood Lords · Volume ${data.settings.current_volume}`}</small></div></a>
         <div className="player-header-actions">
           <fieldset className="player-theme-picker"><legend>Thème</legend>
-            <label className={theme === "light" ? "active" : ""}><input type="radio" name="player-theme" checked={theme === "light"} onChange={() => setTheme("light")} /><Sun size={15} /><span>Clair</span></label>
-            <label className={theme === "original" ? "active" : ""}><input type="radio" name="player-theme" checked={theme === "original"} onChange={() => setTheme("original")} /><Moon size={15} /><span>Original</span></label>
-            <label className={theme === "dark" ? "active" : ""}><input type="radio" name="player-theme" checked={theme === "dark"} onChange={() => setTheme("dark")} /><Moon size={15} /><span>Sombre</span></label>
+            <label className={theme === "light" ? "active" : ""}><input type="radio" name="player-theme" aria-label="Thème clair" checked={theme === "light"} onChange={() => setTheme("light")} /><Sun size={15} /><span>Clair</span></label>
+            <label className={theme === "original" ? "active" : ""}><input type="radio" name="player-theme" aria-label="Thème original" checked={theme === "original"} onChange={() => setTheme("original")} /><Moon size={15} /><span>Original</span></label>
+            <label className={theme === "dark" ? "active" : ""}><input type="radio" name="player-theme" aria-label="Thème sombre" checked={theme === "dark"} onChange={() => setTheme("dark")} /><Moon size={15} /><span>Sombre</span></label>
           </fieldset>
           {viewerRole === "gm" && campaignSlug && <a className="player-shortcut player-gm-shortcut" href={`/campaign/${campaignSlug}/mj`}><LockKeyhole size={18} /><span>Vue MJ</span></a>}
         </div>
@@ -149,16 +158,17 @@ export function PlayerApp({ campaignId, campaignSlug, viewerRole = "player" }: {
         <button className={tab === "help" ? "active" : ""} onClick={() => setTab("help")}><CircleHelp size={17} />Comment fonctionne ce site ?</button>
       </nav>
       <main className="player-content">
+        {loadedTab !== tab && ["bestiary", "notes", "quest-journal"].includes(tab) && <LoadingScreen label="Chargement de la rubrique…" />}
         {error && <ErrorPanel error={error} onRetry={() => void refresh()} />}
         {notice && <div className="player-toast">{notice}</div>}
         {tab === "dashboard" && <PlayerDashboard data={data} demo={demo} viewerRole={viewerRole} onOpen={setTab} />}
         {tab === "relations" && <PlayerRelations data={data} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
-        {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole={viewerRole} theme={theme} onChanged={refresh} onNotice={announce} onError={setError} />}
+        {loadedTab === tab && tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole={viewerRole} theme={theme} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "loot" && <PlayerEconomyTab campaignId={data.settings.campaign_id} demo={demo} viewerRole={viewerRole} />}
         {viewerRole === "player" && <div className="persistent-player-page" hidden={tab !== "my-page"}><PlayerPageTab campaignId={data.settings.campaign_id} demo={demo} active={tab === "my-page"} playerPages={playerPages ?? []} theme={theme} /></div>}
         {tab === "player-pages" && <PlayerPagesTab page={selectedPlayerPage} loading={playerPages === null && !playerPagesError} error={playerPagesError} viewerRole={viewerRole} theme={theme} />}
-        {tab === "notes" && <QuestJournalTab campaignId={data.settings.campaign_id} entries={data.questEntries} factionHistory={[]} showFactionHistory={false} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
-        {tab === "quest-journal" && <QuestWritingTab page={data.questJournalPage} revisions={data.questJournalRevisions} canRestoreHistory demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
+        {loadedTab === tab && tab === "notes" && <QuestJournalTab campaignId={data.settings.campaign_id} entries={data.questEntries} factionHistory={[]} showFactionHistory={false} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
+        {loadedTab === tab && tab === "quest-journal" && <QuestWritingTab page={data.questJournalPage} revisions={data.questJournalRevisions} canRestoreHistory demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
         {tab === "help" && <PlayerGuide />}
       </main>
       <footer className="player-footer"><span>Aide de jeu non officielle</span><p>{intuitive ? "Cette vue traduit la position du groupe auprès des factions sans en révéler les mécanismes chiffrés." : "Les RP représentent votre position publique et ne sont jamais dépensés. Les JF servent à solliciter un service."}</p></footer>
@@ -392,7 +402,12 @@ function PlayerPageTab({ campaignId, demo, active, playerPages, theme }: { campa
     }
   }, [campaignId, demo]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  const initialPageLoad = useRef<string | null>(null);
+  useEffect(() => {
+    if (!active || initialPageLoad.current === campaignId) return;
+    initialPageLoad.current = campaignId;
+    void refresh();
+  }, [active, campaignId, refresh]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -500,7 +515,8 @@ function PlayerRelationshipCard({ campaignId, demo, page, initialNotes, onSaved 
 }
 
 function CharacterImageLightbox({ src, name, theme, onClose }: { src: string; name: string; theme: PlayerTheme; onClose: () => void }) {
-  return <div className={`modal-backdrop bestiary-lightbox image-viewer-theme-${theme}`} role="presentation" onClick={onClose}><section className="bestiary-lightbox-card character-lightbox-card" role="dialog" aria-modal="true" aria-label={`Illustration de ${name}`} onClick={(event) => event.stopPropagation()}><header><strong>{name}</strong><button type="button" className="icon-button" onClick={onClose} aria-label="Fermer l’image"><X /></button></header><img src={src} alt={`Illustration de ${name}`} /></section></div>;
+  const dialogRef = useModalFocus(true, onClose);
+  return <div className={`modal-backdrop bestiary-lightbox image-viewer-theme-${theme}`} role="presentation" onClick={onClose}><section ref={(node) => { dialogRef.current = node; }} tabIndex={-1} className="bestiary-lightbox-card character-lightbox-card" role="dialog" aria-modal="true" aria-label={`Illustration de ${name}`} onClick={(event) => event.stopPropagation()}><header><strong>{name}</strong><button type="button" className="icon-button" onClick={onClose} aria-label="Fermer l’image"><X /></button></header><img src={src} alt={`Illustration de ${name}`} /></section></div>;
 }
 
 export function PlayerRelations({ data, demo, onChanged, onNotice, onError }: {
@@ -640,8 +656,9 @@ function ContactPortrait({ contact, className = "" }: { contact: Contact; classN
 }
 
 function PlayerContactDialog({ contact, demo, onChanged, onNotice, onError, onClose }: { contact: Contact; demo: boolean; onChanged: () => Promise<void>; onNotice: (message: string) => void; onError: (message: string | null) => void; onClose: () => void }) {
+  const dialogRef = useModalFocus(true, onClose);
   return <div className="modal-backdrop contact-dialog-backdrop" role="presentation" onClick={onClose}>
-    <section className="modal-card player-contact-dialog" role="dialog" aria-modal="true" aria-label={`Fiche de ${contact.name}`} onClick={(event) => event.stopPropagation()}>
+    <section ref={(node) => { dialogRef.current = node; }} tabIndex={-1} className="modal-card player-contact-dialog" role="dialog" aria-modal="true" aria-label={`Fiche de ${contact.name}`} onClick={(event) => event.stopPropagation()}>
       <div className="modal-head">
         <div><p className="eyebrow">{contact.faction_name}</p><h3>{contact.name}</h3></div>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Fermer"><X /></button>

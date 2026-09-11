@@ -1,3 +1,4 @@
+import { ModalFrame } from "./ModalFrame";
 import {
   Archive,
   BookOpenText,
@@ -24,7 +25,8 @@ import {
   X,
   Moon,
 } from "lucide-react";
-import { Suspense, useCallback, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useModalFocus } from "../lib/useModalFocus";
 import {
   addJournalEntry,
   currentSession,
@@ -164,6 +166,7 @@ function LoginPanel() {
 function GmWorkspace({ campaignId, campaignSlug, demo }: { campaignId: string; campaignSlug?: string; demo: boolean }) {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const navigationRef = useModalFocus(menuOpen, () => setMenuOpen(false));
   const [data, setData] = useState<CampaignData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -178,18 +181,25 @@ function GmWorkspace({ campaignId, campaignSlug, demo }: { campaignId: string; c
     }
   }, [theme]);
 
+  const refreshVersion = useRef(0);
+  const [loadedTab, setLoadedTab] = useState<Tab | null>(null);
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
     setError(null);
     try {
-      setData(await loadGmData(campaignId, demo));
+      const nextData = await loadGmData(campaignId, demo, tab === "journal" ? ["journal", "notes"] : tab === "bestiary" ? ["bestiary"] : []);
+      if (version !== refreshVersion.current) return;
+      setData(nextData);
+      setLoadedTab(tab);
     } catch (caught) {
+      if (version !== refreshVersion.current) return;
       setError(caught instanceof Error ? caught.message : "Chargement impossible.");
     } finally {
-      setLoading(false);
+      if (version === refreshVersion.current) setLoading(false);
     }
-  }, [campaignId, demo]);
+  }, [campaignId, demo, tab]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); return () => { refreshVersion.current += 1; }; }, [refresh]);
   useEffect(() => {
     if (!data || demo) return;
     return subscribeToCampaign(data.settings.campaign_id, () => void refresh());
@@ -228,7 +238,7 @@ function GmWorkspace({ campaignId, campaignSlug, demo }: { campaignId: string; c
   const themeClass = theme === "dark" ? "github-dark" : theme;
   return (
     <div className={`app-shell gm-shell gm-theme-${themeClass}`}>
-      <aside className={menuOpen ? "sidebar open" : "sidebar"}>
+      <aside ref={(node) => { navigationRef.current = node; }} id="gm-navigation" aria-label="Navigation MJ" className={menuOpen ? "sidebar open" : "sidebar"}>
         <div className="brand-block"><span className="brand-glyph"><span>BL</span></span><div><strong>Registres de Geb</strong><small>Blood Lords · MJ</small></div></div>
         <button className="mobile-close" onClick={() => setMenuOpen(false)} aria-label="Fermer le menu"><X /></button>
         <nav>
@@ -246,12 +256,12 @@ function GmWorkspace({ campaignId, campaignSlug, demo }: { campaignId: string; c
       {menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Fermer" />}
       <main className="workspace">
         <header className="topbar">
-          <button className="menu-button" onClick={() => setMenuOpen(true)}><Menu /></button>
+          <button className="menu-button" aria-label="Ouvrir le menu" aria-controls="gm-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu /></button>
           <div><p className="eyebrow">Volume {data.settings.current_volume} sur 6</p><h1>{active.label}</h1></div>
           <fieldset className="gm-theme-picker"><legend>Thème</legend>
-            <label className={theme === "light" ? "active" : ""}><input type="radio" name="gm-theme" checked={theme === "light"} onChange={() => setTheme("light")} /><Sun size={14} /><span>Clair</span></label>
-            <label className={theme === "original" ? "active" : ""}><input type="radio" name="gm-theme" checked={theme === "original"} onChange={() => setTheme("original")} /><Moon size={14} /><span>Original</span></label>
-            <label className={theme === "dark" ? "active" : ""}><input type="radio" name="gm-theme" checked={theme === "dark"} onChange={() => setTheme("dark")} /><Moon size={14} /><span>Sombre</span></label>
+            <label className={theme === "light" ? "active" : ""}><input aria-label="Thème clair" type="radio" name="gm-theme" checked={theme === "light"} onChange={() => setTheme("light")} /><Sun size={14} /><span>Clair</span></label>
+            <label className={theme === "original" ? "active" : ""}><input aria-label="Thème original" type="radio" name="gm-theme" checked={theme === "original"} onChange={() => setTheme("original")} /><Moon size={14} /><span>Original</span></label>
+            <label className={theme === "dark" ? "active" : ""}><input aria-label="Thème sombre" type="radio" name="gm-theme" checked={theme === "dark"} onChange={() => setTheme("dark")} /><Moon size={14} /><span>Sombre</span></label>
           </fieldset>
           <a className="player-shortcut" href={demo ? "/playerscreen/?demo=1" : `/campaign/${campaignSlug ?? campaignId}/playerscreen`} target="_blank" rel="noreferrer"><Eye size={18} /><span>Vue joueurs</span></a>
         </header>
@@ -259,13 +269,13 @@ function GmWorkspace({ campaignId, campaignSlug, demo }: { campaignId: string; c
         {notice && <div className="toast"><Save size={17} />{notice}</div>}
         <div className="workspace-body">
           {tab === "dashboard" && <DashboardTab data={data} mutate={mutate} onNavigate={setTab} />}
-          {tab === "journal" && <JournalHub data={data} mutate={mutate} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
+          {loadedTab === tab && tab === "journal" && <JournalHub data={data} mutate={mutate} demo={demo} onChanged={refresh} onNotice={announce} onError={setError} />}
           {tab === "factions" && <FactionsHub data={data} mutate={mutate} />}
           {tab === "contacts" && <ContactsTab data={data} mutate={mutate} demo={demo} />}
           {tab === "milestones" && <ProgressionTab data={data} mutate={mutate} demo={demo} />}
           {tab === "loot" && <Suspense fallback={<LoadingScreen label="Ouverture du registre des butins…" />}><LootManager campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} /></Suspense>}
           {tab === "references" && <ReferencesHub campaignId={data.settings.campaign_id} demo={demo} onNotice={announce} onError={setError} />}
-          {tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole="gm" theme={theme} onChanged={refresh} onNotice={announce} onError={setError} />}
+          {loadedTab === tab && tab === "bestiary" && <BestiaryTab campaignId={data.settings.campaign_id} entries={data.bestiary} demo={demo} viewerRole="gm" theme={theme} onChanged={refresh} onNotice={announce} onError={setError} />}
           {tab === "settings" && <SettingsTab data={data} mutate={mutate} campaignId={campaignId} />}
         </div>
       </main>
@@ -405,7 +415,7 @@ function JournalTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
       <SectionHeading eyebrow="Source unique des totaux" title="Journal de réputation" actions={<button className="button primary" onClick={() => setOpen(true)}><Plus size={17} />Ajouter</button>} />
       <div className="toolbar"><label>Faction<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Toutes</option>{data.factions.map((f) => <option key={f.faction_id} value={f.faction_id}>{f.short_name}</option>)}</select></label><span>{entries.length} entrée{entries.length > 1 ? "s" : ""}</span></div>
       <div className="table-wrap"><table className="data-table journal-table"><thead><tr><th>Date</th><th>Événement</th><th>Faction</th><th>Volume</th><th>Variation</th><th>Visibilité</th><th /></tr></thead><tbody>{entries.map((entry) => <tr key={entry.id}><td>{new Date(`${entry.occurred_on}T00:00:00`).toLocaleDateString("fr-CH")}</td><td><strong>{entry.title}</strong>{entry.details && <small>{entry.details}</small>}{entry.source_reference && <em>{entry.source_reference}</em>}</td><td>{entry.faction_name}</td><td>V{entry.volume}</td><td><DeltaSummary entry={entry} /></td><td><VisibilityToggle compact value={entry.visibility} onChange={(visibility) => { void mutate(() => updateJournalVisibility(entry.id, visibility), "Visibilité modifiée.", (previous) => { previous.journal.find((item) => item.id === entry.id)!.visibility = visibility; return previous; }); }} /></td><td><button className="icon-button danger" onClick={() => window.confirm("Supprimer cette entrée et recalculer les totaux ?") && void mutate(() => deleteJournalEntry(entry.id), "Entrée supprimée.", (previous) => { previous.journal = previous.journal.filter((item) => item.id !== entry.id); const faction = previous.factions.find((f) => f.faction_id === entry.faction_id)!; faction.rp = Math.max(0, faction.rp - entry.rp_delta); faction.jf = Math.max(0, faction.jf - entry.jf_delta); faction.tension = Math.max(0, faction.tension - entry.tension_delta); return previous; })}><Trash2 size={16} /></button></td></tr>)}</tbody></table></div>
-      {open && <div className="modal-backdrop"><form className="modal-card" onSubmit={submit}><div className="modal-head"><div><p className="eyebrow">Nouvelle variation</p><h3>Ajouter au journal</h3></div><button type="button" className="icon-button" onClick={() => setOpen(false)}><X /></button></div><div className="form-grid"><label>Faction<select value={form.faction_id} onChange={(e) => setForm({ ...form, faction_id: e.target.value })}>{data.factions.map((f) => <option key={f.faction_id} value={f.faction_id}>{f.short_name}</option>)}</select></label><label>Date<input type="date" value={form.occurred_on} onChange={(e) => setForm({ ...form, occurred_on: e.target.value })} /></label><label>Opération<select value={form.operation} onChange={(e) => setForm({ ...form, operation: e.target.value })}><option value="reputation_gain">Gain de réputation</option><option value="reputation_loss">Perte de réputation</option><option value="favor_spend">Dépense de faveurs</option><option value="tension_up">Hausse de tension</option><option value="tension_down">Réduction de tension</option></select></label><label>Valeur<input type="number" min="1" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} /></label><label>Volume<select value={form.volume} onChange={(e) => setForm({ ...form, volume: Number(e.target.value) })}>{[1,2,3,4,5,6].map((v) => <option key={v} value={v}>Volume {v}</option>)}</select></label><div className="visibility-form-field"><span>Visibilité</span><VisibilityToggle value={form.visibility} onChange={(visibility) => setForm({ ...form, visibility })} /></div><label className="span-2">Titre<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex. Crise de la ferme résolue" /></label><label className="span-2">Détails<textarea value={form.details} onChange={(e) => setForm({ ...form, details: e.target.value })} /></label><label className="span-2">Référence<input value={form.source_reference} onChange={(e) => setForm({ ...form, source_reference: e.target.value })} placeholder="Volume et page, si applicable" /></label></div><div className="modal-actions"><button type="button" className="button secondary" onClick={() => setOpen(false)}>Annuler</button><button className="button primary">Enregistrer</button></div></form></div>}
+      {open && <ModalFrame label="Ajouter au journal" onClose={() => setOpen(false)}><form className="modal-card" onSubmit={submit}><div className="modal-head"><div><p className="eyebrow">Nouvelle variation</p><h3>Ajouter au journal</h3></div><button type="button" className="icon-button" onClick={() => setOpen(false)}><X /></button></div><div className="form-grid"><label>Faction<select value={form.faction_id} onChange={(e) => setForm({ ...form, faction_id: e.target.value })}>{data.factions.map((f) => <option key={f.faction_id} value={f.faction_id}>{f.short_name}</option>)}</select></label><label>Date<input type="date" value={form.occurred_on} onChange={(e) => setForm({ ...form, occurred_on: e.target.value })} /></label><label>Opération<select value={form.operation} onChange={(e) => setForm({ ...form, operation: e.target.value })}><option value="reputation_gain">Gain de réputation</option><option value="reputation_loss">Perte de réputation</option><option value="favor_spend">Dépense de faveurs</option><option value="tension_up">Hausse de tension</option><option value="tension_down">Réduction de tension</option></select></label><label>Valeur<input type="number" min="1" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} /></label><label>Volume<select value={form.volume} onChange={(e) => setForm({ ...form, volume: Number(e.target.value) })}>{[1,2,3,4,5,6].map((v) => <option key={v} value={v}>Volume {v}</option>)}</select></label><div className="visibility-form-field"><span>Visibilité</span><VisibilityToggle value={form.visibility} onChange={(visibility) => setForm({ ...form, visibility })} /></div><label className="span-2">Titre<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex. Crise de la ferme résolue" /></label><label className="span-2">Détails<textarea value={form.details} onChange={(e) => setForm({ ...form, details: e.target.value })} /></label><label className="span-2">Référence<input value={form.source_reference} onChange={(e) => setForm({ ...form, source_reference: e.target.value })} placeholder="Volume et page, si applicable" /></label></div><div className="modal-actions"><button type="button" className="button secondary" onClick={() => setOpen(false)}>Annuler</button><button className="button primary">Enregistrer</button></div></form></ModalFrame>}
     </div>
   );
 }
@@ -596,7 +606,7 @@ function ContactsTab({ data, mutate, demo }: { data: CampaignData; mutate: Mutat
       </section>)}
       {grouped.length === 0 && <EmptyState title="Aucun contact actif">Les contacts préparés restent disponibles via le bouton ci-dessus.</EmptyState>}
     </div>
-    {selected && <div className="modal-backdrop">
+    {selected && <ModalFrame label="Modifier un contact" onClose={closeEditor}>
       <form className="modal-card wide contact-editor" onSubmit={save}>
         <div className="modal-head">
           <div><p className="eyebrow">{selected.faction_name}</p><h3>{[selected.first_name, selected.last_name].filter(Boolean).join(" ") || "Nouveau contact"}</h3></div>
@@ -637,7 +647,7 @@ function ContactsTab({ data, mutate, demo }: { data: CampaignData; mutate: Mutat
         </div>
         <div className="modal-actions"><button type="button" className="button secondary" onClick={closeEditor}>Annuler</button><button className="button primary">Enregistrer</button></div>
       </form>
-    </div>}
+    </ModalFrame>}
   </div>;
 }
 
@@ -723,7 +733,7 @@ function PoliticsTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
         <div className="dossier-picker"><p className="eyebrow">15 dossiers bilatéraux</p><select value={dossier} onChange={(e) => setDossier(e.target.value)}>{data.dossiers.map((item) => <option key={item.id} value={item.id}>{item.pair_name}</option>)}</select></div>
         {selectedDossier && <article className="dossier-card"><div className="dossier-core"><span>Noyau canon</span><p>{selectedDossier.canon_core}</p></div><div className="dossier-directions"><div><span>{factionShortName(selectedDossier.faction_a_id)} → {factionShortName(selectedDossier.faction_b_id)}</span><p>{selectedDossier.a_to_b}</p></div><div><span>{factionShortName(selectedDossier.faction_b_id)} → {factionShortName(selectedDossier.faction_a_id)}</span><p>{selectedDossier.b_to_a}</p></div></div><div className="dossier-grid"><div><span>Intérêt commun</span><p>{selectedDossier.common_interest}</p></div><div><span>Ligne de fracture</span><p>{selectedDossier.fracture}</p></div></div></article>}
       </section>
-      {selected && draft && <div className="modal-backdrop">
+      {selected && draft && <ModalFrame label="Modifier la relation" onClose={closeRelationship}>
         <form className="modal-card wide" onSubmit={saveRelationship}>
           <div className="modal-head"><div><p className="eyebrow">{selected.source_name} → {selected.target_name}</p><h3>{draft.headline.trim() || defaultHeadline(selected)}</h3></div><button type="button" className="icon-button" onClick={closeRelationship}><X /></button></div>
           <div className="relationship-editor">
@@ -755,7 +765,7 @@ function PoliticsTab({ data, mutate }: { data: CampaignData; mutate: Mutate }) {
           <div className="reveal-actions"><button type="button" className={draft.visibility === "gm_only" ? "active" : ""} onClick={() => setDraft((current) => current ? { ...current, visibility: "gm_only" } : current)}><EyeOff />MJ uniquement</button><button type="button" className={draft.visibility === "players" ? "active" : ""} onClick={() => setDraft((current) => current ? { ...current, visibility: "players" } : current)}><Eye />Visible joueurs</button></div>
           <div className="modal-actions"><button type="button" className="button secondary" onClick={closeRelationship}>Annuler</button><button className="button primary"><Save size={17} />Enregistrer</button></div>
         </form>
-      </div>}
+      </ModalFrame>}
     </div>
   );
 }
@@ -849,6 +859,7 @@ function draftEffects(item: Milestone, data: CampaignData): EffectDraft[] {
 }
 
 function MilestoneResolutionModal({ item, data, mutate, demo, onClose }: { item: Milestone; data: CampaignData; mutate: Mutate; demo: boolean; onClose: () => void }) {
+  const dialogRef = useModalFocus(true, onClose);
   const initialOutcome = item.status === "missed" ? "missed" : "succeeded";
   const [outcome, setOutcome] = useState<"succeeded" | "missed">(initialOutcome);
   const [note, setNote] = useState(item.resolution_note ?? "");
@@ -892,7 +903,7 @@ function MilestoneResolutionModal({ item, data, mutate, demo, onClose }: { item:
     if (saved) onClose();
   }
 
-  return <div className="modal-backdrop"><form className="modal-card wide milestone-modal" onSubmit={submit}>
+  return <div className="modal-backdrop"><form ref={(node) => { dialogRef.current = node; }} tabIndex={-1} role="dialog" aria-modal="true" aria-label={item.title} className="modal-card wide milestone-modal" onSubmit={submit}>
     <div className="modal-head"><div><p className="eyebrow">Volume {item.volume} · {item.chapter}</p><h3>{item.title}</h3></div><button type="button" className="icon-button" onClick={onClose}><X /></button></div>
     {item.status === "excluded" && <p className="choice-warning">Ce choix est actuellement écarté par « {item.excluded_by_title} ». Le réussir remplacera automatiquement ce choix et annulera ses effets.</p>}
     <fieldset className="outcome-picker"><legend>Issue du jalon</legend><button type="button" className={outcome === "succeeded" ? "active succeeded" : ""} onClick={() => setOutcome("succeeded")}><strong>Réussi</strong><small>Appliquer les gains et pertes au journal</small></button><button type="button" className={outcome === "missed" ? "active missed" : ""} onClick={() => setOutcome("missed")}><strong>Manqué</strong><small>Classer le jalon sans distribuer de points</small></button></fieldset>
@@ -963,6 +974,6 @@ function CampaignAccessPanel({ campaignId }: { campaignId: string }) {
     <div className="access-list"><h4>Invitations</h4>{invites.length === 0 && <p className="muted-copy">Aucune invitation créée.</p>}{invites.map((invite) => <article key={invite.id} className={invite.revoked_at ? "access-row muted" : "access-row"}><div><strong>{invite.revoked_at ? "Révoquée" : invite.expires_at && new Date(invite.expires_at) <= new Date() ? "Expirée" : "Active"}</strong><small>{link(invite)}</small></div><div><button type="button" className="button ghost" onClick={() => void copy(invite)}>Copier</button>{!invite.revoked_at && <button type="button" className="button ghost danger" onClick={() => void revoke(invite)}>Révoquer</button>}</div></article>)}</div>
     <div className="access-list"><h4>Membres</h4>{members.map((member) => <article key={member.user_id} className="access-row"><div><strong>{member.display_name}</strong><small>{member.role === "gm" ? "Maître de jeu" : "Joueur"}</small></div>{member.role === "player" && <button type="button" className="button ghost danger" onClick={() => void remove(member)}>Retirer</button>}</article>)}</div>
     <div className="access-list player-pages-list"><h4>Pages personnelles</h4><p className="muted-copy">Consultation uniquement : seul le joueur concerné peut modifier sa page.</p>{pages.length === 0 && <p className="muted-copy">Aucune page joueur pour le moment.</p>}{pages.map((page) => <article key={page.user_id} className={page.active ? "access-row" : "access-row muted"}><div><strong>{page.display_name}</strong><small>{page.character_name || "Personnage non renseigné"} · {page.active ? "Membre actuel" : "Hors campagne — page conservée"}</small></div><button type="button" className="button ghost" onClick={() => setOpenedPage(page)}><Eye size={16} />Consulter</button></article>)}</div>
-    {openedPage && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpenedPage(null); }}><article className="modal-card player-page-readonly" role="dialog" aria-modal="true" aria-labelledby="player-page-title"><header><div><p className="eyebrow">Page personnelle · lecture seule</p><h2 id="player-page-title">{openedPage.display_name}</h2></div><button type="button" className="icon-button" aria-label="Fermer" onClick={() => setOpenedPage(null)}><X size={18} /></button></header><dl><div><dt>Personnage</dt><dd>{openedPage.character_name || "Non renseigné"}</dd></div><div><dt>Présentation</dt><dd>{openedPage.character_summary || "Non renseignée"}</dd></div><div><dt>Objectifs</dt><dd>{openedPage.objectives || "Non renseignés"}</dd></div><div><dt>Notes personnelles</dt><dd>{openedPage.notes || "Aucune note"}</dd></div>{openedPage.pathbuilder_url && <div><dt>Pathbuilder</dt><dd><a href={openedPage.pathbuilder_url} target="_blank" rel="noreferrer">Ouvrir la fiche</a></dd></div>}</dl><footer><small>Dernière modification : {new Date(openedPage.updated_at).toLocaleString("fr-FR")}</small><button type="button" className="button secondary" onClick={() => setOpenedPage(null)}>Fermer</button></footer></article></div>}
+    {openedPage && <ModalFrame dismissOnBackdrop label="Page personnelle" onClose={() => setOpenedPage(null)}><article className="modal-card player-page-readonly" role="dialog" aria-modal="true" aria-labelledby="player-page-title"><header><div><p className="eyebrow">Page personnelle · lecture seule</p><h2 id="player-page-title">{openedPage.display_name}</h2></div><button type="button" className="icon-button" aria-label="Fermer" onClick={() => setOpenedPage(null)}><X size={18} /></button></header><dl><div><dt>Personnage</dt><dd>{openedPage.character_name || "Non renseigné"}</dd></div><div><dt>Présentation</dt><dd>{openedPage.character_summary || "Non renseignée"}</dd></div><div><dt>Objectifs</dt><dd>{openedPage.objectives || "Non renseignés"}</dd></div><div><dt>Notes personnelles</dt><dd>{openedPage.notes || "Aucune note"}</dd></div>{openedPage.pathbuilder_url && <div><dt>Pathbuilder</dt><dd><a href={openedPage.pathbuilder_url} target="_blank" rel="noreferrer">Ouvrir la fiche</a></dd></div>}</dl><footer><small>Dernière modification : {new Date(openedPage.updated_at).toLocaleString("fr-FR")}</small><button type="button" className="button secondary" onClick={() => setOpenedPage(null)}>Fermer</button></footer></article></ModalFrame>}
   </section>;
 }

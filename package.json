@@ -13,19 +13,20 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "2.110.7",
+    "dompurify": "3.4.15",
     "lucide-react": "1.25.0",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
-    "@types/node": "latest",
+    "@types/node": "26.1.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@vitejs/plugin-react": "latest",
-    "jsdom": "latest",
+    "@vitejs/plugin-react": "6.0.3",
+    "jsdom": "29.1.1",
     "typescript": "7.0.2",
     "vite": "8.1.5",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }

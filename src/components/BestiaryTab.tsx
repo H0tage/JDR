@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { bestiaryImageUrl, deleteBestiaryEntry, deleteBestiaryImage, saveBestiaryEntry, setBestiaryEntryVisibility, uploadBestiaryImage } from "../lib/api";
 import type { BestiaryEntry } from "../lib/types";
 import { SectionHeading } from "./ui";
+import { useModalFocus } from "../lib/useModalFocus";
 
 type BestiaryTabProps = {
   campaignId: string;
@@ -43,6 +44,8 @@ export function BestiaryTab({ campaignId, entries, demo, viewerRole, theme = "or
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const editorRef = useModalFocus(Boolean(editing), () => { if (!busy) closeEditor(); });
+  const lightboxRef = useModalFocus(Boolean(lightbox), () => setLightbox(null));
 
   useEffect(() => {
     if (!demo) setDemoEntries(entries);
@@ -191,7 +194,7 @@ export function BestiaryTab({ campaignId, entries, demo, viewerRole, theme = "or
       <button type="button" className="bestiary-add-card" onClick={() => beginEdit(null)}><span><Plus size={34} /></span><strong>Ajouter une créature</strong><small>{viewerRole === "gm" ? "Elle sera masquée aux joueurs par défaut." : "Elle sera immédiatement visible par le groupe."}</small></button>
     </section>
 
-    {editing && <div className="modal-backdrop" role="presentation"><form className="modal-card bestiary-editor" onSubmit={save}>
+    {editing && <div className="modal-backdrop" role="presentation"><form ref={(node) => { editorRef.current = node; }} role="dialog" aria-modal="true" aria-label="Entrée du bestiaire" tabIndex={-1} className="modal-card bestiary-editor" onSubmit={save}>
       <div className="modal-head"><div><p className="eyebrow">Entrée du bestiaire</p><h3>{displayedEntries.some((item) => item.id === editing.id) ? "Modifier la créature" : "Ajouter une créature"}</h3></div><button type="button" className="icon-button" onClick={closeEditor} aria-label="Fermer"><X /></button></div>
       <div className="bestiary-editor-grid"><label className="span-2">Nom de la créature<input required value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} placeholder="Ex. Zombie de la peste" /></label>
         <div className="bestiary-upload"><span>Image</span><div className="bestiary-upload-preview">{imageSource(editing.image_path, imagePreview) ? <img src={imageSource(editing.image_path, imagePreview)!} alt="Aperçu de l’image" /> : <ImagePlus size={28} />}</div><label className="button secondary tiny upload-control"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => chooseImage(event.target.files?.[0] ?? null)} />Choisir une image</label>{editing.image_path && !imageFile && <button type="button" className="text-button danger-text" onClick={() => setEditing({ ...editing, image_path: null })}>Retirer l’image</button>}<small>JPEG, PNG, WebP ou GIF · 5 Mo maximum.</small></div>
@@ -201,7 +204,7 @@ export function BestiaryTab({ campaignId, entries, demo, viewerRole, theme = "or
       <div className="modal-actions"><button type="button" className="button secondary" disabled={busy} onClick={closeEditor}>Annuler</button><button className="button primary" disabled={busy}>{busy ? "Enregistrement…" : "Enregistrer"}</button></div>
     </form></div>}
 
-    {lightbox && <div className={`modal-backdrop bestiary-lightbox image-viewer-theme-${theme}`} role="presentation" onClick={() => setLightbox(null)}><section className="bestiary-lightbox-card" role="dialog" aria-modal="true" aria-label={`Image de ${lightbox.name}`} onClick={(event) => event.stopPropagation()}><header><strong>{lightbox.name}</strong><button type="button" className="icon-button" onClick={() => setLightbox(null)} aria-label="Fermer l’image"><X /></button></header><img src={lightbox.src} alt={lightbox.name} /></section></div>}
+    {lightbox && <div className={`modal-backdrop bestiary-lightbox image-viewer-theme-${theme}`} role="presentation" onClick={() => setLightbox(null)}><section ref={(node) => { lightboxRef.current = node; }} tabIndex={-1} className="bestiary-lightbox-card" role="dialog" aria-modal="true" aria-label={`Image de ${lightbox.name}`} onClick={(event) => event.stopPropagation()}><header><strong>{lightbox.name}</strong><button type="button" className="icon-button" onClick={() => setLightbox(null)} aria-label="Fermer l’image"><X /></button></header><img src={lightbox.src} alt={lightbox.name} /></section></div>}
   </div>;
 }
 

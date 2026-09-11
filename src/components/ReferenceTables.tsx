@@ -1,3 +1,4 @@
+import { useModalFocus } from "../lib/useModalFocus";
 import {
   Check,
   Feather,
@@ -115,9 +116,10 @@ function ConfirmReset({ scope, onCancel, onConfirm, busy }: {
   busy: boolean;
 }) {
   const label = scope === "archives" ? "les archives" : "les références";
+  const dialogRef = useModalFocus(true, () => { if (!busy) onCancel(); });
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="modal-card reset-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+      <section ref={(node) => { dialogRef.current = node; }} tabIndex={-1} className="modal-card reset-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title">
         <div className="modal-head"><div><p className="eyebrow">Action irréversible</p><h3 id="reset-title">Restaurer {label} ?</h3></div><button type="button" className="icon-button" onClick={onCancel}><X /></button></div>
         <p className="modal-prose"><strong>Attention : en restaurant, vous supprimerez toutes vos modifications, créations et suppressions.</strong> Les données seront remises exactement dans leur état d’origine.</p>
         <div className="modal-actions"><button type="button" className="button secondary" disabled={busy} onClick={onCancel}>Annuler</button><button type="button" className="button danger-solid" disabled={busy} onClick={onConfirm}>{busy ? "Restauration…" : "Restaurer définitivement"}</button></div>

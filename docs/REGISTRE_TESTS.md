@@ -4,7 +4,37 @@ Ce document est une lecture humaine des tests automatiques du projet.
 
 Il est mis à jour à chaque ajout, suppression ou modification importante d'un test. Les intitulés décrivent le comportement vérifié, pas l'implémentation technique.
 
-État au 5 septembre 2026 : **54 tests**, répartis dans 16 fichiers.
+État au 11 septembre 2026 : **69 tests**, répartis dans 21 fichiers.
+
+## Suite de l’audit du 11 septembre
+
+- Le test de base vierge exécute le bloc SQL groupé destiné à l’éditeur Supabase ; les autres tests conservent l’exécution des migrations séparées.
+
+- Le test de base vérifie qu’un nouveau démontage intact peut être annulé après un précédent démontage annulé, sans confondre les composants.
+- Le classement est refusé sans modification partielle si une note supplémentaire a été créée depuis le chargement.
+
+- Le journal neutralise aussi les contenus SVG/MathML et les URL dangereuses encodées.
+- Le nettoyage conserve les marqueurs des séances, dates, retraits et encadrés, même après plusieurs passages.
+- L’accueil MJ ne charge pas le journal HTML, ses versions et le bestiaire inutilement.
+- L’ouverture du journal et du bestiaire joueur ne charge que les contenus lourds nécessaires.
+- L’accueil joueur conserve bien les notes et les créatures utilisées dans ses compteurs.
+- Le menu MJ annonce son état et rend le focus à son bouton après fermeture par Échap.
+
+## Corrections issues de l’audit du 10 septembre
+
+- Les palettes clair, original et sombre sont complètes pour les deux rôles et centralisées.
+- Les agrandissements hors de la page disposent des trois palettes.
+- Une fenêtre de récupération ne se ferme pas avec Échap : elle exige un choix explicite.
+
+- Tab et Maj+Tab restent dans la fenêtre ouverte.
+- Avec deux fenêtres superposées, seule celle du premier plan reçoit Échap.
+- Le test de page personnelle vérifie aussi la fermeture du zoom avec Échap.
+
+- Le journal retire les scripts, événements et liens dangereux tout en conservant les séances et leur texte.
+- Le contenu reçu est nettoyé avant son premier affichage, même s’il ne vient pas de l’éditeur.
+- La fenêtre du bestiaire garde le focus, bloque le défilement de la page et se ferme avec Échap en revenant au bouton d’origine.
+- Le test de base vierge vérifie aussi qu’un démontage intact reste annulable, mais qu’un composant consommé empêche l’annulation.
+- Ce même test vérifie que déplacer une note conserve son texte et qu’un classement périmé est refusé.
 
 ## Accès, routes et démonstration
 

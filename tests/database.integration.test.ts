@@ -18,6 +18,11 @@ it("installe une base vierge et peut créer une campagne sans contenu privé", a
     create function storage.foldername(object_name text) returns text[] language sql stable as $$ select string_to_array(object_name, '/') $$;
   `);
   for (const file of readdirSync(migrationsDirectory).filter((name) => name.endsWith('.sql')).sort()) {
+    if (file === '20260910121000_atomic_note_order.sql') continue;
+    if (file === '20260910120000_guard_dismantle_cancellation.sql') {
+      await db.exec(readFileSync(resolve(process.cwd(), 'supabase/setup/20260911_audit_update.sql'), 'utf8'));
+      continue;
+    }
     const sql = readFileSync(resolve(migrationsDirectory, file), 'utf8').replace('create extension if not exists pgcrypto with schema extensions;', '-- pgcrypto supplied by Supabase');
     await db.exec(sql);
   }
@@ -29,6 +34,42 @@ it("installe une base vierge et peut créer une campagne sans contenu privé", a
   await db.exec(`insert into auth.users values ('10000000-0000-4000-8000-000000000001', 'gm@example.test'); select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', false); set role authenticated;`);
   const campaign = (await db.query<{ campaign_id: string; slug: string; name: string }>("select * from public.create_campaign('Campagne de test', null)")).rows[0];
   expect(campaign.name).toBe('Campagne de test');
+  const note = (await db.query<{ id: string }>("insert into public.quest_entries (campaign_id, title, status, category, sort_order) values ($1, 'Texte conservé', 'Actif', 'Pistes', 0) returning id", [campaign.campaign_id])).rows[0].id;
+  const order = JSON.stringify([{ id: note, previous_category: 'Pistes', previous_order: 0, category: 'Objectifs', sort_order: 1 }]);
+  await db.query("select public.reorder_quest_entries($1, $2::jsonb)", [campaign.campaign_id, order]);
+  expect((await db.query<{ title: string; category: string }>("select title, category from public.quest_entries where id = $1", [note])).rows[0]).toEqual({ title: 'Texte conservé', category: 'Objectifs' });
+  await expect(db.query("select public.reorder_quest_entries($1, $2::jsonb)", [campaign.campaign_id, order])).rejects.toThrow(/classement a changé/);
+  await db.query("insert into public.quest_entries (campaign_id, title, status, category, sort_order) values ($1, 'Note ajoutée ailleurs', 'Actif', 'Pistes', 0)", [campaign.campaign_id]);
+  await expect(db.query("select public.reorder_quest_entries($1, $2::jsonb)", [campaign.campaign_id, JSON.stringify([{ id: note, previous_category: 'Objectifs', previous_order: 1, category: 'Pistes', sort_order: 0 }])])).rejects.toThrow(/classement a changé/);
+  expect((await db.query<{ category: string }>("select category from public.quest_entries where id = $1", [note])).rows[0].category).toBe('Objectifs');
+  // Un démontage intact reste annulable, mais pas après usage d’un composant.
+  for (const consumed of [false, true]) {
+    const original = (await db.query<{ id: string }>("select public.create_manual_campaign_item($1, 'Objet démontable', 1, 100, null, null, null, null, false) id", [campaign.campaign_id])).rows[0].id;
+    const outputs = (await db.query<{ ids: string[] }>("select public.dismantle_campaign_item($1, $2::jsonb, null) ids", [original, JSON.stringify([{ name: 'A', quantity: 1, unit_value_cp: 50 }, { name: 'B', quantity: 1, unit_value_cp: 50 }])])).rows[0].ids;
+    await db.exec('reset role;');
+    const event = (await db.query<{ id: string }>("select id from public.campaign_item_events where item_id = $1 and event_type = 'dismantled'", [original])).rows[0].id;
+    await db.exec('set role authenticated;');
+    if (consumed) {
+      await db.query("select public.set_campaign_item_terminal($1, 'consumed', null, null)", [outputs[0]]);
+      await expect(db.query("select public.cancel_campaign_item_event($1, null)", [event])).rejects.toThrow(/composants ont été modifiés/);
+      await db.exec('reset role;');
+      expect((await db.query<{ status: string }>("select status from public.campaign_inventory_items where id = $1", [original])).rows[0].status).toBe('dismantled');
+    } else {
+      await db.query("select public.cancel_campaign_item_event($1, null)", [event]);
+      await db.exec('reset role;');
+      expect((await db.query<{ status: string }>("select status from public.campaign_inventory_items where id = $1", [original])).rows[0].status).toBe('active');
+      // Old, cancelled components must not block a new, untouched dismantling.
+      await db.exec('set role authenticated;');
+      const repeated = (await db.query<{ ids: string[] }>("select public.dismantle_campaign_item($1, $2::jsonb, null) ids", [original, JSON.stringify([{ name: 'Nouveau composant', quantity: 1, unit_value_cp: 100 }])])).rows[0].ids;
+      await db.exec('reset role;');
+      const repeatedEvent = (await db.query<{ id: string }>("select id from public.campaign_item_events where item_id = $1 and event_type = 'dismantled' and related_item_id = $2", [original, repeated[0]])).rows[0].id;
+      await db.exec('set role authenticated;');
+      await db.query("select public.cancel_campaign_item_event($1, null)", [repeatedEvent]);
+      await db.exec('reset role;');
+      expect((await db.query<{ status: string }>("select status from public.campaign_inventory_items where id = $1", [original])).rows[0].status).toBe('active');
+    }
+    await db.exec('set role authenticated;');
+  }
   expect(campaign.slug).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
   expect((await db.query<{ settings: number; templates: number }>(`select (select count(*)::int from public.campaign_settings where campaign_id = '${campaign.campaign_id}') settings, (select count(*)::int from public.campaign_loot where campaign_id = '${campaign.campaign_id}') templates`)).rows[0]).toEqual({ settings: 1, templates: 0 });
   await db.close();

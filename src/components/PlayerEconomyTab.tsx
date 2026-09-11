@@ -44,26 +44,32 @@ export function PlayerEconomyTab({ campaignId, demo, viewerRole }: { campaignId:
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [mobileInventoryUserId, setMobileInventoryUserId] = useState("");
   const [summaryDisplay, setSummaryDisplay] = useState<SummaryDisplay>(storedSummaryDisplay);
+  const refreshVersion = useRef(0);
 
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
     try {
       const [economy, campaignPlayers] = await Promise.all([
         loadPlayerEconomy(campaignId, demo),
         listCampaignPlayers(campaignId, demo),
       ]);
+      if (version !== refreshVersion.current) return;
       setData(economy);
       setPlayers(campaignPlayers);
       setError(null);
     } catch (caught) {
+      if (version !== refreshVersion.current) return;
       setError(caught instanceof Error ? caught.message : "Chargement de l’économie impossible.");
     }
   }, [campaignId, demo]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); return () => { refreshVersion.current += 1; }; }, [refresh]);
   useEffect(() => {
     if (demo) return;
-    const interval = window.setInterval(() => void refresh(), 15_000);
-    return () => window.clearInterval(interval);
+    const refreshVisible = () => { if (document.visibilityState === "visible") void refresh(); };
+    const interval = window.setInterval(refreshVisible, 15_000);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", refreshVisible); };
   }, [demo, refresh]);
   useEffect(() => { setSelectedIds([]); }, [section]);
   useEffect(() => {

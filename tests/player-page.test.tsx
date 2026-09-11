@@ -65,7 +65,9 @@ it("ouvre la page personnelle depuis Pages des joueurs et rappelle sa confidenti
   const portraitButton = page.querySelector<HTMLButtonElement>(".player-character-portrait-button");
   await act(async () => { portraitButton?.click(); });
   expect(document.querySelector(".character-lightbox-card")).toBeTruthy();
-  await act(async () => { document.querySelector<HTMLButtonElement>(".character-lightbox-card .icon-button")?.click(); });
+  expect(document.querySelector(".character-lightbox-card")?.contains(document.activeElement)).toBe(true);
+  await act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  expect(document.querySelector(".character-lightbox-card")).toBeNull();
   const pathbuilderButton = [...page.querySelectorAll<HTMLButtonElement>(".player-page-view-tabs button")].find((candidate) => candidate.textContent?.includes("Page Pathbuilder2e"));
   expect(pathbuilderButton).toBeTruthy();
   await act(async () => { pathbuilderButton?.click(); });

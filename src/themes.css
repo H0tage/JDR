@@ -1,0 +1,172 @@
+/* Central theme palettes, including image viewers outside the page shell. */
+.gm-theme-light .loot-monitor { --loot-title: #2d3a30; --loot-card: #fffaf0; --loot-card-alt: #eee8da; --loot-soft: #59665b
+}
+.player-theme-light .player-economy { --economy-card: #fffaf0; --economy-soft: #eee6d4
+}
+.player-theme-dark .player-character-sheet, .player-theme-dark .player-page-edit { --sheet: #18211c; --sheet-alt: #111813; --sheet-line: #35423a; --sheet-ink: #eef1ec; --sheet-muted: #aab5ac; --sheet-gold: #d1aa61
+}
+.player-theme-dark .player-page-tab { --page-tab-surface: #18211c; --page-tab-line: #35423a; --page-tab-ink: #eef1ec; --page-tab-muted: #aab5ac; --page-tab-active: #2b3931; --page-tab-active-ink: #f1f3ed; --page-tab-gold: #d1aa61
+}
+.player-theme-github-dark .player-character-sheet, .player-theme-github-dark .player-page-edit { --sheet: #161b22; --sheet-alt: #0d1117; --sheet-line: #30363d; --sheet-ink: #e6edf3; --sheet-muted: #8b949e; --sheet-gold: #d3ae68
+}
+.player-theme-github-dark .player-page-tab { --page-tab-surface: #161b22; --page-tab-line: #30363d; --page-tab-ink: #e6edf3; --page-tab-muted: #8b949e; --page-tab-active: #21262d; --page-tab-active-ink: #e6edf3; --page-tab-gold: #d3ae68
+}
+.player-shell.player-theme-dark {
+  --bg: #101612;
+  --surface: #18211c;
+  --surface-2: #202a24;
+  --surface-3: #2b3931;
+  --line: #405047;
+  --line-soft: #35423a;
+  --ink: #e4e9e1;
+  --muted: #aab5ac;
+  --ivory: #eef1ec;
+  --gold: #d1aa61;
+  --gold-soft: #3e3422;
+  --theme-page: #101612;
+  --theme-panel: #18211c;
+  --theme-panel-strong: #111813;
+  --theme-panel-soft: #202a24;
+  --theme-line: #35423a;
+  --theme-text: #e4e9e1;
+  --theme-heading: #eef1ec;
+  --theme-muted: #aab5ac;
+  --theme-hover: #2b3931;
+  --theme-image-well: #111813;
+  --theme-portrait-glow: #26342c
+}
+.player-theme-dark .player-dashboard { --dash-panel: #151c18; --dash-panel-alt: #101713; --dash-line: #344038; --dash-ink: #e3e9e1; --dash-muted: #98a49b; --dash-accent: #d1aa61
+}
+.player-theme-github-dark .player-dashboard { --dash-panel: #161b22; --dash-panel-alt: #0d1117; --dash-line: #30363d; --dash-ink: #e6edf3; --dash-muted: #8b949e; --dash-accent: #d3ae68
+}
+.player-shell.player-theme-github-dark {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #21262d;
+  --surface-3: #30363d;
+  --line: #30363d;
+  --line-soft: #30363d;
+  --ink: #e6edf3;
+  --muted: #8b949e;
+  --ivory: #e6edf3;
+  --gold: #d3ae68;
+  --gold-soft: #2b2417;
+  --theme-page: #0d1117;
+  --theme-panel: #161b22;
+  --theme-panel-strong: #0d1117;
+  --theme-panel-soft: #21262d;
+  --theme-line: #30363d;
+  --theme-text: #e6edf3;
+  --theme-heading: #e6edf3;
+  --theme-muted: #8b949e;
+  --theme-hover: #21262d;
+  --theme-image-well: #0d1117;
+  --theme-portrait-glow: #21262d
+}
+.player-shell.player-theme-light {
+  --bg: #e8e1d2;
+  --panel: #f8f4ea;
+  --surface: #f8f4ea;
+  --surface-2: #eee8da;
+  --surface-3: #e4dccb;
+  --line: #bdb29d;
+  --line-soft: #cec5b4;
+  --muted: #687267;
+  --ink: #2f382f;
+  --ivory: #27352b;
+  --gold: #a9782f;
+  --gold-soft: #eadfbe;
+  --theme-page: #e8e1d2;
+  --theme-panel: #f8f4ea;
+  --theme-panel-strong: #fffaf0;
+  --theme-panel-soft: #eee8da;
+  --theme-line: #c9c0ad;
+  --theme-text: #304034;
+  --theme-heading: #27352b;
+  --theme-muted: #687267;
+  --theme-hover: #e3dccf;
+  --theme-image-well: #e7e1d5;
+  --theme-portrait-glow: #fffdf8
+}
+.player-theme-light, .gm-theme-light, .image-viewer-theme-light {
+  --image-viewer-surface: #e7e1d5;
+  --image-viewer-line: #bdae91;
+  --image-viewer-ink: #27352b;
+  --image-viewer-button: #fffaf0;
+  --image-viewer-backdrop: rgb(47 43 35 / 56%)
+}
+.player-theme-dark, .gm-theme-original, .image-viewer-theme-original {
+  --image-viewer-surface: #101512;
+  --image-viewer-line: #465249;
+  --image-viewer-ink: #eef1ec;
+  --image-viewer-button: #1b241f;
+  --image-viewer-backdrop: rgb(0 0 0 / 68%)
+}
+.player-theme-github-dark, .gm-theme-github-dark, .image-viewer-theme-dark {
+  --image-viewer-surface: #0d1117;
+  --image-viewer-line: #30363d;
+  --image-viewer-ink: #e6edf3;
+  --image-viewer-button: #21262d;
+  --image-viewer-backdrop: rgb(1 4 8 / 76%)
+}
+.gm-theme-light {
+  --bg: #e8e1d2;
+  --surface: #f8f4ea;
+  --surface-2: #eee8da;
+  --surface-3: #e4dccb;
+  --line: #bdb29d;
+  --line-soft: #cec5b4;
+  --ink: #2f382f;
+  --muted: #687267;
+  --ivory: #27352b;
+  --gold: #a9782f;
+  --gold-soft: #eadfbe;
+  --theme-page: #e8e1d2;
+  --theme-panel: #f8f4ea;
+  --theme-panel-strong: #fffaf0;
+  --theme-panel-soft: #eee8da;
+  --theme-line: #c9c0ad;
+  --theme-text: #304034;
+  --theme-heading: #27352b;
+  --theme-muted: #687267;
+  --theme-hover: #e3dccf;
+  --theme-image-well: #e7e1d5;
+  --theme-portrait-glow: #fffdf8
+}
+.gm-shell.gm-theme-github-dark {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #21262d;
+  --surface-3: #30363d;
+  --line: #30363d;
+  --line-soft: #30363d;
+  --ink: #e6edf3;
+  --muted: #8b949e;
+  --ivory: #e6edf3;
+  --gold: #d3ae68;
+  --gold-soft: #2b2417;
+  --theme-page: #0d1117;
+  --theme-panel: #161b22;
+  --theme-panel-strong: #0d1117;
+  --theme-panel-soft: #21262d;
+  --theme-line: #30363d;
+  --theme-text: #e6edf3;
+  --theme-heading: #e6edf3;
+  --theme-muted: #8b949e;
+  --theme-hover: #21262d;
+  --theme-image-well: #0d1117;
+  --theme-portrait-glow: #21262d
+}
+.gm-shell.gm-theme-original {
+  --theme-page: #121815;
+  --theme-panel: #151c19;
+  --theme-panel-strong: #111714;
+  --theme-panel-soft: #1a231f;
+  --theme-line: #303b36;
+  --theme-text: #edf1e8;
+  --theme-heading: #e7dfc9;
+  --theme-muted: #9ca89e;
+  --theme-hover: #222d28;
+  --theme-image-well: #111714;
+  --theme-portrait-glow: #26342c
+}
