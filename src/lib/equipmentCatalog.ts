@@ -6,6 +6,10 @@ export type EquipmentReference = {
   category: string | null; level: number | null; rarity: string | null;
 };
 
+export function matchesWeaponRange(item: Pick<EquipmentReference, "weapon_range_type">, filter: string): boolean {
+  return !filter || item.weapon_range_type === filter || (item.weapon_range_type === "both" && (filter === "melee" || filter === "ranged"));
+}
+
 export async function loadEquipmentCatalog(): Promise<{ items: EquipmentReference[]; offline: boolean }> {
   if (supabase) {
     try {

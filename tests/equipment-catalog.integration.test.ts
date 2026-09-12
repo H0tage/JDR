@@ -45,6 +45,16 @@ it("importe 338 consommables sans doublon, préserve les armes et distingue prix
     ]);
     expect((await db.query("select count(*)::int count from public.pf2e_equipment_references where price_cp is null")).rows).toEqual([{ count: 3 }]);
     expect((await db.query("select count(*)::int count from public.pf2e_equipment_references where aon_url like '%Category=%'")).rows).toEqual([{ count: 0 }]);
+    const weaponMigration = readFileSync("supabase/migrations/20260912040000_weapon_characteristics.sql", "utf8");
+    const pricesBefore = (await db.query("select id, price_cp from public.pf2e_equipment_references order by id")).rows;
+    await db.exec(weaponMigration);
+    const weaponRows = (await db.query("select * from public.pf2e_equipment_references order by id")).rows;
+    await db.exec(weaponMigration);
+    expect((await db.query("select * from public.pf2e_equipment_references order by id")).rows).toEqual(weaponRows);
+    expect((await db.query("select id, price_cp from public.pf2e_equipment_references order by id")).rows).toEqual(pricesBefore);
+    expect((await db.query("select count(*)::int count from public.pf2e_equipment_references where equipment_kind = 'weapon' and weapon_range_type is null")).rows).toEqual([{ count: 0 }]);
+    expect((await db.query("select count(*)::int count from public.pf2e_equipment_references where weapon_range_type = 'both'")).rows).toEqual([{ count: 18 }]);
+    expect((await db.query("select jsonb_array_length(weapon_details_verification->'modes') modes from public.pf2e_equipment_references where name_en = 'Triggerbrand'")).rows).toEqual([{ modes: 2 }]);
     const snapshot = JSON.parse(readFileSync("src/lib/equipmentCatalog.snapshot.json", "utf8")) as { name_en: string; price_cp: number | null; weapon_range_type: string | null }[];
     expect(snapshot).toHaveLength(563);
     const stored = (await db.query<{ name_en: string; price_cp: number | null; weapon_range_type: string | null }>("select name_en, price_cp::int price_cp, weapon_range_type from public.pf2e_equipment_references")).rows;

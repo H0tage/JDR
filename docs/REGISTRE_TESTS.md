@@ -4,7 +4,13 @@ Ce document est une lecture humaine des tests automatiques du projet.
 
 Il est mis à jour à chaque ajout, suppression ou modification importante d'un test. Les intitulés décrivent le comportement vérifié, pas l'implémentation technique.
 
-État au 12 septembre 2026 : **82 tests**, répartis dans 23 fichiers.
+État au 12 septembre 2026 : **84 tests**, répartis dans 24 fichiers.
+
+## Caractéristiques des armes
+
+- Les 209 armes sont classées ; les 18 armes combinées apparaissent dans les deux filtres, sans duplication d’objets.
+- Le trait Thrown d’une arme de mêlée ne la transforme pas en arme combinée.
+- L’import des caractéristiques est réexécutable, conserve identifiants/prix et sauvegarde les caractéristiques distinctes de chaque mode.
 
 ## Achat boutique
 

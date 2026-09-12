@@ -15,7 +15,13 @@ it("sélectionne une arme à distance sans acheter et recalcule le prix sauf aju
   await waitFor(() => container.querySelector(".shop-results button"));
   const filter = container.querySelector<HTMLSelectElement>(".shop-filters select")!;
   await act(async () => { filter.value = "ranged"; filter.dispatchEvent(new Event("change", { bubbles: true })); });
-  expect(container.querySelector(".shop-results")!.textContent).not.toContain("Dagger");
+  const rangedNames = [...container.querySelectorAll(".shop-results strong")].map(node => node.textContent);
+  expect(rangedNames).not.toContain("Dagger");
+  expect(rangedNames).toContain("Dagger Pistol");
+  expect(rangedNames).toContain("Triggerbrand");
+  await act(async () => { filter.value = "melee"; filter.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect([...container.querySelectorAll(".shop-results strong")].map(node => node.textContent)).toContain("Triggerbrand");
+  await act(async () => { filter.value = "ranged"; filter.dispatchEvent(new Event("change", { bubbles: true })); });
   const longbow = [...container.querySelectorAll<HTMLButtonElement>(".shop-results button")].find(node => node.querySelector("strong")?.textContent === "Longbow")!;
   await act(async () => longbow.click());
   expect(container.querySelector<HTMLInputElement>('input[placeholder="Nom de l’objet"]')!.value).toBe("Longbow");

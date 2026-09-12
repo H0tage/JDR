@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { loadEquipmentCatalog, type EquipmentReference } from "../lib/equipmentCatalog";
+import { loadEquipmentCatalog, matchesWeaponRange, type EquipmentReference } from "../lib/equipmentCatalog";
 import { formatCopper } from "../lib/playerEconomyApi";
 
 const tabs = [["manual", "Créer un objet"], ["weapon", "Choisir une arme"], ["armor", "Choisir une armure"], ["consumable", "Choisir un élixir / une potion"]] as const;
@@ -20,7 +20,7 @@ export function ShopCatalog({ onSelect }: { onSelect: (item: EquipmentReference)
   const categoryItems = useMemo(() => (items ?? []).filter(item => tab === "armor" ? ["armor", "shield"].includes(item.equipment_kind) : item.equipment_kind === tab), [items, tab]);
   const choices = tab === "weapon" ? [["melee", "Corps à corps"], ["ranged", "Distance"]] : tab === "consumable" ? [["Potion", "Potions"], ["Élixir", "Élixirs"], ["Huile", "Huiles"]] : [...new Set(categoryItems.map(item => item.category || (item.equipment_kind === "shield" ? "Boucliers" : "Autres")))].sort().map(value => [value, value]);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const results = categoryItems.filter(item => normalize(item.name_en).includes(normalize(search)) && (!filter || (tab === "weapon" ? item.weapon_range_type : tab === "consumable" ? item.item_type : item.category || (item.equipment_kind === "shield" ? "Boucliers" : "Autres")) === filter)).sort((a, b) => a.name_en.localeCompare(b.name_en));
+  const results = categoryItems.filter(item => normalize(item.name_en).includes(normalize(search)) && (!filter || (tab === "weapon" ? matchesWeaponRange(item, filter) : (tab === "consumable" ? item.item_type : item.category || (item.equipment_kind === "shield" ? "Boucliers" : "Autres")) === filter))).sort((a, b) => a.name_en.localeCompare(b.name_en));
   return <section className="shop-catalog" aria-label="Choix de l’objet à acheter">
     <nav className="shop-tabs" aria-label="Mode d’achat">{tabs.map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => { setTab(key); setFilter(""); setSearch(""); }}>{label}</button>)}</nav>
     <small className="shop-availability">Disponibilité selon la scène jouée et l’accord du MJ.</small>
