@@ -31,9 +31,23 @@ it("importe 338 consommables sans doublon, préserve les armes et distingue prix
     expect((await db.query("select armor_class_bonus from public.pf2e_equipment_references where name_en = 'Tower shield'")).rows).toEqual([{ armor_class_bonus: "+2 / +4 avec Take Cover" }]);
     await db.exec(details);
     expect((await db.query("select * from public.pf2e_equipment_references order by id")).rows).toEqual(enriched);
+    const verifiedMigration = readFileSync("supabase/migrations/20260912030000_verified_aon_prices.sql", "utf8");
+    await db.exec(verifiedMigration);
+    const verifiedRows = (await db.query<{ id: string }>("select * from public.pf2e_equipment_references order by id")).rows;
+    expect(verifiedRows.map(row => row.id)).toEqual(before.map(row => row.id));
+    await db.exec(verifiedMigration);
+    expect((await db.query("select * from public.pf2e_equipment_references order by id")).rows).toEqual(verifiedRows);
+    expect((await db.query("select name_en, price_cp::int price from public.pf2e_equipment_references where name_en in ('Energy Mutagen (Lesser)', 'Merciful Balm', 'Oil of Potency (Greater)', 'Bottled Catharsis (Moderate)') order by name_en")).rows).toEqual([
+      { name_en: "Bottled Catharsis (Moderate)", price: 7500 },
+      { name_en: "Energy Mutagen (Lesser)", price: 40 },
+      { name_en: "Merciful Balm", price: 500 },
+      { name_en: "Oil of Potency (Greater)", price: 40000 },
+    ]);
+    expect((await db.query("select count(*)::int count from public.pf2e_equipment_references where price_cp is null")).rows).toEqual([{ count: 3 }]);
+    expect((await db.query("select count(*)::int count from public.pf2e_equipment_references where aon_url like '%Category=%'")).rows).toEqual([{ count: 0 }]);
     const snapshot = JSON.parse(readFileSync("src/lib/equipmentCatalog.snapshot.json", "utf8")) as { name_en: string; price_cp: number | null; weapon_range_type: string | null }[];
     expect(snapshot).toHaveLength(563);
     const stored = (await db.query<{ name_en: string; price_cp: number | null; weapon_range_type: string | null }>("select name_en, price_cp::int price_cp, weapon_range_type from public.pf2e_equipment_references")).rows;
     for (const item of snapshot) expect(stored.find(row => row.name_en === item.name_en), item.name_en).toEqual({ name_en: item.name_en, price_cp: item.price_cp, weapon_range_type: item.weapon_range_type });
   } finally { await db.close(); }
-});
+}, 30000);

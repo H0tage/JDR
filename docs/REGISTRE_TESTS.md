@@ -14,6 +14,8 @@ Il est mis à jour à chaque ajout, suppression ou modification importante d'un 
 
 ## Catalogue des consommables
 
+- L’enrichissement AoN conserve les 563 identifiants et reste réexécutable. Il privilégie les tarifs Legacy, utilise le Remaster pour les variantes sans équivalent Legacy, ne confond pas une huile supérieure avec la version de base et conserve les trois prix non publiés comme inconnus. Tous les liens renvoient à une fiche individuelle. Le catalogue de secours correspond aux nouveaux prix.
+
 - L’enrichissement des armes/armures/boucliers conserve les 30 colonnes du CSV pour chacun des 225 objets, sans changer les identifiants ni créer de doublon. Vérifie mêlée/distance, dégâts, traits et bonus défensifs complexes ; les consommables restent inchangés.
 
 - L’import ajoute 338 potions, huiles et élixirs aux 225 références existantes, conserve types/niveaux/raretés et les anciennes armes, convertit les prix composés et garde les deux prix absents non renseignés. Réexécuter l’import ne crée pas de doublon et conserve les identifiants.
